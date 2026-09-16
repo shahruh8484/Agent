@@ -83,6 +83,35 @@ class CampaignPlan(BaseModel):
     payloads: list[dict] = Field(default_factory=list)
 
 
+class DailyInsight(BaseModel):
+    """One day of performance data for a single ad account."""
+
+    date: str
+    spend: float
+    clicks: int
+    impressions: int
+    leads: int
+    ctr: float
+    cpc: float
+    cpl: Optional[float] = None
+
+
+class AccountInsightsSummary(BaseModel):
+    """Daily breakdown plus period totals for one ad account, for the dashboard."""
+
+    account_id: str
+    account_name: Optional[str] = None
+    date_preset: str
+    daily: list[DailyInsight] = Field(default_factory=list)
+    total_spend: float = 0.0
+    total_clicks: int = 0
+    total_impressions: int = 0
+    total_leads: int = 0
+    avg_ctr: float = 0.0
+    avg_cpc: float = 0.0
+    avg_cpl: Optional[float] = None
+
+
 class PipelineResult(BaseModel):
     product: ProductInput
     competitor_ads: list[CompetitorAd] = Field(default_factory=list)

@@ -1,0 +1,121 @@
+"""FastAPI dashboard: login-protected view of daily clicks, spend, leads
+and per-account analytics, backed by the Facebook Marketing API Insights
+endpoint.
+
+Run locally with:
+    python -m fbadsagent.web
+
+See fbadsagent/web/security.py to generate ADMIN_PASSWORD_HASH, and the
+README for deploying this behind a domain with HTTPS.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+from fastapi import FastAPI, Form, Request
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
+
+from fbadsagent.config import Settings, get_settings
+from fbadsagent.web.insights_client import FacebookInsightsClient, InsightsError
+from fbadsagent.web.security import verify_password
+
+TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+DATE_PRESETS = [
+    ("today", "Today"),
+    ("yesterday", "Yesterday"),
+    ("last_7d", "Last 7 days"),
+    ("last_14d", "Last 14 days"),
+    ("last_30d", "Last 30 days"),
+    ("last_90d", "Last 90 days"),
+    ("this_month", "This month"),
+    ("last_month", "Last month"),
+]
+
+
+def create_app(
+    settings: Settings | None = None,
+    insights_client: FacebookInsightsClient | None = None,
+) -> FastAPI:
+    settings = settings or get_settings()
+    if not settings.secret_key:
+        raise RuntimeError(
+            "SECRET_KEY is not set. Add a long random value to .env — it signs the "
+            "dashboard's login session cookies. Generate one with: "
+            "python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
+
+    insights_client = insights_client or FacebookInsightsClient(settings)
+
+    app = FastAPI(title="Facebook Ads Agent Dashboard")
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.secret_key,
+        same_site="lax",
+        https_only=settings.session_https_only,
+    )
+    templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+    def is_authenticated(request: Request) -> bool:
+        return bool(request.session.get("authenticated"))
+
+    @app.get("/login")
+    def login_form(request: Request):
+        if is_authenticated(request):
+            return RedirectResponse("/", status_code=302)
+        return templates.TemplateResponse(request, "login.html", {"error": None})
+
+    @app.post("/login")
+    def login_submit(request: Request, username: str = Form(...), password: str = Form(...)):
+        valid = username == settings.admin_username and verify_password(
+            password, settings.admin_password_hash
+        )
+        if not valid:
+            return templates.TemplateResponse(
+                request,
+                "login.html",
+                {"error": "Invalid username or password"},
+                status_code=401,
+            )
+        request.session["authenticated"] = True
+        request.session["user"] = username
+        return RedirectResponse("/", status_code=302)
+
+    @app.get("/logout")
+    def logout(request: Request):
+        request.session.clear()
+        return RedirectResponse("/login", status_code=302)
+
+    @app.get("/")
+    def dashboard(request: Request):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        return templates.TemplateResponse(
+            request,
+            "dashboard.html",
+            {
+                "user": request.session.get("user"),
+                "accounts": settings.fb_ad_account_ids_list(),
+                "date_presets": DATE_PRESETS,
+            },
+        )
+
+    @app.get("/api/accounts")
+    def api_accounts(request: Request):
+        if not is_authenticated(request):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        return JSONResponse({"accounts": settings.fb_ad_account_ids_list()})
+
+    @app.get("/api/insights")
+    def api_insights(request: Request, account_id: str, date_preset: str = "last_30d"):
+        if not is_authenticated(request):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        try:
+            summary = insights_client.get_account_insights(account_id, date_preset)
+        except InsightsError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(summary.model_dump())
+
+    return app

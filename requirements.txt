@@ -8,5 +8,12 @@ facebook-business>=20.0.0
 anthropic>=0.34
 openai>=1.40
 
+fastapi>=0.115
+uvicorn[standard]>=0.30
+itsdangerous>=2.2
+bcrypt>=4.2
+python-multipart>=0.0.9
+
 pytest>=8.0
 pytest-mock>=3.14
+httpx>=0.27

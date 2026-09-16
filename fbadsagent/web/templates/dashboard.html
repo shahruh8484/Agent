@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ads Agent Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #0f1420;
+    color: #e8eaf0;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid #232a3d;
+  }
+  header h1 { font-size: 1.15rem; margin: 0; }
+  header a { color: #a3adc2; text-decoration: none; font-size: 0.9rem; }
+  header a:hover { color: #e8eaf0; }
+  main { padding: 24px 28px 48px; max-width: 1100px; margin: 0 auto; }
+  .controls { display: flex; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; }
+  select {
+    background: #171d2b;
+    color: #e8eaf0;
+    border: 1px solid #2c3550;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 0.95rem;
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .card {
+    background: #171d2b;
+    border: 1px solid #232a3d;
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .card .label { font-size: 0.78rem; color: #a3adc2; margin-bottom: 6px; }
+  .card .value { font-size: 1.4rem; font-weight: 700; }
+  .charts { display: grid; gap: 24px; }
+  .chart-box {
+    background: #171d2b;
+    border: 1px solid #232a3d;
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .chart-box h2 { font-size: 0.95rem; margin: 0 0 14px; color: #c3cadb; }
+  .empty, .error { color: #a3adc2; padding: 40px; text-align: center; }
+  .error { color: #ff9b9b; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ads Agent Dashboard</h1>
+  <div>
+    <span style="color:#a3adc2; font-size:0.9rem; margin-right:14px;">{{ user }}</span>
+    <a href="/logout">Log out</a>
+  </div>
+</header>
+<main>
+  {% if not accounts %}
+  <div class="empty">
+    No ad accounts configured. Set FB_AD_ACCOUNT_IDS (comma-separated act_... ids) in .env.
+  </div>
+  {% else %}
+  <div class="controls">
+    <select id="account-select">
+      {% for acc in accounts %}
+      <option value="{{ acc }}">{{ acc }}</option>
+      {% endfor %}
+    </select>
+    <select id="preset-select">
+      {% for value, label in date_presets %}
+      <option value="{{ value }}" {% if value == "last_30d" %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div id="status"></div>
+
+  <div class="cards" id="cards" style="display:none;">
+    <div class="card"><div class="label">Total spend</div><div class="value" id="c-spend">-</div></div>
+    <div class="card"><div class="label">Total clicks</div><div class="value" id="c-clicks">-</div></div>
+    <div class="card"><div class="label">Total leads</div><div class="value" id="c-leads">-</div></div>
+    <div class="card"><div class="label">Impressions</div><div class="value" id="c-impr">-</div></div>
+    <div class="card"><div class="label">Avg. CPC</div><div class="value" id="c-cpc">-</div></div>
+    <div class="card"><div class="label">Avg. CPL</div><div class="value" id="c-cpl">-</div></div>
+    <div class="card"><div class="label">Avg. CTR</div><div class="value" id="c-ctr">-</div></div>
+  </div>
+
+  <div class="charts" id="charts" style="display:none;">
+    <div class="chart-box"><h2>Daily spend</h2><canvas id="chart-spend" height="90"></canvas></div>
+    <div class="chart-box"><h2>Daily clicks</h2><canvas id="chart-clicks" height="90"></canvas></div>
+    <div class="chart-box"><h2>Daily leads</h2><canvas id="chart-leads" height="90"></canvas></div>
+  </div>
+  {% endif %}
+</main>
+
+<script>
+const accountSelect = document.getElementById('account-select');
+const presetSelect = document.getElementById('preset-select');
+const statusEl = document.getElementById('status');
+const cardsEl = document.getElementById('cards');
+const chartsEl = document.getElementById('charts');
+let charts = {};
+
+function fmtMoney(n) { return '$' + Number(n).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+function fmtInt(n) { return Number(n).toLocaleString(); }
+
+function renderLineChart(id, labels, data, color) {
+  if (charts[id]) charts[id].destroy();
+  const ctx = document.getElementById(id).getContext('2d');
+  charts[id] = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets: [{ data, borderColor: color, backgroundColor: color + '33', fill: true, tension: 0.25, pointRadius: 2 }] },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#a3adc2' }, grid: { color: '#232a3d' } },
+        y: { ticks: { color: '#a3adc2' }, grid: { color: '#232a3d' }, beginAtZero: true },
+      },
+    },
+  });
+}
+
+async function loadInsights() {
+  const accountId = accountSelect.value;
+  const datePreset = presetSelect.value;
+  if (!accountId) return;
+
+  statusEl.textContent = 'Loading...';
+  statusEl.className = '';
+  cardsEl.style.display = 'none';
+  chartsEl.style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/insights?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(datePreset)}`);
+    const data = await res.json();
+    if (!res.ok) {
+      statusEl.textContent = data.error || 'Failed to load insights.';
+      statusEl.className = 'error';
+      return;
+    }
+
+    statusEl.textContent = '';
+    cardsEl.style.display = 'grid';
+    chartsEl.style.display = 'grid';
+
+    document.getElementById('c-spend').textContent = fmtMoney(data.total_spend);
+    document.getElementById('c-clicks').textContent = fmtInt(data.total_clicks);
+    document.getElementById('c-leads').textContent = fmtInt(data.total_leads);
+    document.getElementById('c-impr').textContent = fmtInt(data.total_impressions);
+    document.getElementById('c-cpc').textContent = fmtMoney(data.avg_cpc);
+    document.getElementById('c-cpl').textContent = data.avg_cpl != null ? fmtMoney(data.avg_cpl) : '-';
+    document.getElementById('c-ctr').textContent = data.avg_ctr + '%';
+
+    const labels = data.daily.map(d => d.date);
+    renderLineChart('chart-spend', labels, data.daily.map(d => d.spend), '#4c6ef5');
+    renderLineChart('chart-clicks', labels, data.daily.map(d => d.clicks), '#51cf66');
+    renderLineChart('chart-leads', labels, data.daily.map(d => d.leads), '#ff922b');
+  } catch (err) {
+    statusEl.textContent = 'Failed to load insights: ' + err;
+    statusEl.className = 'error';
+  }
+}
+
+if (accountSelect) {
+  accountSelect.addEventListener('change', loadInsights);
+  presetSelect.addEventListener('change', loadInsights);
+  loadInsights();
+}
+</script>
+</body>
+</html>

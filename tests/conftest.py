@@ -18,6 +18,18 @@ def settings(tmp_path):
 
 
 @pytest.fixture
+def web_settings(settings):
+    from fbadsagent.web.security import hash_password
+
+    settings.secret_key = "test-secret-key"
+    settings.admin_username = "admin"
+    settings.admin_password_hash = hash_password("correct-horse")
+    settings.session_https_only = False  # TestClient talks plain http
+    settings.fb_ad_account_ids = "act_111,act_222"
+    return settings
+
+
+@pytest.fixture
 def product():
     return ProductInput(
         name="Wireless Earbuds Pro",
