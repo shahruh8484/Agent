@@ -175,6 +175,22 @@ Any other network name just stores credentials — pulling data for it
 needs a client written against that network's own docs, following
 `traffhub.py`/`insights_client.py` as a pattern.
 
+### Creatives page
+
+Sidebar → **Creatives** generates ad copy + an image per variant from a
+product name/description/price, using the same modules the CLI pipeline
+uses (`fbadsagent/llm/copywriter.py`, `fbadsagent/creatives/image_generator.py`),
+and stores the results as a browsable gallery (`data/creative_sets.json`;
+images under `data/creatives/`, served at `/creative-assets/...`).
+
+Needs `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY` with `LLM_PROVIDER=openai`)
+to write copy — without one, generation fails with a clear error shown on
+the page rather than a crash. Images use `IMAGE_PROVIDER=stub` by default
+(placeholder, no cost); set `IMAGE_PROVIDER=openai` for real ones. This
+page skips the competitor-research step the CLI pipeline does — it's a
+quicker "just generate creatives" path, not a replacement for the full
+`python -m fbadsagent.main` pipeline.
+
 ### Landing Pages page
 
 Sidebar → **Landing Pages** publishes lead-capture pages, each with a
@@ -235,7 +251,7 @@ page is the source of truth.
 pytest
 ```
 
-All 62 tests run offline — network calls (Ad Library, Insights API,
+All 70 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
 and the dashboard is tested through FastAPI's `TestClient`.
 

@@ -90,6 +90,16 @@ class TrackedAccount(BaseModel):
     name: str = ""
 
 
+class SavedCreativeSet(BaseModel):
+    """A generated batch of ad creatives, stored for browsing/reuse."""
+
+    id: str
+    product_name: str
+    created_at: str
+    creatives: list[AdCreativeCopy] = Field(default_factory=list)
+    images: list[GeneratedImage] = Field(default_factory=list)
+
+
 class LandingPageConfig(BaseModel):
     """A published landing page: content plus where its leads go."""
 

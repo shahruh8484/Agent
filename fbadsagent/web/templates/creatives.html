@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Creatives — Ads Agent Dashboard</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #0f1420;
+    color: #e8eaf0;
+  }
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: #12161f;
+    border-right: 1px solid #232a3d;
+    padding: 20px 0;
+  }
+  .sidebar .brand { font-weight: 700; font-size: 1rem; padding: 0 20px 22px; }
+  .sidebar .nav-item {
+    display: block;
+    padding: 11px 20px;
+    color: #a3adc2;
+    text-decoration: none;
+    font-size: 0.92rem;
+    border-left: 3px solid transparent;
+  }
+  .sidebar .nav-item:hover { color: #e8eaf0; }
+  .sidebar .nav-item.active { color: #fff; background: #1c2333; border-left-color: #4c6ef5; }
+  .content { flex: 1; min-width: 0; }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid #232a3d;
+  }
+  header h1 { font-size: 1.15rem; margin: 0; }
+  header a { color: #a3adc2; text-decoration: none; font-size: 0.9rem; }
+  header a:hover { color: #e8eaf0; }
+  main { padding: 24px 28px 48px; max-width: 900px; margin: 0 auto; }
+  section {
+    background: #171d2b;
+    border: 1px solid #232a3d;
+    border-radius: 12px;
+    padding: 20px 22px;
+    margin-bottom: 24px;
+  }
+  section h2 { font-size: 1rem; margin: 0 0 6px; }
+  section p.hint { color: #a3adc2; font-size: 0.85rem; margin: 0 0 16px; }
+  label { display: block; font-size: 0.85rem; color: #a3adc2; margin-bottom: 6px; }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #2c3550;
+    background: #10141f;
+    color: #e8eaf0;
+    font-size: 0.95rem;
+  }
+  .grid-form { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .field { margin-bottom: 12px; }
+  button {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 8px;
+    background: #4c6ef5;
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  button:hover { background: #3f5cdb; }
+  button.danger { background: #3a1a1a; color: #ff9b9b; padding: 6px 12px; font-weight: 500; }
+  button.danger:hover { background: #4a2222; }
+  .error { background: #3a1a1a; border: 1px solid #6b2b2b; color: #ff9b9b; padding: 10px 12px; border-radius: 8px; margin-bottom: 18px; font-size: 0.88rem; }
+  .set-block { margin-bottom: 32px; }
+  .set-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .set-header h3 { margin: 0; font-size: 0.95rem; }
+  .set-header .meta { color: #a3adc2; font-size: 0.8rem; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+  .card {
+    background: #171d2b;
+    border: 1px solid #232a3d;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .card img { width: 100%; height: 140px; object-fit: cover; background: #0a0d14; display: block; }
+  .card-body { padding: 14px; }
+  .card-body .headline { font-weight: 600; margin-bottom: 6px; font-size: 0.92rem; }
+  .card-body .primary { color: #a3adc2; font-size: 0.82rem; margin-bottom: 8px; line-height: 1.4; }
+  .card-body .cta { display: inline-block; background: #232a3d; color: #c3cadb; font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; }
+  .empty { color: #a3adc2; padding: 30px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Ads Agent</div>
+  <a class="nav-item" href="/">Dashboard</a>
+  <a class="nav-item" href="/accounts">FB Accounts</a>
+  <a class="nav-item" href="/cpa-networks">CPA Networks</a>
+  <a class="nav-item" href="/landing-pages">Landing Pages</a>
+  <a class="nav-item active" href="/creatives">Creatives</a>
+</nav>
+<div class="content">
+<header>
+  <h1>Creatives</h1>
+  <div>
+    <span style="color:#a3adc2; font-size:0.9rem; margin-right:14px;">{{ user }}</span>
+    <a href="/logout">Log out</a>
+  </div>
+</header>
+<main>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  <section>
+    <h2>Generate creatives</h2>
+    <p class="hint">
+      Writes ad copy with your configured LLM (ANTHROPIC_API_KEY/OPENAI_API_KEY)
+      and generates an image per variant (IMAGE_PROVIDER — stub by default,
+      openai for real images).
+    </p>
+    <form method="post" action="/creatives/generate">
+      <div class="grid-form">
+        <div class="field">
+          <label for="product_name">Product name</label>
+          <input id="product_name" name="product_name" type="text" placeholder="Wireless Earbuds Pro" required>
+        </div>
+        <div class="field">
+          <label for="price">Price</label>
+          <input id="price" name="price" type="number" step="0.01" placeholder="49.99">
+        </div>
+        <div class="field">
+          <label for="variant_count">Variants</label>
+          <input id="variant_count" name="variant_count" type="number" min="1" max="5" value="3">
+        </div>
+      </div>
+      <div class="field">
+        <label for="description">Description</label>
+        <input id="description" name="description" type="text" placeholder="Noise-cancelling wireless earbuds with 40h battery life" required>
+      </div>
+      <button type="submit">Generate</button>
+    </form>
+  </section>
+
+  {% if not sets %}
+  <div class="empty">No creatives generated yet.</div>
+  {% endif %}
+
+  {% for set in sets %}
+  <div class="set-block">
+    <div class="set-header">
+      <h3>{{ set.product_name }}</h3>
+      <div class="meta">
+        {{ set.created_at }}
+        <form method="post" action="/creatives/delete" style="display:inline; margin-left:10px;">
+          <input type="hidden" name="set_id" value="{{ set.id }}">
+          <button type="submit" class="danger">Remove</button>
+        </form>
+      </div>
+    </div>
+    <div class="cards">
+      {% for creative in set.creatives %}
+      {% set image = (set.images | selectattr('variant_id', 'equalto', creative.variant_id) | list | first) %}
+      <div class="card">
+        {% if image %}
+        <img src="/creative-assets/{{ image.path.split('/')[-1] }}" alt="{{ creative.headline }}">
+        {% endif %}
+        <div class="card-body">
+          <div class="headline">{{ creative.headline }}</div>
+          <div class="primary">{{ creative.primary_text }}</div>
+          <span class="cta">{{ creative.call_to_action }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</main>
+</div>
+</div>
+</body>
+</html>

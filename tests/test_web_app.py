@@ -1,8 +1,11 @@
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
 from fbadsagent.models import AccountInsightsSummary, DailyInsight
 from fbadsagent.web.app import create_app
+from tests.conftest import FakeLLM
 
 
 class FakeInsightsClient:
@@ -365,6 +368,103 @@ def test_submit_lead_traffhub_error_returns_502(web_settings, mocker):
     )
     assert response.status_code == 502
     assert response.json()["success"] is False
+
+
+def test_creatives_page_requires_login(web_settings):
+    client = build_client(web_settings)
+    response = client.get("/creatives", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/login"
+
+
+def test_generate_creatives_success(web_settings, mocker):
+    fake_llm = FakeLLM(
+        response=json.dumps(
+            [
+                {
+                    "primary_text": "40 hours of pure sound.",
+                    "headline": "All-Day Battery",
+                    "description": "Shop now",
+                    "call_to_action": "SHOP_NOW",
+                    "image_prompt": "earbuds on charging case",
+                }
+            ]
+        )
+    )
+    mocker.patch("fbadsagent.web.app.get_llm_provider", return_value=fake_llm)
+
+    client = build_client(web_settings)
+    login(client)
+
+    response = client.post(
+        "/creatives/generate",
+        data={
+            "product_name": "Wireless Earbuds Pro",
+            "description": "Noise-cancelling earbuds",
+            "price": "49.99",
+            "variant_count": "1",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    page = client.get("/creatives")
+    assert "Wireless Earbuds Pro" in page.text
+    assert "All-Day Battery" in page.text
+    assert "/creative-assets/" in page.text
+
+    # the generated image is actually being served
+    import re
+
+    match = re.search(r'/creative-assets/[\w.-]+\.png', page.text)
+    assert match is not None
+    image_response = client.get(match.group(0))
+    assert image_response.status_code == 200
+
+
+def test_generate_creatives_llm_error_shows_message(web_settings, mocker):
+    from fbadsagent.llm.provider import LLMError
+
+    mocker.patch("fbadsagent.web.app.get_llm_provider", side_effect=LLMError("no api key"))
+
+    client = build_client(web_settings)
+    login(client)
+
+    response = client.post(
+        "/creatives/generate",
+        data={"product_name": "Widget", "description": "A widget", "variant_count": "1"},
+    )
+    assert response.status_code == 400
+    assert "no api key" in response.text
+
+
+def test_delete_creative_set(web_settings, mocker):
+    fake_llm = FakeLLM(
+        response=json.dumps(
+            [{"primary_text": "x", "headline": "x", "description": "x", "call_to_action": "SHOP_NOW", "image_prompt": "x"}]
+        )
+    )
+    mocker.patch("fbadsagent.web.app.get_llm_provider", return_value=fake_llm)
+
+    client = build_client(web_settings)
+    login(client)
+    client.post(
+        "/creatives/generate",
+        data={"product_name": "Widget", "description": "A widget", "variant_count": "1"},
+    )
+
+    page = client.get("/creatives")
+    import re
+
+    set_id_match = re.search(r'name="set_id" value="(\w+)"', page.text)
+    assert set_id_match is not None
+
+    remove = client.post(
+        "/creatives/delete", data={"set_id": set_id_match.group(1)}, follow_redirects=False
+    )
+    assert remove.status_code == 302
+    page_after = client.get("/creatives")
+    assert "No creatives generated yet" in page_after.text
 
 
 def test_update_access_token_reflected_in_status(web_settings):

@@ -10,19 +10,26 @@ README for deploying this behind a domain with HTTPS.
 """
 from __future__ import annotations
 
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
 from fbadsagent.config import Settings, get_settings
+from fbadsagent.creatives.image_generator import ImageGenerationError, generate_images
 from fbadsagent.integrations.traffhub import TraffHubClient, TraffHubError
-from fbadsagent.models import LandingPageConfig
+from fbadsagent.llm.copywriter import generate_ad_variants
+from fbadsagent.llm.provider import LLMError, get_llm_provider
+from fbadsagent.models import CompetitorInsights, LandingPageConfig, ProductInput, SavedCreativeSet
 from fbadsagent.web.account_store import AccountStore
 from fbadsagent.web.cpa_store import CpaNetworkStore
+from fbadsagent.web.creative_store import CreativeStore
 from fbadsagent.web.insights_client import FacebookInsightsClient, InsightsError
 from fbadsagent.web.landing_store import LandingPageStore, slugify
 from fbadsagent.web.security import verify_password
@@ -52,6 +59,7 @@ def create_app(
     account_store: AccountStore | None = None,
     cpa_store: CpaNetworkStore | None = None,
     landing_store: LandingPageStore | None = None,
+    creative_store: CreativeStore | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     if not settings.secret_key:
@@ -69,6 +77,12 @@ def create_app(
     )
     cpa_store = cpa_store or CpaNetworkStore(Path(settings.data_dir) / "cpa_networks.json")
     landing_store = landing_store or LandingPageStore(Path(settings.data_dir) / "landing_pages.json")
+    creative_store = creative_store or CreativeStore(Path(settings.data_dir) / "creative_sets.json")
+    # image_generator writes to <output_dir>/creatives/*.png — point output_dir
+    # at data_dir so generated images land in the same place this mounts.
+    creative_assets_settings = settings.model_copy(update={"output_dir": settings.data_dir})
+    creatives_dir = Path(settings.data_dir) / "creatives"
+    creatives_dir.mkdir(parents=True, exist_ok=True)
 
     app = FastAPI(title="Facebook Ads Agent Dashboard")
     app.add_middleware(
@@ -78,6 +92,7 @@ def create_app(
         https_only=settings.session_https_only,
     )
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+    app.mount("/creative-assets", StaticFiles(directory=str(creatives_dir)), name="creative-assets")
 
     def is_authenticated(request: Request) -> bool:
         return bool(request.session.get("authenticated"))
@@ -322,6 +337,68 @@ def create_app(
             return JSONResponse({"success": False, "error": str(exc)}, status_code=502)
 
         return JSONResponse({"success": True})
+
+    @app.get("/creatives")
+    def creatives_page(request: Request, error: str | None = None):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        return templates.TemplateResponse(
+            request,
+            "creatives.html",
+            {
+                "user": request.session.get("user"),
+                "sets": creative_store.list_sets(),
+                "error": error,
+            },
+        )
+
+    @app.post("/creatives/generate")
+    def generate_creatives(
+        request: Request,
+        product_name: str = Form(...),
+        description: str = Form(...),
+        price: float | None = Form(None),
+        variant_count: int = Form(3),
+    ):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+
+        product = ProductInput(name=product_name, description=description, price=price)
+        variant_count = max(1, min(variant_count, 5))
+
+        try:
+            llm = get_llm_provider(settings)
+            creatives = generate_ad_variants(llm, product, CompetitorInsights(), n=variant_count)
+            images = generate_images(creative_assets_settings, creatives)
+        except (LLMError, ImageGenerationError) as exc:
+            return templates.TemplateResponse(
+                request,
+                "creatives.html",
+                {
+                    "user": request.session.get("user"),
+                    "sets": creative_store.list_sets(),
+                    "error": str(exc),
+                },
+                status_code=400,
+            )
+
+        creative_store.add_set(
+            SavedCreativeSet(
+                id=uuid.uuid4().hex[:12],
+                product_name=product_name,
+                created_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+                creatives=creatives,
+                images=images,
+            )
+        )
+        return RedirectResponse("/creatives", status_code=302)
+
+    @app.post("/creatives/delete")
+    def delete_creative_set(request: Request, set_id: str = Form(...)):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        creative_store.remove_set(set_id)
+        return RedirectResponse("/creatives", status_code=302)
 
     @app.get("/api/accounts")
     def api_accounts(request: Request):
