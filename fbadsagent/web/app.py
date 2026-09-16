@@ -19,6 +19,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from fbadsagent.config import Settings, get_settings
 from fbadsagent.web.account_store import AccountStore
+from fbadsagent.web.cpa_store import CpaNetworkStore
 from fbadsagent.web.insights_client import FacebookInsightsClient, InsightsError
 from fbadsagent.web.security import verify_password
 
@@ -40,6 +41,7 @@ def create_app(
     settings: Settings | None = None,
     insights_client: FacebookInsightsClient | None = None,
     account_store: AccountStore | None = None,
+    cpa_store: CpaNetworkStore | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     if not settings.secret_key:
@@ -55,6 +57,7 @@ def create_app(
         seed_access_token=settings.fb_access_token,
         seed_account_ids=settings.fb_ad_account_ids_list(),
     )
+    cpa_store = cpa_store or CpaNetworkStore(Path(settings.data_dir) / "cpa_networks.json")
 
     app = FastAPI(title="Facebook Ads Agent Dashboard")
     app.add_middleware(
@@ -146,6 +149,38 @@ def create_app(
             return RedirectResponse("/login", status_code=302)
         account_store.remove_account(account_id)
         return RedirectResponse("/accounts", status_code=302)
+
+    @app.get("/cpa-networks")
+    def cpa_networks_page(request: Request):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        return templates.TemplateResponse(
+            request,
+            "cpa_networks.html",
+            {
+                "user": request.session.get("user"),
+                "networks": cpa_store.list_networks(),
+            },
+        )
+
+    @app.post("/cpa-networks/add")
+    def add_cpa_network(
+        request: Request,
+        name: str = Form(...),
+        base_url: str = Form(""),
+        api_key: str = Form(""),
+    ):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        cpa_store.add_network(name, base_url, api_key)
+        return RedirectResponse("/cpa-networks", status_code=302)
+
+    @app.post("/cpa-networks/delete")
+    def delete_cpa_network(request: Request, name: str = Form(...)):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        cpa_store.remove_network(name)
+        return RedirectResponse("/cpa-networks", status_code=302)
 
     @app.get("/api/accounts")
     def api_accounts(request: Request):

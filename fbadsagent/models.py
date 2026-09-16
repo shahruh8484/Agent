@@ -90,6 +90,16 @@ class TrackedAccount(BaseModel):
     name: str = ""
 
 
+class CpaNetworkCredential(BaseModel):
+    """Credentials for a CPA/offer network (e.g. traff-hub.com) — stored so a
+    future sync job can pull offers from it. No fetching logic yet; this is
+    just where the credentials live once you're ready to wire it up."""
+
+    name: str
+    base_url: str = ""
+    api_key: str = ""
+
+
 class DailyInsight(BaseModel):
     """One day of performance data for a single ad account."""
 

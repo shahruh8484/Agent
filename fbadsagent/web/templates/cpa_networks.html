@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FB Accounts — Ads Agent Dashboard</title>
+<title>CPA Networks — Ads Agent Dashboard</title>
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
@@ -82,10 +82,16 @@
   th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #232a3d; font-size: 0.9rem; }
   th { color: #a3adc2; font-weight: 500; font-size: 0.78rem; text-transform: uppercase; }
   .empty-row td { color: #a3adc2; text-align: center; padding: 24px 8px; }
-  .status-ok { color: #51cf66; }
-  .status-missing { color: #ff9b9b; }
-  .error { background: #3a1a1a; border: 1px solid #6b2b2b; color: #ff9b9b; padding: 10px 12px; border-radius: 8px; margin-bottom: 18px; font-size: 0.88rem; }
   .add-form { margin-top: 16px; }
+  .note {
+    background: #171d2b;
+    border: 1px solid #2c3550;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 0.85rem;
+    color: #a3adc2;
+    margin-bottom: 24px;
+  }
 </style>
 </head>
 <body>
@@ -93,68 +99,64 @@
 <nav class="sidebar">
   <div class="brand">Ads Agent</div>
   <a class="nav-item" href="/">Dashboard</a>
-  <a class="nav-item active" href="/accounts">FB Accounts</a>
-  <a class="nav-item" href="/cpa-networks">CPA Networks</a>
+  <a class="nav-item" href="/accounts">FB Accounts</a>
+  <a class="nav-item active" href="/cpa-networks">CPA Networks</a>
 </nav>
 <div class="content">
 <header>
-  <h1>FB Accounts</h1>
+  <h1>CPA Networks</h1>
   <div>
     <span style="color:#a3adc2; font-size:0.9rem; margin-right:14px;">{{ user }}</span>
     <a href="/logout">Log out</a>
   </div>
 </header>
 <main>
-  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <div class="note">
+    Credentials saved here are stored, but nothing syncs automatically yet —
+    each offer network (traff-hub.com and others) has its own API, so pulling
+    offers needs a dedicated client written against that network's docs.
+    Share the API documentation for a network and it can be wired up to pull
+    offers automatically into the campaign pipeline.
+  </div>
 
   <section>
-    <h2>Access token</h2>
-    <p class="hint">
-      Status:
-      {% if access_token_set %}<span class="status-ok">set</span>{% else %}<span class="status-missing">not set</span>{% endif %}
-      — a token with the <code>ads_read</code> permission, from a Meta for Developers app.
-    </p>
-    <form method="post" action="/accounts/token">
-      <label for="access_token">Facebook access token</label>
-      <input id="access_token" name="access_token" type="password" placeholder="EAAG..." autocomplete="off">
-      <div style="margin-top:14px;"><button type="submit">Save token</button></div>
-    </form>
-  </section>
-
-  <section>
-    <h2>Tracked ad accounts</h2>
-    <p class="hint">Accounts shown as options on the Dashboard page.</p>
+    <h2>Connected networks</h2>
     <table>
-      <thead><tr><th>Account ID</th><th>Name</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Base URL</th><th>API key</th><th></th></tr></thead>
       <tbody>
-        {% for acc in accounts %}
+        {% for net in networks %}
         <tr>
-          <td>{{ acc.id }}</td>
-          <td>{{ acc.name or "—" }}</td>
+          <td>{{ net.name }}</td>
+          <td>{{ net.base_url or "—" }}</td>
+          <td>{{ "•" * 10 if net.api_key else "—" }}</td>
           <td>
-            <form method="post" action="/accounts/delete" style="margin:0;">
-              <input type="hidden" name="account_id" value="{{ acc.id }}">
+            <form method="post" action="/cpa-networks/delete" style="margin:0;">
+              <input type="hidden" name="name" value="{{ net.name }}">
               <button type="submit" class="danger">Remove</button>
             </form>
           </td>
         </tr>
         {% else %}
-        <tr class="empty-row"><td colspan="3">No accounts added yet.</td></tr>
+        <tr class="empty-row"><td colspan="4">No networks added yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
 
-    <form method="post" action="/accounts/add" class="add-form">
+    <form method="post" action="/cpa-networks/add" class="add-form">
       <div class="row">
         <div class="field">
-          <label for="account_id">Account ID</label>
-          <input id="account_id" name="account_id" type="text" placeholder="act_1234567890 or 1234567890" required>
+          <label for="name">Network name</label>
+          <input id="name" name="name" type="text" placeholder="traff-hub" required>
         </div>
         <div class="field">
-          <label for="account_name">Name (optional)</label>
-          <input id="account_name" name="account_name" type="text" placeholder="e.g. Main store">
+          <label for="base_url">Base URL (optional)</label>
+          <input id="base_url" name="base_url" type="text" placeholder="https://traff-hub.com/api">
         </div>
-        <button type="submit">Add account</button>
+        <div class="field">
+          <label for="api_key">API key (optional)</label>
+          <input id="api_key" name="api_key" type="password" placeholder="API key" autocomplete="off">
+        </div>
+        <button type="submit">Add network</button>
       </div>
     </form>
   </section>

@@ -156,6 +156,36 @@ def test_add_and_remove_account(web_settings):
     assert "act_999888777" not in page_after.text
 
 
+def test_cpa_networks_page_requires_login(web_settings):
+    client = build_client(web_settings)
+    response = client.get("/cpa-networks", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/login"
+
+
+def test_add_and_remove_cpa_network(web_settings):
+    client = build_client(web_settings)
+    login(client)
+
+    add = client.post(
+        "/cpa-networks/add",
+        data={"name": "traff-hub", "base_url": "https://traff-hub.com/api", "api_key": "secret123"},
+        follow_redirects=False,
+    )
+    assert add.status_code == 302
+    assert add.headers["location"] == "/cpa-networks"
+
+    page = client.get("/cpa-networks")
+    assert "traff-hub" in page.text
+    assert "traff-hub.com/api" in page.text
+    assert "secret123" not in page.text  # key itself never rendered, only masked
+
+    remove = client.post("/cpa-networks/delete", data={"name": "traff-hub"}, follow_redirects=False)
+    assert remove.status_code == 302
+    page_after = client.get("/cpa-networks")
+    assert "No networks added yet" in page_after.text
+
+
 def test_update_access_token_reflected_in_status(web_settings):
     web_settings.fb_access_token = ""  # nothing seeded
     client = build_client(web_settings)

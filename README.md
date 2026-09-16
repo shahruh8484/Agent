@@ -153,6 +153,16 @@ reachable at `https://yourdomain.com` with the login you configured.
 
 To update after a code change: `git pull && docker compose up -d --build`.
 
+### CPA Networks page
+
+Sidebar → **CPA Networks** stores credentials (name, base URL, API key)
+for offer/affiliate networks like traff-hub.com, persisted the same way
+as FB Accounts (`data/cpa_networks.json`, same Docker volume). **No offer
+syncing happens yet** — each network has its own API, so pulling offers
+needs a small client written against that network's actual docs (mirror
+`fbadsagent/web/insights_client.py` as a starting point). This page is
+just where the credentials live until that client exists.
+
 ### FB Accounts page
 
 Sidebar → **FB Accounts** manages the access token and tracked `act_...`
@@ -189,7 +199,7 @@ page is the source of truth.
 pytest
 ```
 
-All 35 tests run offline — network calls (Ad Library, Insights API,
+All 41 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
 and the dashboard is tested through FastAPI's `TestClient`.
 
