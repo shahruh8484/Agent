@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ product_name }}</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1a1a1a;
+    background: #ffffff;
+    line-height: 1.5;
+  }
+  .hero {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    color: #fff;
+    padding: 72px 24px;
+    text-align: center;
+  }
+  .hero h1 { font-size: 2.4rem; margin: 0 0 12px; }
+  .hero p.sub { font-size: 1.15rem; opacity: 0.85; max-width: 640px; margin: 0 auto 28px; }
+  .cta-btn {
+    display: inline-block;
+    background: #ff6b35;
+    color: #fff;
+    font-weight: 600;
+    padding: 16px 36px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 1.05rem;
+  }
+  .cta-btn:hover { background: #e85a2a; }
+  .benefits {
+    max-width: 900px;
+    margin: 56px auto;
+    padding: 0 24px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 24px;
+  }
+  .benefit-card {
+    border: 1px solid #eee;
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+  }
+  .footer-cta {
+    background: #f7f7f9;
+    text-align: center;
+    padding: 56px 24px;
+  }
+  .price {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+  }
+</style>
+</head>
+<body>
+  <section class="hero">
+    <h1>{{ headline }}</h1>
+    <p class="sub">{{ subheadline }}</p>
+    <a class="cta-btn" href="#buy">{{ cta_text }}</a>
+  </section>
+
+  <section class="benefits">
+    {% for benefit in benefits %}
+    <div class="benefit-card">
+      <p>{{ benefit }}</p>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="footer-cta" id="buy">
+    {% if price %}<div class="price">{{ price }} {{ currency }}</div>{% endif %}
+    <a class="cta-btn" href="{{ checkout_url }}">{{ cta_text }}</a>
+  </section>
+</body>
+</html>
