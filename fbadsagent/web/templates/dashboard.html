@@ -93,6 +93,7 @@
 <nav class="sidebar">
   <div class="brand">Ads Agent</div>
   <a class="nav-item active" href="/">Dashboard</a>
+  <a class="nav-item" href="/accounts">FB Accounts</a>
 </nav>
 <div class="content">
 <header>
@@ -105,13 +106,13 @@
 <main>
   {% if not accounts %}
   <div class="empty">
-    No ad accounts configured. Set FB_AD_ACCOUNT_IDS (comma-separated act_... ids) in .env.
+    No ad accounts configured yet. Add one on the <a href="/accounts" style="color:#4c6ef5;">FB Accounts</a> page.
   </div>
   {% else %}
   <div class="controls">
     <select id="account-select">
       {% for acc in accounts %}
-      <option value="{{ acc }}">{{ acc }}</option>
+      <option value="{{ acc.id }}">{{ acc.name and (acc.name + " (" + acc.id + ")") or acc.id }}</option>
       {% endfor %}
     </select>
     <select id="preset-select">

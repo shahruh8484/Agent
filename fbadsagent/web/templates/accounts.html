@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FB Accounts — Ads Agent Dashboard</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #0f1420;
+    color: #e8eaf0;
+  }
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: #12161f;
+    border-right: 1px solid #232a3d;
+    padding: 20px 0;
+  }
+  .sidebar .brand { font-weight: 700; font-size: 1rem; padding: 0 20px 22px; }
+  .sidebar .nav-item {
+    display: block;
+    padding: 11px 20px;
+    color: #a3adc2;
+    text-decoration: none;
+    font-size: 0.92rem;
+    border-left: 3px solid transparent;
+  }
+  .sidebar .nav-item:hover { color: #e8eaf0; }
+  .sidebar .nav-item.active { color: #fff; background: #1c2333; border-left-color: #4c6ef5; }
+  .content { flex: 1; min-width: 0; }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid #232a3d;
+  }
+  header h1 { font-size: 1.15rem; margin: 0; }
+  header a { color: #a3adc2; text-decoration: none; font-size: 0.9rem; }
+  header a:hover { color: #e8eaf0; }
+  main { padding: 24px 28px 48px; max-width: 720px; margin: 0 auto; }
+  section {
+    background: #171d2b;
+    border: 1px solid #232a3d;
+    border-radius: 12px;
+    padding: 20px 22px;
+    margin-bottom: 24px;
+  }
+  section h2 { font-size: 1rem; margin: 0 0 6px; }
+  section p.hint { color: #a3adc2; font-size: 0.85rem; margin: 0 0 16px; }
+  label { display: block; font-size: 0.85rem; color: #a3adc2; margin-bottom: 6px; }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #2c3550;
+    background: #10141f;
+    color: #e8eaf0;
+    font-size: 0.95rem;
+  }
+  .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .row .field { flex: 1; min-width: 160px; }
+  button {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 8px;
+    background: #4c6ef5;
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  button:hover { background: #3f5cdb; }
+  button.danger { background: #3a1a1a; color: #ff9b9b; padding: 6px 12px; font-weight: 500; }
+  button.danger:hover { background: #4a2222; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #232a3d; font-size: 0.9rem; }
+  th { color: #a3adc2; font-weight: 500; font-size: 0.78rem; text-transform: uppercase; }
+  .empty-row td { color: #a3adc2; text-align: center; padding: 24px 8px; }
+  .status-ok { color: #51cf66; }
+  .status-missing { color: #ff9b9b; }
+  .error { background: #3a1a1a; border: 1px solid #6b2b2b; color: #ff9b9b; padding: 10px 12px; border-radius: 8px; margin-bottom: 18px; font-size: 0.88rem; }
+  .add-form { margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Ads Agent</div>
+  <a class="nav-item" href="/">Dashboard</a>
+  <a class="nav-item active" href="/accounts">FB Accounts</a>
+</nav>
+<div class="content">
+<header>
+  <h1>FB Accounts</h1>
+  <div>
+    <span style="color:#a3adc2; font-size:0.9rem; margin-right:14px;">{{ user }}</span>
+    <a href="/logout">Log out</a>
+  </div>
+</header>
+<main>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  <section>
+    <h2>Access token</h2>
+    <p class="hint">
+      Status:
+      {% if access_token_set %}<span class="status-ok">set</span>{% else %}<span class="status-missing">not set</span>{% endif %}
+      — a token with the <code>ads_read</code> permission, from a Meta for Developers app.
+    </p>
+    <form method="post" action="/accounts/token">
+      <label for="access_token">Facebook access token</label>
+      <input id="access_token" name="access_token" type="password" placeholder="EAAG..." autocomplete="off">
+      <div style="margin-top:14px;"><button type="submit">Save token</button></div>
+    </form>
+  </section>
+
+  <section>
+    <h2>Tracked ad accounts</h2>
+    <p class="hint">Accounts shown as options on the Dashboard page.</p>
+    <table>
+      <thead><tr><th>Account ID</th><th>Name</th><th></th></tr></thead>
+      <tbody>
+        {% for acc in accounts %}
+        <tr>
+          <td>{{ acc.id }}</td>
+          <td>{{ acc.name or "—" }}</td>
+          <td>
+            <form method="post" action="/accounts/delete" style="margin:0;">
+              <input type="hidden" name="account_id" value="{{ acc.id }}">
+              <button type="submit" class="danger">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr class="empty-row"><td colspan="3">No accounts added yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <form method="post" action="/accounts/add" class="add-form">
+      <div class="row">
+        <div class="field">
+          <label for="account_id">Account ID</label>
+          <input id="account_id" name="account_id" type="text" placeholder="act_1234567890 or 1234567890" required>
+        </div>
+        <div class="field">
+          <label for="account_name">Name (optional)</label>
+          <input id="account_name" name="account_name" type="text" placeholder="e.g. Main store">
+        </div>
+        <button type="submit">Add account</button>
+      </div>
+    </form>
+  </section>
+</main>
+</div>
+</div>
+</body>
+</html>

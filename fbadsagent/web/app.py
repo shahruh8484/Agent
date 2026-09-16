@@ -18,6 +18,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from fbadsagent.config import Settings, get_settings
+from fbadsagent.web.account_store import AccountStore
 from fbadsagent.web.insights_client import FacebookInsightsClient, InsightsError
 from fbadsagent.web.security import verify_password
 
@@ -38,6 +39,7 @@ DATE_PRESETS = [
 def create_app(
     settings: Settings | None = None,
     insights_client: FacebookInsightsClient | None = None,
+    account_store: AccountStore | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     if not settings.secret_key:
@@ -48,6 +50,11 @@ def create_app(
         )
 
     insights_client = insights_client or FacebookInsightsClient(settings)
+    account_store = account_store or AccountStore(
+        Path(settings.data_dir) / "accounts.json",
+        seed_access_token=settings.fb_access_token,
+        seed_account_ids=settings.fb_ad_account_ids_list(),
+    )
 
     app = FastAPI(title="Facebook Ads Agent Dashboard")
     app.add_middleware(
@@ -97,23 +104,65 @@ def create_app(
             "dashboard.html",
             {
                 "user": request.session.get("user"),
-                "accounts": settings.fb_ad_account_ids_list(),
+                "accounts": account_store.list_accounts(),
                 "date_presets": DATE_PRESETS,
             },
         )
+
+    @app.get("/accounts")
+    def accounts_page(request: Request, error: str | None = None):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        return templates.TemplateResponse(
+            request,
+            "accounts.html",
+            {
+                "user": request.session.get("user"),
+                "accounts": account_store.list_accounts(),
+                "access_token_set": bool(account_store.get_access_token()),
+                "error": error,
+            },
+        )
+
+    @app.post("/accounts/token")
+    def update_access_token(request: Request, access_token: str = Form(...)):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        account_store.set_access_token(access_token)
+        return RedirectResponse("/accounts", status_code=302)
+
+    @app.post("/accounts/add")
+    def add_account(
+        request: Request, account_id: str = Form(...), account_name: str = Form("")
+    ):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        account_store.add_account(account_id, account_name)
+        return RedirectResponse("/accounts", status_code=302)
+
+    @app.post("/accounts/delete")
+    def delete_account(request: Request, account_id: str = Form(...)):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        account_store.remove_account(account_id)
+        return RedirectResponse("/accounts", status_code=302)
 
     @app.get("/api/accounts")
     def api_accounts(request: Request):
         if not is_authenticated(request):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
-        return JSONResponse({"accounts": settings.fb_ad_account_ids_list()})
+        return JSONResponse(
+            {"accounts": [a.id for a in account_store.list_accounts()]}
+        )
 
     @app.get("/api/insights")
     def api_insights(request: Request, account_id: str, date_preset: str = "last_30d"):
         if not is_authenticated(request):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         try:
-            summary = insights_client.get_account_insights(account_id, date_preset)
+            summary = insights_client.get_account_insights(
+                account_id, date_preset, access_token=account_store.get_access_token() or None
+            )
         except InsightsError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(summary.model_dump())

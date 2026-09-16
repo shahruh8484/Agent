@@ -31,17 +31,22 @@ class FacebookInsightsClient:
         self._settings = settings
 
     def get_account_insights(
-        self, account_id: str, date_preset: str = "last_30d"
+        self,
+        account_id: str,
+        date_preset: str = "last_30d",
+        access_token: str | None = None,
     ) -> AccountInsightsSummary:
-        if not self._settings.fb_access_token:
+        token = access_token or self._settings.fb_access_token
+        if not token:
             raise InsightsError(
-                "FB_ACCESS_TOKEN is not set. Add it to .env to load real ad account data."
+                "No Facebook access token set. Add one on the FB Accounts page "
+                "(or FB_ACCESS_TOKEN in .env) to load real ad account data."
             )
 
         account_id = account_id if account_id.startswith("act_") else f"act_{account_id}"
         url = f"{GRAPH_BASE}/{self._settings.fb_api_version}/{account_id}/insights"
         params = {
-            "access_token": self._settings.fb_access_token,
+            "access_token": token,
             "date_preset": date_preset,
             "time_increment": 1,
             "level": "account",

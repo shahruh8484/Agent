@@ -153,9 +153,20 @@ reachable at `https://yourdomain.com` with the login you configured.
 
 To update after a code change: `git pull && docker compose up -d --build`.
 
+### FB Accounts page
+
+Sidebar → **FB Accounts** manages the access token and tracked `act_...`
+ad accounts directly from the browser — no SSH or `.env` edit needed after
+the initial deploy. Values are stored in a small JSON file at `DATA_DIR`
+(default `data/accounts.json`), which `docker-compose.yml` mounts as a
+named volume (`app_data`) so it survives `docker compose up --build`.
+`FB_ACCESS_TOKEN` / `FB_AD_ACCOUNT_IDS` in `.env` only seed this store the
+*first* time the app starts with no existing data file — after that, the
+page is the source of truth.
+
 ### What it shows
 
-- Account selector (any `act_...` IDs listed in `FB_AD_ACCOUNT_IDS`) and a
+- Account selector (whatever's added on the FB Accounts page) and a
   date-range preset (today, last 7/14/30/90 days, this/last month).
 - Summary cards: total spend, total clicks, total leads, impressions,
   average CPC, average CPL, average CTR.
@@ -178,7 +189,7 @@ To update after a code change: `git pull && docker compose up -d --build`.
 pytest
 ```
 
-All 26 tests run offline — network calls (Ad Library, Insights API,
+All 35 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
 and the dashboard is tested through FastAPI's `TestClient`.
 

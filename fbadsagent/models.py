@@ -83,6 +83,13 @@ class CampaignPlan(BaseModel):
     payloads: list[dict] = Field(default_factory=list)
 
 
+class TrackedAccount(BaseModel):
+    """A Facebook ad account the dashboard is configured to show."""
+
+    id: str
+    name: str = ""
+
+
 class DailyInsight(BaseModel):
     """One day of performance data for a single ad account."""
 

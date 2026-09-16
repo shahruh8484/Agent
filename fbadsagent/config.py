@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     secret_key: str = ""
     session_https_only: bool = True
 
+    # Where the dashboard persists ad accounts + access token added through
+    # the "FB Accounts" page (mount this as a volume in production so it
+    # survives container rebuilds — see docker-compose.yml).
+    data_dir: str = "data"
+
     def fb_ad_account_ids_list(self) -> list[str]:
         ids = [x.strip() for x in self.fb_ad_account_ids.split(",") if x.strip()]
         if not ids and self.fb_ad_account_id:

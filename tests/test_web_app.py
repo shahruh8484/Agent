@@ -9,10 +9,12 @@ class FakeInsightsClient:
     def __init__(self, summary: AccountInsightsSummary | None = None, error: Exception | None = None):
         self._summary = summary
         self._error = error
-        self.calls: list[tuple[str, str]] = []
+        self.calls: list[tuple[str, str, str | None]] = []
 
-    def get_account_insights(self, account_id: str, date_preset: str = "last_30d"):
-        self.calls.append((account_id, date_preset))
+    def get_account_insights(
+        self, account_id: str, date_preset: str = "last_30d", access_token: str | None = None
+    ):
+        self.calls.append((account_id, date_preset, access_token))
         if self._error:
             raise self._error
         return self._summary
@@ -76,7 +78,7 @@ def test_login_then_access_dashboard_and_api(web_settings):
     body = insights.json()
     assert body["total_spend"] == 10.0
     assert body["total_leads"] == 1
-    assert fake_insights.calls == [("act_111", "last_7d")]
+    assert fake_insights.calls == [("act_111", "last_7d", "test-token")]
 
     logout = client.get("/logout", follow_redirects=False)
     assert logout.status_code == 302
@@ -107,3 +109,62 @@ def test_create_app_requires_secret_key(web_settings):
     web_settings.secret_key = ""
     with pytest.raises(RuntimeError):
         create_app(settings=web_settings)
+
+
+def login(client):
+    client.post("/login", data={"username": "admin", "password": "correct-horse"})
+
+
+def test_accounts_page_requires_login(web_settings):
+    client = build_client(web_settings)
+    response = client.get("/accounts", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/login"
+
+
+def test_accounts_page_lists_seeded_accounts(web_settings):
+    client = build_client(web_settings)
+    login(client)
+
+    response = client.get("/accounts")
+    assert response.status_code == 200
+    assert "act_111" in response.text
+    assert "act_222" in response.text
+
+
+def test_add_and_remove_account(web_settings):
+    client = build_client(web_settings)
+    login(client)
+
+    add = client.post(
+        "/accounts/add",
+        data={"account_id": "999888777", "account_name": "New Store"},
+        follow_redirects=False,
+    )
+    assert add.status_code == 302
+    assert add.headers["location"] == "/accounts"
+
+    page = client.get("/accounts")
+    assert "act_999888777" in page.text
+    assert "New Store" in page.text
+
+    remove = client.post(
+        "/accounts/delete", data={"account_id": "act_999888777"}, follow_redirects=False
+    )
+    assert remove.status_code == 302
+    page_after = client.get("/accounts")
+    assert "act_999888777" not in page_after.text
+
+
+def test_update_access_token_reflected_in_status(web_settings):
+    web_settings.fb_access_token = ""  # nothing seeded
+    client = build_client(web_settings)
+    login(client)
+
+    before = client.get("/accounts")
+    assert "not set" in before.text
+
+    client.post("/accounts/token", data={"access_token": "new-token-123"}, follow_redirects=False)
+
+    after = client.get("/accounts")
+    assert "not set" not in after.text
