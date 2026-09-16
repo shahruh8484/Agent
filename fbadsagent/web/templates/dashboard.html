@@ -14,6 +14,34 @@
     background: #0f1420;
     color: #e8eaf0;
   }
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: #12161f;
+    border-right: 1px solid #232a3d;
+    padding: 20px 0;
+  }
+  .sidebar .brand {
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 0 20px 22px;
+  }
+  .sidebar .nav-item {
+    display: block;
+    padding: 11px 20px;
+    color: #a3adc2;
+    text-decoration: none;
+    font-size: 0.92rem;
+    border-left: 3px solid transparent;
+  }
+  .sidebar .nav-item:hover { color: #e8eaf0; }
+  .sidebar .nav-item.active {
+    color: #fff;
+    background: #1c2333;
+    border-left-color: #4c6ef5;
+  }
+  .content { flex: 1; min-width: 0; }
   header {
     display: flex;
     align-items: center;
@@ -61,6 +89,12 @@
 </style>
 </head>
 <body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Ads Agent</div>
+  <a class="nav-item active" href="/">Dashboard</a>
+</nav>
+<div class="content">
 <header>
   <h1>Ads Agent Dashboard</h1>
   <div>
@@ -106,6 +140,8 @@
   </div>
   {% endif %}
 </main>
+</div>
+</div>
 
 <script>
 const accountSelect = document.getElementById('account-select');
