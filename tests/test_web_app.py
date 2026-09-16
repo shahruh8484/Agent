@@ -186,6 +186,46 @@ def test_add_and_remove_cpa_network(web_settings):
     assert "No networks added yet" in page_after.text
 
 
+def test_test_cpa_network_unsupported_network(web_settings):
+    client = build_client(web_settings)
+    login(client)
+    client.post("/cpa-networks/add", data={"name": "some-other-network", "api_key": "k"})
+
+    response = client.post("/cpa-networks/test", data={"name": "some-other-network"})
+    assert response.status_code == 200
+    assert "no API client implemented" in response.text
+
+
+def test_test_cpa_network_traffhub_success(web_settings, mocker):
+    fake_response = mocker.Mock()
+    fake_response.status_code = 200
+    fake_response.json.return_value = {"data": []}
+    mocker.patch("fbadsagent.integrations.traffhub.requests.post", return_value=fake_response)
+
+    client = build_client(web_settings)
+    login(client)
+    client.post("/cpa-networks/add", data={"name": "traff-hub", "api_key": "real-key"})
+
+    response = client.post("/cpa-networks/test", data={"name": "traff-hub"})
+    assert response.status_code == 200
+    assert "connection OK" in response.text
+
+
+def test_test_cpa_network_traffhub_failure(web_settings, mocker):
+    fake_response = mocker.Mock()
+    fake_response.status_code = 403
+    fake_response.text = "Invalid api_key"
+    mocker.patch("fbadsagent.integrations.traffhub.requests.post", return_value=fake_response)
+
+    client = build_client(web_settings)
+    login(client)
+    client.post("/cpa-networks/add", data={"name": "traff-hub", "api_key": "bad-key"})
+
+    response = client.post("/cpa-networks/test", data={"name": "traff-hub"})
+    assert response.status_code == 200
+    assert "Invalid api_key" in response.text
+
+
 def test_update_access_token_reflected_in_status(web_settings):
     web_settings.fb_access_token = ""  # nothing seeded
     client = build_client(web_settings)

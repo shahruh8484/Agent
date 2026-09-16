@@ -92,6 +92,16 @@
     color: #a3adc2;
     margin-bottom: 24px;
   }
+  .test-msg {
+    background: #171d2b;
+    border: 1px solid #2c3550;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.88rem;
+    margin-bottom: 24px;
+  }
+  button.secondary { background: #2c3550; padding: 6px 12px; font-weight: 500; }
+  button.secondary:hover { background: #384267; }
 </style>
 </head>
 <body>
@@ -112,12 +122,13 @@
 </header>
 <main>
   <div class="note">
-    Credentials saved here are stored, but nothing syncs automatically yet —
-    each offer network (traff-hub.com and others) has its own API, so pulling
-    offers needs a dedicated client written against that network's docs.
-    Share the API documentation for a network and it can be wired up to pull
-    offers automatically into the campaign pipeline.
+    traff-hub.com has no "list offers" API — offers/campaigns are picked
+    manually in its dashboard. The API here reports leads from your landing
+    pages back to traff-hub and checks their status. Other networks added
+    below just store credentials until a client is written for their API.
   </div>
+
+  {% if test_message %}<div class="test-msg">{{ test_message }}</div>{% endif %}
 
   <section>
     <h2>Connected networks</h2>
@@ -129,8 +140,12 @@
           <td>{{ net.name }}</td>
           <td>{{ net.base_url or "—" }}</td>
           <td>{{ "•" * 10 if net.api_key else "—" }}</td>
-          <td>
-            <form method="post" action="/cpa-networks/delete" style="margin:0;">
+          <td style="white-space:nowrap;">
+            <form method="post" action="/cpa-networks/test" style="display:inline; margin-right:6px;">
+              <input type="hidden" name="name" value="{{ net.name }}">
+              <button type="submit" class="secondary">Test</button>
+            </form>
+            <form method="post" action="/cpa-networks/delete" style="display:inline; margin:0;">
               <input type="hidden" name="name" value="{{ net.name }}">
               <button type="submit" class="danger">Remove</button>
             </form>

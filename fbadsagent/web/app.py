@@ -18,6 +18,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from fbadsagent.config import Settings, get_settings
+from fbadsagent.integrations.traffhub import TraffHubClient, TraffHubError
 from fbadsagent.web.account_store import AccountStore
 from fbadsagent.web.cpa_store import CpaNetworkStore
 from fbadsagent.web.insights_client import FacebookInsightsClient, InsightsError
@@ -160,6 +161,40 @@ def create_app(
             {
                 "user": request.session.get("user"),
                 "networks": cpa_store.list_networks(),
+                "test_message": None,
+            },
+        )
+
+    @app.post("/cpa-networks/test")
+    def test_cpa_network(request: Request, name: str = Form(...)):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+
+        network = next((n for n in cpa_store.list_networks() if n.name == name), None)
+        if network is None:
+            message = f"{name}: not found."
+        elif name.strip().lower() != "traff-hub":
+            message = (
+                f"{name}: no API client implemented for this network yet "
+                "(only traff-hub is wired up so far)."
+            )
+        elif not network.api_key:
+            message = f"{name}: no API key saved."
+        else:
+            try:
+                client = TraffHubClient(network.api_key, network.base_url)
+                client.list_conversions(page=1, on_page=1)
+                message = f"{name}: connection OK."
+            except TraffHubError as exc:
+                message = f"{name}: {exc}"
+
+        return templates.TemplateResponse(
+            request,
+            "cpa_networks.html",
+            {
+                "user": request.session.get("user"),
+                "networks": cpa_store.list_networks(),
+                "test_message": message,
             },
         )
 

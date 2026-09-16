@@ -156,12 +156,24 @@ To update after a code change: `git pull && docker compose up -d --build`.
 ### CPA Networks page
 
 Sidebar → **CPA Networks** stores credentials (name, base URL, API key)
-for offer/affiliate networks like traff-hub.com, persisted the same way
-as FB Accounts (`data/cpa_networks.json`, same Docker volume). **No offer
-syncing happens yet** — each network has its own API, so pulling offers
-needs a small client written against that network's actual docs (mirror
-`fbadsagent/web/insights_client.py` as a starting point). This page is
-just where the credentials live until that client exists.
+for offer/affiliate networks, persisted the same way as FB Accounts
+(`data/cpa_networks.json`, same Docker volume).
+
+**traff-hub.com is actually wired up** (`fbadsagent/integrations/traffhub.py`):
+- `send_lead(...)` — `POST /lead/add`, reports a lead generated on one of
+  your landing pages back to traff-hub (required: phone, fio, ip, and the
+  campaign's `hash` from the traff-hub dashboard).
+- `list_conversions(...)` — `POST /conversion/list`, checks lead status
+  (pending/confirmed/rejected/trash) by transaction id, status, or date range.
+- There is **no "list offers" API** — offers/campaigns are picked manually
+  in the traff-hub dashboard; its `hash` per campaign is what `send_lead`
+  needs.
+- Add a network named exactly `traff-hub` with its API key, then hit
+  **Test** on that row to confirm the key works (calls `list_conversions`).
+
+Any other network name just stores credentials — pulling data for it
+needs a client written against that network's own docs, following
+`traffhub.py`/`insights_client.py` as a pattern.
 
 ### FB Accounts page
 
@@ -199,7 +211,7 @@ page is the source of truth.
 pytest
 ```
 
-All 41 tests run offline — network calls (Ad Library, Insights API,
+All 50 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
 and the dashboard is tested through FastAPI's `TestClient`.
 
