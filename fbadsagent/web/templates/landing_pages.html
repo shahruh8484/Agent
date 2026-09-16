@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CPA Networks — Ads Agent Dashboard</title>
+<title>Landing Pages — Ads Agent Dashboard</title>
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
@@ -54,7 +54,7 @@
   section h2 { font-size: 1rem; margin: 0 0 6px; }
   section p.hint { color: #a3adc2; font-size: 0.85rem; margin: 0 0 16px; }
   label { display: block; font-size: 0.85rem; color: #a3adc2; margin-bottom: 6px; }
-  input {
+  input, textarea {
     width: 100%;
     padding: 10px 12px;
     border-radius: 8px;
@@ -62,9 +62,10 @@
     background: #10141f;
     color: #e8eaf0;
     font-size: 0.95rem;
+    font-family: inherit;
   }
-  .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
-  .row .field { flex: 1; min-width: 160px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .field { margin-bottom: 12px; }
   button {
     padding: 10px 18px;
     border: none;
@@ -82,26 +83,8 @@
   th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #232a3d; font-size: 0.9rem; }
   th { color: #a3adc2; font-weight: 500; font-size: 0.78rem; text-transform: uppercase; }
   .empty-row td { color: #a3adc2; text-align: center; padding: 24px 8px; }
-  .add-form { margin-top: 16px; }
-  .note {
-    background: #171d2b;
-    border: 1px solid #2c3550;
-    border-radius: 10px;
-    padding: 14px 16px;
-    font-size: 0.85rem;
-    color: #a3adc2;
-    margin-bottom: 24px;
-  }
-  .test-msg {
-    background: #171d2b;
-    border: 1px solid #2c3550;
-    border-radius: 10px;
-    padding: 12px 16px;
-    font-size: 0.88rem;
-    margin-bottom: 24px;
-  }
-  button.secondary { background: #2c3550; padding: 6px 12px; font-weight: 500; }
-  button.secondary:hover { background: #384267; }
+  a.lp-link { color: #4c6ef5; }
+  .error { background: #3a1a1a; border: 1px solid #6b2b2b; color: #ff9b9b; padding: 10px 12px; border-radius: 8px; margin-bottom: 18px; font-size: 0.88rem; }
 </style>
 </head>
 <body>
@@ -110,70 +93,83 @@
   <div class="brand">Ads Agent</div>
   <a class="nav-item" href="/">Dashboard</a>
   <a class="nav-item" href="/accounts">FB Accounts</a>
-  <a class="nav-item active" href="/cpa-networks">CPA Networks</a>
-  <a class="nav-item" href="/landing-pages">Landing Pages</a>
+  <a class="nav-item" href="/cpa-networks">CPA Networks</a>
+  <a class="nav-item active" href="/landing-pages">Landing Pages</a>
 </nav>
 <div class="content">
 <header>
-  <h1>CPA Networks</h1>
+  <h1>Landing Pages</h1>
   <div>
     <span style="color:#a3adc2; font-size:0.9rem; margin-right:14px;">{{ user }}</span>
     <a href="/logout">Log out</a>
   </div>
 </header>
 <main>
-  <div class="note">
-    traff-hub.com has no "list offers" API — offers/campaigns are picked
-    manually in its dashboard. The API here reports leads from your landing
-    pages back to traff-hub and checks their status. Other networks added
-    below just store credentials until a client is written for their API.
-  </div>
-
-  {% if test_message %}<div class="test-msg">{{ test_message }}</div>{% endif %}
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
   <section>
-    <h2>Connected networks</h2>
+    <h2>Published pages</h2>
+    <p class="hint">Each page has a lead form that submits directly to the CPA network below.</p>
     <table>
-      <thead><tr><th>Name</th><th>Base URL</th><th>API key</th><th></th></tr></thead>
+      <thead><tr><th>Page</th><th>Network</th><th>Campaign hash</th><th></th></tr></thead>
       <tbody>
-        {% for net in networks %}
+        {% for page in pages %}
         <tr>
-          <td>{{ net.name }}</td>
-          <td>{{ net.base_url or "—" }}</td>
-          <td>{{ "•" * 10 if net.api_key else "—" }}</td>
-          <td style="white-space:nowrap;">
-            <form method="post" action="/cpa-networks/test" style="display:inline; margin-right:6px;">
-              <input type="hidden" name="name" value="{{ net.name }}">
-              <button type="submit" class="secondary">Test</button>
-            </form>
-            <form method="post" action="/cpa-networks/delete" style="display:inline; margin:0;">
-              <input type="hidden" name="name" value="{{ net.name }}">
+          <td><a class="lp-link" href="/lp/{{ page.slug }}" target="_blank">/lp/{{ page.slug }}</a></td>
+          <td>{{ page.cpa_network }}</td>
+          <td>{{ page.campaign_hash or "—" }}</td>
+          <td>
+            <form method="post" action="/landing-pages/delete" style="margin:0;">
+              <input type="hidden" name="slug" value="{{ page.slug }}">
               <button type="submit" class="danger">Remove</button>
             </form>
           </td>
         </tr>
         {% else %}
-        <tr class="empty-row"><td colspan="4">No networks added yet.</td></tr>
+        <tr class="empty-row"><td colspan="4">No landing pages yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
+  </section>
 
-    <form method="post" action="/cpa-networks/add" class="add-form">
-      <div class="row">
-        <div class="field">
-          <label for="name">Network name</label>
-          <input id="name" name="name" type="text" placeholder="traff-hub" required>
-        </div>
-        <div class="field">
-          <label for="base_url">Base URL (optional)</label>
-          <input id="base_url" name="base_url" type="text" placeholder="https://traff-hub.com/api">
-        </div>
-        <div class="field">
-          <label for="api_key">API key (optional)</label>
-          <input id="api_key" name="api_key" type="password" placeholder="API key" autocomplete="off">
-        </div>
-        <button type="submit">Add network</button>
+  <section>
+    <h2>Publish a new page</h2>
+    <p class="hint">
+      Set up the network's campaign first (CPA Networks page + the network's
+      own dashboard), then paste its campaign hash here.
+    </p>
+    <form method="post" action="/landing-pages/add">
+      <div class="field">
+        <label for="title">Page title</label>
+        <input id="title" name="title" type="text" placeholder="Wireless Earbuds Pro" required>
       </div>
+      <div class="field">
+        <label for="headline">Headline</label>
+        <input id="headline" name="headline" type="text" placeholder="Hear Every Detail" required>
+      </div>
+      <div class="field">
+        <label for="subheadline">Subheadline</label>
+        <input id="subheadline" name="subheadline" type="text" placeholder="Premium audio, all day long.">
+      </div>
+      <div class="field">
+        <label for="benefits">Benefits (one per line)</label>
+        <textarea id="benefits" name="benefits" rows="4" placeholder="40h battery&#10;Active noise cancelling&#10;Waterproof"></textarea>
+      </div>
+      <div class="field">
+        <label for="cta_text">Button text</label>
+        <input id="cta_text" name="cta_text" type="text" value="Get Started">
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label for="cpa_network">CPA network</label>
+          <input id="cpa_network" name="cpa_network" type="text" value="traff-hub" required>
+        </div>
+        <div class="field">
+          <label for="campaign_hash">Campaign hash</label>
+          <input id="campaign_hash" name="campaign_hash" type="text" placeholder="6c9c0e1f" required>
+        </div>
+      </div>
+      <button type="submit">Publish page</button>
     </form>
   </section>
 </main>

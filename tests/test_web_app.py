@@ -226,6 +226,147 @@ def test_test_cpa_network_traffhub_failure(web_settings, mocker):
     assert "Invalid api_key" in response.text
 
 
+def test_landing_pages_page_requires_login(web_settings):
+    client = build_client(web_settings)
+    response = client.get("/landing-pages", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/login"
+
+
+def test_add_and_remove_landing_page(web_settings):
+    client = build_client(web_settings)
+    login(client)
+
+    add = client.post(
+        "/landing-pages/add",
+        data={
+            "title": "Wireless Earbuds Pro",
+            "headline": "Hear Every Detail",
+            "subheadline": "Premium audio, all day long.",
+            "benefits": "40h battery\nANC\nWaterproof",
+            "cta_text": "Get Yours",
+            "cpa_network": "traff-hub",
+            "campaign_hash": "6c9c0e1f",
+        },
+        follow_redirects=False,
+    )
+    assert add.status_code == 302
+
+    page = client.get("/landing-pages")
+    assert "/lp/wireless-earbuds-pro" in page.text
+    assert "traff-hub" in page.text
+    assert "6c9c0e1f" in page.text
+
+    remove = client.post(
+        "/landing-pages/delete", data={"slug": "wireless-earbuds-pro"}, follow_redirects=False
+    )
+    assert remove.status_code == 302
+    page_after = client.get("/landing-pages")
+    assert "No landing pages yet" in page_after.text
+
+
+def test_public_landing_page_renders_without_login(web_settings):
+    client = build_client(web_settings)
+    login(client)
+    client.post(
+        "/landing-pages/add",
+        data={
+            "title": "Wireless Earbuds Pro",
+            "headline": "Hear Every Detail",
+            "subheadline": "Premium audio.",
+            "benefits": "40h battery",
+            "cta_text": "Get Yours",
+            "cpa_network": "traff-hub",
+            "campaign_hash": "6c9c0e1f",
+        },
+    )
+
+    anon_client = build_client(web_settings)  # fresh, unauthenticated session
+    response = anon_client.get("/lp/wireless-earbuds-pro")
+    assert response.status_code == 200
+    assert "Hear Every Detail" in response.text
+    assert "40h battery" in response.text
+
+
+def test_public_landing_page_404_when_missing(web_settings):
+    client = build_client(web_settings)
+    response = client.get("/lp/does-not-exist")
+    assert response.status_code == 404
+
+
+def test_submit_lead_success(web_settings, mocker):
+    fake_response = mocker.Mock()
+    fake_response.status_code = 200
+    fake_response.json.return_value = {"success": True, "transaction_id": "abc"}
+    mocker.patch("fbadsagent.integrations.traffhub.requests.post", return_value=fake_response)
+
+    client = build_client(web_settings)
+    login(client)
+    client.post("/cpa-networks/add", data={"name": "traff-hub", "api_key": "real-key"})
+    client.post(
+        "/landing-pages/add",
+        data={
+            "title": "Wireless Earbuds Pro",
+            "headline": "Hear Every Detail",
+            "cpa_network": "traff-hub",
+            "campaign_hash": "6c9c0e1f",
+        },
+    )
+
+    anon_client = build_client(web_settings)
+    response = anon_client.post(
+        "/lp/wireless-earbuds-pro/lead", json={"fio": "Test Test", "phone": "+10000000000"}
+    )
+    assert response.status_code == 200
+    assert response.json() == {"success": True}
+
+
+def test_submit_lead_missing_network_config(web_settings):
+    client = build_client(web_settings)
+    login(client)
+    client.post(
+        "/landing-pages/add",
+        data={
+            "title": "Wireless Earbuds Pro",
+            "headline": "Hear Every Detail",
+            "cpa_network": "traff-hub",
+            "campaign_hash": "6c9c0e1f",
+        },
+    )
+
+    response = client.post(
+        "/lp/wireless-earbuds-pro/lead", json={"fio": "Test Test", "phone": "+10000000000"}
+    )
+    assert response.status_code == 400
+    assert response.json()["success"] is False
+
+
+def test_submit_lead_traffhub_error_returns_502(web_settings, mocker):
+    fake_response = mocker.Mock()
+    fake_response.status_code = 403
+    fake_response.text = "Invalid api_key"
+    mocker.patch("fbadsagent.integrations.traffhub.requests.post", return_value=fake_response)
+
+    client = build_client(web_settings)
+    login(client)
+    client.post("/cpa-networks/add", data={"name": "traff-hub", "api_key": "bad-key"})
+    client.post(
+        "/landing-pages/add",
+        data={
+            "title": "Wireless Earbuds Pro",
+            "headline": "Hear Every Detail",
+            "cpa_network": "traff-hub",
+            "campaign_hash": "6c9c0e1f",
+        },
+    )
+
+    response = client.post(
+        "/lp/wireless-earbuds-pro/lead", json={"fio": "Test Test", "phone": "+10000000000"}
+    )
+    assert response.status_code == 502
+    assert response.json()["success"] is False
+
+
 def test_update_access_token_reflected_in_status(web_settings):
     web_settings.fb_access_token = ""  # nothing seeded
     client = build_client(web_settings)

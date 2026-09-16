@@ -175,6 +175,30 @@ Any other network name just stores credentials — pulling data for it
 needs a client written against that network's own docs, following
 `traffhub.py`/`insights_client.py` as a pattern.
 
+### Landing Pages page
+
+Sidebar → **Landing Pages** publishes lead-capture pages, each with a
+name + phone form that POSTs straight to a CPA network's `send_lead`
+(currently traff-hub only). Pages are public at `/lp/{slug}` (no login —
+this is what you send ad traffic to); managing them (create/remove) is
+login-protected under `/landing-pages`.
+
+Flow to actually run traffic:
+1. On traff-hub: create a campaign with **Тип кампании = API** (not
+   "Партнёрская ссылка" — that needs their domain-parking flow instead)
+   and copy its campaign hash.
+2. On CPA Networks: make sure `traff-hub` has a working API key.
+3. On Landing Pages: publish a page, paste that campaign hash in.
+4. Point your Facebook ad's link at `https://yourdomain/lp/{slug}`.
+   When someone submits the form, the lead is forwarded to traff-hub via
+   `TraffHubClient.send_lead()` in real time.
+
+Content is entered manually for now (title/headline/benefits/CTA) — the
+CLI's AI landing-page generator (`fbadsagent/landing/generator.py`) isn't
+wired into this page yet; a natural next step is generating that copy
+with the LLM and publishing straight from the pipeline instead of typing
+it by hand.
+
 ### FB Accounts page
 
 Sidebar → **FB Accounts** manages the access token and tracked `act_...`
@@ -211,7 +235,7 @@ page is the source of truth.
 pytest
 ```
 
-All 50 tests run offline — network calls (Ad Library, Insights API,
+All 62 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
 and the dashboard is tested through FastAPI's `TestClient`.
 

@@ -90,6 +90,19 @@ class TrackedAccount(BaseModel):
     name: str = ""
 
 
+class LandingPageConfig(BaseModel):
+    """A published landing page: content plus where its leads go."""
+
+    slug: str
+    title: str
+    headline: str
+    subheadline: str = ""
+    benefits: list[str] = Field(default_factory=list)
+    cta_text: str = "Get Started"
+    cpa_network: str = "traff-hub"
+    campaign_hash: str = ""
+
+
 class CpaNetworkCredential(BaseModel):
     """Credentials for a CPA/offer network (e.g. traff-hub.com) — stored so a
     future sync job can pull offers from it. No fetching logic yet; this is
