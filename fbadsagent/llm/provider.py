@@ -3,9 +3,12 @@ analysis and landing page modules. Backed by Anthropic (default) or OpenAI.
 """
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 
 from fbadsagent.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 class LLMError(RuntimeError):
@@ -36,6 +39,7 @@ class AnthropicProvider(LLMProvider):
                 messages=[{"role": "user", "content": prompt}],
             )
         except Exception as exc:
+            logger.exception("Anthropic API call failed")
             raise LLMError(f"Anthropic API error: {exc}") from exc
         return "".join(block.text for block in response.content if hasattr(block, "text"))
 
@@ -60,6 +64,7 @@ class OpenAIProvider(LLMProvider):
                 ],
             )
         except Exception as exc:
+            logger.exception("OpenAI API call failed")
             raise LLMError(f"OpenAI API error: {exc}") from exc
         return response.choices[0].message.content or ""
 
