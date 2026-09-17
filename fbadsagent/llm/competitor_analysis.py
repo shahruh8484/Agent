@@ -20,7 +20,7 @@ def analyze_competitor_ads(
     if not ads:
         return CompetitorInsights(
             tone_observations="No competitor ads found for this query.",
-            recommended_angle=f"No competitor data available — lead with {product_name}'s core value proposition.",
+            recommended_angle=f"No competitor data available - lead with {product_name}'s core value proposition.",
             raw_ads_analyzed=0,
         )
 
