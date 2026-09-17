@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.6-flash"
-    gemini_image_model: str = "gemini-2.0-flash-preview-image-generation"
+    gemini_image_model: str = "gemini-3.1-flash-lite-image"
 
     # Image generation
     image_provider: str = "stub"
