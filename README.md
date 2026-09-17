@@ -72,7 +72,7 @@ cp .env.example .env
 |---|---|---|
 | Competitor research (Meta Ad Library) | `FB_ACCESS_TOKEN` | Create an app at [developers.facebook.com](https://developers.facebook.com), generate a user access token with the `ads_read` permission. Free, no ad account needed. |
 | Creating real campaigns | `FB_ACCESS_TOKEN`, `FB_APP_ID`, `FB_APP_SECRET`, `FB_AD_ACCOUNT_ID`, `FB_PAGE_ID` | Add the "Marketing API" product to your app; the token's user needs admin access on the ad account and page. |
-| Ad copy / competitor analysis / landing page copy | `ANTHROPIC_API_KEY` (default) or `OPENAI_API_KEY` | [console.anthropic.com](https://console.anthropic.com) or [platform.openai.com](https://platform.openai.com) |
+| Ad copy / competitor analysis / landing page copy | `ANTHROPIC_API_KEY` (default), `OPENAI_API_KEY`, or `GEMINI_API_KEY` | [console.anthropic.com](https://console.anthropic.com), [platform.openai.com](https://platform.openai.com), or [ai.google.dev](https://ai.google.dev) (Gemini has a free tier) |
 | Creative images | `OPENAI_API_KEY` (set `IMAGE_PROVIDER=openai`) | Defaults to `IMAGE_PROVIDER=stub`, which writes a placeholder image and needs no key — useful for testing the pipeline before paying for image generation. |
 
 Nothing is required to explore the code and run the test suite — tests use
@@ -190,9 +190,9 @@ ideas the agent posted between visits. History persists in
 `data/chat.json` (same volume as the other stores, capped at the most
 recent 200 messages).
 
-Needs `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY` + `LLM_PROVIDER=openai`)
-same as Creatives — without one, sending a message shows a clear error
-inline and the background loop just logs and skips that cycle.
+Needs an LLM key set per `LLM_PROVIDER` (same as Creatives, including the
+free-tier `gemini` option) — without one, sending a message shows a clear
+error inline and the background loop just logs and skips that cycle.
 
 ### Creatives page
 
@@ -202,9 +202,10 @@ uses (`fbadsagent/llm/copywriter.py`, `fbadsagent/creatives/image_generator.py`)
 and stores the results as a browsable gallery (`data/creative_sets.json`;
 images under `data/creatives/`, served at `/creative-assets/...`).
 
-Needs `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY` with `LLM_PROVIDER=openai`)
-to write copy — without one, generation fails with a clear error shown on
-the page rather than a crash. Images use `IMAGE_PROVIDER=stub` by default
+Needs an LLM key set per `LLM_PROVIDER` — `anthropic`, `openai`, or `gemini`
+(the last has a free tier, see `.env.example`) — to write copy; without
+one, generation fails with a clear error shown on the page rather than a
+crash. Images use `IMAGE_PROVIDER=stub` by default
 (placeholder, no cost); set `IMAGE_PROVIDER=openai` for real ones. This
 page skips the competitor-research step the CLI pipeline does — it's a
 quicker "just generate creatives" path, not a replacement for the full
@@ -270,7 +271,7 @@ page is the source of truth.
 pytest
 ```
 
-All 80 tests run offline — network calls (Ad Library, Insights API,
+All 91 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
 and the dashboard is tested through FastAPI's `TestClient`.
 

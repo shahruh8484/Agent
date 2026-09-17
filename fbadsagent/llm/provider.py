@@ -1,5 +1,6 @@
 """Provider-agnostic text generation used by the copywriter, competitor
-analysis and landing page modules. Backed by Anthropic (default) or OpenAI.
+analysis and landing page modules. Backed by Anthropic (default), OpenAI,
+or Gemini (google-genai has a free tier — good if you want $0 text gen).
 """
 from __future__ import annotations
 
@@ -69,9 +70,38 @@ class OpenAIProvider(LLMProvider):
         return response.choices[0].message.content or ""
 
 
+class GeminiProvider(LLMProvider):
+    def __init__(self, settings: Settings):
+        if not settings.gemini_api_key:
+            raise LLMError("GEMINI_API_KEY is not set.")
+        from google import genai
+
+        self._client = genai.Client(api_key=settings.gemini_api_key)
+        self._model = settings.gemini_model
+
+    def generate(self, system: str, prompt: str, max_tokens: int = 1024) -> str:
+        from google.genai import types
+
+        try:
+            response = self._client.models.generate_content(
+                model=self._model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    max_output_tokens=max_tokens,
+                ),
+            )
+        except Exception as exc:
+            logger.exception("Gemini API call failed")
+            raise LLMError(f"Gemini API error: {exc}") from exc
+        return response.text or ""
+
+
 def get_llm_provider(settings: Settings) -> LLMProvider:
     if settings.llm_provider == "anthropic":
         return AnthropicProvider(settings)
     if settings.llm_provider == "openai":
         return OpenAIProvider(settings)
+    if settings.llm_provider == "gemini":
+        return GeminiProvider(settings)
     raise LLMError(f"Unknown LLM_PROVIDER: {settings.llm_provider!r}")
