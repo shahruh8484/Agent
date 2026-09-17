@@ -73,7 +73,7 @@ cp .env.example .env
 | Competitor research (Meta Ad Library) | `FB_ACCESS_TOKEN` | Create an app at [developers.facebook.com](https://developers.facebook.com), generate a user access token with the `ads_read` permission. Free, no ad account needed. |
 | Creating real campaigns | `FB_ACCESS_TOKEN`, `FB_APP_ID`, `FB_APP_SECRET`, `FB_AD_ACCOUNT_ID`, `FB_PAGE_ID` | Add the "Marketing API" product to your app; the token's user needs admin access on the ad account and page. |
 | Ad copy / competitor analysis / landing page copy | `ANTHROPIC_API_KEY` (default), `OPENAI_API_KEY`, or `GEMINI_API_KEY` | [console.anthropic.com](https://console.anthropic.com), [platform.openai.com](https://platform.openai.com), or [ai.google.dev](https://ai.google.dev) (Gemini has a free tier) |
-| Creative images | `OPENAI_API_KEY` (set `IMAGE_PROVIDER=openai`) | Defaults to `IMAGE_PROVIDER=stub`, which writes a placeholder image and needs no key — useful for testing the pipeline before paying for image generation. |
+| Creative images | `OPENAI_API_KEY` (set `IMAGE_PROVIDER=openai`) or `GEMINI_API_KEY` (set `IMAGE_PROVIDER=gemini`, free-tier eligible) | Defaults to `IMAGE_PROVIDER=stub`, which writes a placeholder image and needs no key — useful for testing the pipeline before paying for image generation. |
 
 Nothing is required to explore the code and run the test suite — tests use
 fakes for every external call.
@@ -206,7 +206,8 @@ Needs an LLM key set per `LLM_PROVIDER` — `anthropic`, `openai`, or `gemini`
 (the last has a free tier, see `.env.example`) — to write copy; without
 one, generation fails with a clear error shown on the page rather than a
 crash. Images use `IMAGE_PROVIDER=stub` by default
-(placeholder, no cost); set `IMAGE_PROVIDER=openai` for real ones. This
+(placeholder, no cost); set `IMAGE_PROVIDER=openai` or `IMAGE_PROVIDER=gemini`
+(free-tier eligible, same `GEMINI_API_KEY` as the LLM) for real ones. This
 page skips the competitor-research step the CLI pipeline does — it's a
 quicker "just generate creatives" path, not a replacement for the full
 `python -m fbadsagent.main` pipeline.
@@ -271,14 +272,15 @@ page is the source of truth.
 pytest
 ```
 
-All 91 tests run offline — network calls (Ad Library, Insights API,
+All 96 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
 and the dashboard is tested through FastAPI's `TestClient`.
 
 ## Roadmap / what's stubbed today
 
 - **Image generation**: `stub` provider is a placeholder; `openai` provider
-  uses DALL·E-style image generation. A dedicated ad-creative diffusion
+  uses DALL·E-style image generation; `gemini` uses Gemini's native image
+  generation (free-tier eligible). A dedicated ad-creative diffusion
   pipeline (product photo compositing, brand templates) is a natural next
   step.
 - **Ad spy integrations**: currently uses the free Meta Ad Library API,
