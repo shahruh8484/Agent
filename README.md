@@ -236,6 +236,49 @@ wired into this page yet; a natural next step is generating that copy
 with the LLM and publishing straight from the pipeline instead of typing
 it by hand.
 
+### Agent page
+
+Sidebar → **Agent** is the fully autonomous pipeline: add a product once,
+and the agent researches competitors, writes ad copy + generates images,
+publishes a landing page wired to a CPA network, and creates a Facebook
+campaign for it — on its own, either on a schedule or on demand.
+
+**Campaigns the agent creates are always `status: PAUSED`.** This is a
+hard safety guarantee (`fbadsagent/facebook/ads_client.py`,
+`fbadsagent/web/agent_runner.py`) — the agent never spends real money by
+itself. You review the campaign in Facebook Ads Manager and enable it
+yourself when you're happy with it.
+
+1. Add a product: name, description, price, daily budget, keywords, which
+   Facebook ad account to launch under, and which CPA network + campaign
+   hash the landing page should forward leads to (same as the Landing
+   Pages page).
+2. Click **Run now** to trigger a full pipeline run immediately, or set
+   `AGENT_RUN_INTERVAL_HOURS` in `.env` (default 0 = off) so it runs every
+   product on that interval by itself, unattended.
+3. Each run is logged (`data/agent_runs.json`) with its outcome — success
+   (with links to the landing page and, once you look it up, the FB
+   campaign) or a clear error message if any step failed (no LLM
+   configured, no FB ad account assigned, Facebook API rejected the
+   campaign, etc.) — later steps still complete and get logged even if an
+   earlier one failed partway (e.g. creatives + landing page can succeed
+   even if the FB campaign step then fails).
+
+Needs the same `LLM_PROVIDER` key as Creatives/Chat, `IMAGE_PROVIDER` for
+creative images, and a Facebook access token with `ads_management` scope
+(`FB_ACCESS_TOKEN` — broader than the `ads_read` scope used for the
+Insights dashboard and Ad Library research) so it can actually create
+campaigns via the Marketing API. Set `DOMAIN` in `.env` so the landing
+pages it publishes get a real `https://yourdomain/lp/{slug}` URL instead
+of a relative one.
+
+Products and run history persist in `data/agent_products.json` and
+`data/agent_runs.json` (same Docker volume as everything else). Core
+orchestration lives in `fbadsagent/web/agent_runner.py:run_agent_for_product`,
+reusing the same LLM/creative/landing-page/Facebook modules as the CLI
+pipeline and the other dashboard pages — it's the same building blocks,
+just chained together and triggered automatically instead of by hand.
+
 ### FB Accounts page
 
 Sidebar → **FB Accounts** manages the access token and tracked `act_...`
@@ -272,7 +315,7 @@ page is the source of truth.
 pytest
 ```
 
-All 96 tests run offline — network calls (Ad Library, Insights API,
+All 107 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
 and the dashboard is tested through FastAPI's `TestClient`.
 

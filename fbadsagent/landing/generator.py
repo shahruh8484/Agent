@@ -21,12 +21,11 @@ SYSTEM_PROMPT = (
 )
 
 
-def generate_landing_page(
-    llm: LLMProvider,
-    settings: Settings,
-    product: ProductInput,
-    insights: CompetitorInsights,
-) -> LandingPage:
+def generate_landing_copy(
+    llm: LLMProvider, product: ProductInput, insights: CompetitorInsights
+) -> dict:
+    """LLM-written landing page copy, reused by both the CLI's static-file
+    generator below and the web agent's published-landing-page flow."""
     prompt = (
         f"Product: {product.name}\n"
         f"Description: {product.description}\n"
@@ -37,10 +36,25 @@ def generate_landing_page(
     raw = llm.generate(SYSTEM_PROMPT, prompt, max_tokens=800)
     data = _parse_json(raw)
 
-    headline = data.get("headline") or product.name
-    subheadline = data.get("subheadline") or product.description
-    benefits = data.get("benefits") or [product.description]
-    cta_text = data.get("cta_text") or "Buy Now"
+    return {
+        "headline": data.get("headline") or product.name,
+        "subheadline": data.get("subheadline") or product.description,
+        "benefits": data.get("benefits") or [product.description],
+        "cta_text": data.get("cta_text") or "Buy Now",
+    }
+
+
+def generate_landing_page(
+    llm: LLMProvider,
+    settings: Settings,
+    product: ProductInput,
+    insights: CompetitorInsights,
+) -> LandingPage:
+    copy = generate_landing_copy(llm, product, insights)
+    headline = copy["headline"]
+    subheadline = copy["subheadline"]
+    benefits = copy["benefits"]
+    cta_text = copy["cta_text"]
 
     env = Environment(
         loader=FileSystemLoader(str(_TEMPLATE_DIR)),

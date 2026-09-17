@@ -49,6 +49,17 @@ class Settings(BaseSettings):
     # idea on its own. Set to 0 to disable the background loop entirely.
     chat_idea_interval_hours: int = 6
 
+    # Public domain the dashboard is served on (same value Caddy uses) —
+    # needed to build public https://DOMAIN/lp/{slug} landing page URLs
+    # for ads the autonomous agent creates.
+    domain: str = ""
+
+    # How often (hours) the autonomous agent runs its full pipeline
+    # (research -> creatives -> landing page -> paused FB campaign) for
+    # every configured product on its own. 0 disables the background loop
+    # — you can still trigger a run manually from the Agent page.
+    agent_run_interval_hours: int = 0
+
     def fb_ad_account_ids_list(self) -> list[str]:
         ids = [x.strip() for x in self.fb_ad_account_ids.split(",") if x.strip()]
         if not ids and self.fb_ad_account_id:

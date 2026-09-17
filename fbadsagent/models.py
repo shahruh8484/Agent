@@ -162,6 +162,48 @@ class AccountInsightsSummary(BaseModel):
     avg_cpl: Optional[float] = None
 
 
+class AgentProduct(BaseModel):
+    """A product/offer the autonomous agent researches, creates ads for,
+    and launches (paused) campaigns for — on a schedule or on demand."""
+
+    id: str
+    name: str
+    description: str
+    price: Optional[float] = None
+    currency: str = "USD"
+    target_countries: list[str] = Field(default_factory=lambda: ["US"])
+    daily_budget: float = 20.0
+    keywords: list[str] = Field(default_factory=list)
+    fb_ad_account_id: str = ""
+    cpa_network: str = "traff-hub"
+    campaign_hash: str = ""
+
+    def to_product_input(self) -> "ProductInput":
+        return ProductInput(
+            name=self.name,
+            description=self.description,
+            price=self.price,
+            currency=self.currency,
+            target_countries=self.target_countries,
+            daily_budget=self.daily_budget,
+            keywords=self.keywords,
+        )
+
+
+class AgentRunResult(BaseModel):
+    """The outcome of one autonomous-agent pass over a single product."""
+
+    product_id: str
+    product_name: str
+    created_at: str
+    status: str  # "success" | "error"
+    message: str = ""
+    creative_set_id: Optional[str] = None
+    landing_page_slug: Optional[str] = None
+    fb_campaign_id: Optional[str] = None
+    triggered_by: str = "manual"  # "manual" | "schedule"
+
+
 class PipelineResult(BaseModel):
     product: ProductInput
     competitor_ads: list[CompetitorAd] = Field(default_factory=list)

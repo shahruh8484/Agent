@@ -30,6 +30,7 @@ from fbadsagent.integrations.traffhub import TraffHubClient, TraffHubError
 from fbadsagent.llm.copywriter import generate_ad_variants
 from fbadsagent.llm.provider import LLMError, get_llm_provider
 from fbadsagent.models import (
+    AgentProduct,
     ChatMessage,
     CompetitorInsights,
     LandingPageConfig,
@@ -37,12 +38,14 @@ from fbadsagent.models import (
     SavedCreativeSet,
 )
 from fbadsagent.web.account_store import AccountStore
+from fbadsagent.web.agent_runner import run_agent_for_product
 from fbadsagent.web.chat_context import build_system_prompt
 from fbadsagent.web.chat_store import ChatStore
 from fbadsagent.web.cpa_store import CpaNetworkStore
 from fbadsagent.web.creative_store import CreativeStore
 from fbadsagent.web.insights_client import FacebookInsightsClient, InsightsError
 from fbadsagent.web.landing_store import LandingPageStore, slugify
+from fbadsagent.web.product_store import AgentRunLogStore, ProductStore
 from fbadsagent.web.security import verify_password
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -80,6 +83,8 @@ def create_app(
     landing_store: LandingPageStore | None = None,
     creative_store: CreativeStore | None = None,
     chat_store: ChatStore | None = None,
+    product_store: ProductStore | None = None,
+    agent_run_log: AgentRunLogStore | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     if not settings.secret_key:
@@ -104,6 +109,8 @@ def create_app(
     creatives_dir = Path(settings.data_dir) / "creatives"
     creatives_dir.mkdir(parents=True, exist_ok=True)
     chat_store = chat_store or ChatStore(Path(settings.data_dir) / "chat.json")
+    product_store = product_store or ProductStore(Path(settings.data_dir) / "agent_products.json")
+    agent_run_log = agent_run_log or AgentRunLogStore(Path(settings.data_dir) / "agent_runs.json")
 
     async def _background_idea_loop() -> None:
         interval_seconds = settings.chat_idea_interval_hours * 3600
@@ -134,13 +141,33 @@ def create_app(
             except Exception:
                 logger.exception("Proactive idea generation failed.")
 
+    async def _background_agent_loop() -> None:
+        interval_seconds = settings.agent_run_interval_hours * 3600
+        while True:
+            await asyncio.sleep(interval_seconds)
+            for product in product_store.list_products():
+                try:
+                    result = await asyncio.to_thread(
+                        run_agent_for_product,
+                        product,
+                        settings,
+                        landing_store,
+                        creative_store,
+                        "schedule",
+                    )
+                    agent_run_log.append(result)
+                except Exception:
+                    logger.exception("Autonomous agent run failed for %s", product.name)
+
     @contextlib.asynccontextmanager
     async def _lifespan(_app: FastAPI):
-        task = None
+        tasks = []
         if settings.chat_idea_interval_hours > 0:
-            task = asyncio.create_task(_background_idea_loop())
+            tasks.append(asyncio.create_task(_background_idea_loop()))
+        if settings.agent_run_interval_hours > 0:
+            tasks.append(asyncio.create_task(_background_agent_loop()))
         yield
-        if task is not None:
+        for task in tasks:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
@@ -523,6 +550,72 @@ def create_app(
             ChatMessage(role="assistant", content=reply, created_at=_now(), kind="idea")
         )
         return JSONResponse({"reply": reply})
+
+    @app.get("/agent")
+    def agent_page(request: Request):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        return templates.TemplateResponse(
+            request,
+            "agent.html",
+            {
+                "user": request.session.get("user"),
+                "products": product_store.list_products(),
+                "runs": agent_run_log.list_runs()[:20],
+                "fb_accounts": account_store.list_accounts(),
+                "cpa_networks": cpa_store.list_networks(),
+                "run_interval_hours": settings.agent_run_interval_hours,
+            },
+        )
+
+    @app.post("/agent/add")
+    def add_agent_product(
+        request: Request,
+        name: str = Form(...),
+        description: str = Form(...),
+        price: float | None = Form(None),
+        daily_budget: float = Form(20.0),
+        keywords: str = Form(""),
+        fb_ad_account_id: str = Form(""),
+        cpa_network: str = Form("traff-hub"),
+        campaign_hash: str = Form(""),
+    ):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
+        product_store.add_product(
+            AgentProduct(
+                id=uuid.uuid4().hex[:12],
+                name=name,
+                description=description,
+                price=price,
+                keywords=keyword_list,
+                daily_budget=daily_budget,
+                fb_ad_account_id=fb_ad_account_id,
+                cpa_network=cpa_network,
+                campaign_hash=campaign_hash,
+            )
+        )
+        return RedirectResponse("/agent", status_code=302)
+
+    @app.post("/agent/delete")
+    def delete_agent_product(request: Request, product_id: str = Form(...)):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        product_store.remove_product(product_id)
+        return RedirectResponse("/agent", status_code=302)
+
+    @app.post("/agent/run")
+    def run_agent_now(request: Request, product_id: str = Form(...)):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        product = product_store.get_product(product_id)
+        if product is not None:
+            result = run_agent_for_product(
+                product, settings, landing_store, creative_store, "manual"
+            )
+            agent_run_log.append(result)
+        return RedirectResponse("/agent", status_code=302)
 
     @app.get("/api/accounts")
     def api_accounts(request: Request):
