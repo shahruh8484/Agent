@@ -10,6 +10,9 @@ README for deploying this behind a domain with HTTPS.
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,8 +29,16 @@ from fbadsagent.creatives.image_generator import ImageGenerationError, generate_
 from fbadsagent.integrations.traffhub import TraffHubClient, TraffHubError
 from fbadsagent.llm.copywriter import generate_ad_variants
 from fbadsagent.llm.provider import LLMError, get_llm_provider
-from fbadsagent.models import CompetitorInsights, LandingPageConfig, ProductInput, SavedCreativeSet
+from fbadsagent.models import (
+    ChatMessage,
+    CompetitorInsights,
+    LandingPageConfig,
+    ProductInput,
+    SavedCreativeSet,
+)
 from fbadsagent.web.account_store import AccountStore
+from fbadsagent.web.chat_context import build_system_prompt
+from fbadsagent.web.chat_store import ChatStore
 from fbadsagent.web.cpa_store import CpaNetworkStore
 from fbadsagent.web.creative_store import CreativeStore
 from fbadsagent.web.insights_client import FacebookInsightsClient, InsightsError
@@ -35,6 +46,7 @@ from fbadsagent.web.landing_store import LandingPageStore, slugify
 from fbadsagent.web.security import verify_password
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+logger = logging.getLogger(__name__)
 
 DATE_PRESETS = [
     ("today", "Today"),
@@ -53,6 +65,13 @@ class LeadSubmission(BaseModel):
     phone: str
 
 
+class ChatSendRequest(BaseModel):
+    message: str
+
+
+MAX_CHAT_HISTORY_FOR_PROMPT = 12
+
+
 def create_app(
     settings: Settings | None = None,
     insights_client: FacebookInsightsClient | None = None,
@@ -60,6 +79,7 @@ def create_app(
     cpa_store: CpaNetworkStore | None = None,
     landing_store: LandingPageStore | None = None,
     creative_store: CreativeStore | None = None,
+    chat_store: ChatStore | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     if not settings.secret_key:
@@ -83,8 +103,49 @@ def create_app(
     creative_assets_settings = settings.model_copy(update={"output_dir": settings.data_dir})
     creatives_dir = Path(settings.data_dir) / "creatives"
     creatives_dir.mkdir(parents=True, exist_ok=True)
+    chat_store = chat_store or ChatStore(Path(settings.data_dir) / "chat.json")
 
-    app = FastAPI(title="Facebook Ads Agent Dashboard")
+    async def _background_idea_loop() -> None:
+        interval_seconds = settings.chat_idea_interval_hours * 3600
+        while True:
+            await asyncio.sleep(interval_seconds)
+            try:
+                llm = await asyncio.to_thread(get_llm_provider, settings)
+                system_prompt = build_system_prompt(
+                    account_store, cpa_store, landing_store, creative_store
+                )
+                prompt = (
+                    "Give me one concrete, actionable idea right now to improve "
+                    "results, based on the current setup above (a new angle, "
+                    "offer, creative variant, or landing page tweak). 3-6 "
+                    "sentences, no preamble."
+                )
+                reply = await asyncio.to_thread(llm.generate, system_prompt, prompt, 500)
+                chat_store.append(
+                    ChatMessage(
+                        role="assistant",
+                        content=reply,
+                        created_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+                        kind="idea",
+                    )
+                )
+            except LLMError:
+                logger.info("Skipping proactive idea: no LLM provider configured.")
+            except Exception:
+                logger.exception("Proactive idea generation failed.")
+
+    @contextlib.asynccontextmanager
+    async def _lifespan(_app: FastAPI):
+        task = None
+        if settings.chat_idea_interval_hours > 0:
+            task = asyncio.create_task(_background_idea_loop())
+        yield
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+    app = FastAPI(title="Facebook Ads Agent Dashboard", lifespan=_lifespan)
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.secret_key,
@@ -399,6 +460,69 @@ def create_app(
             return RedirectResponse("/login", status_code=302)
         creative_store.remove_set(set_id)
         return RedirectResponse("/creatives", status_code=302)
+
+    @app.get("/chat")
+    def chat_page(request: Request):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        return templates.TemplateResponse(
+            request,
+            "chat.html",
+            {
+                "user": request.session.get("user"),
+                "messages": chat_store.list_messages(),
+            },
+        )
+
+    def _system_prompt() -> str:
+        return build_system_prompt(account_store, cpa_store, landing_store, creative_store)
+
+    def _now() -> str:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    @app.post("/chat/send")
+    def chat_send(request: Request, body: ChatSendRequest):
+        if not is_authenticated(request):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+
+        message = body.message.strip()
+        if not message:
+            return JSONResponse({"error": "Message is empty."}, status_code=400)
+
+        history = chat_store.list_messages()[-MAX_CHAT_HISTORY_FOR_PROMPT:]
+        transcript = "\n".join(f"{m.role}: {m.content}" for m in history)
+        prompt = f"{transcript}\nuser: {message}\nassistant:" if transcript else f"user: {message}\nassistant:"
+
+        try:
+            llm = get_llm_provider(settings)
+            reply = llm.generate(_system_prompt(), prompt, max_tokens=800)
+        except LLMError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+        chat_store.append(ChatMessage(role="user", content=message, created_at=_now()))
+        chat_store.append(ChatMessage(role="assistant", content=reply, created_at=_now()))
+        return JSONResponse({"reply": reply})
+
+    @app.post("/chat/idea")
+    def chat_idea(request: Request):
+        if not is_authenticated(request):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+
+        prompt = (
+            "Give me one concrete, actionable idea right now to improve results, "
+            "based on the current setup above (a new angle, offer, creative "
+            "variant, or landing page tweak). 3-6 sentences, no preamble."
+        )
+        try:
+            llm = get_llm_provider(settings)
+            reply = llm.generate(_system_prompt(), prompt, max_tokens=500)
+        except LLMError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+        chat_store.append(
+            ChatMessage(role="assistant", content=reply, created_at=_now(), kind="idea")
+        )
+        return JSONResponse({"reply": reply})
 
     @app.get("/api/accounts")
     def api_accounts(request: Request):

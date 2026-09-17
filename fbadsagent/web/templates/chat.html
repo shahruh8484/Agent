@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat — Ads Agent Dashboard</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #0f1420;
+    color: #e8eaf0;
+  }
+  .layout { display: flex; height: 100vh; }
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: #12161f;
+    border-right: 1px solid #232a3d;
+    padding: 20px 0;
+  }
+  .sidebar .brand { font-weight: 700; font-size: 1rem; padding: 0 20px 22px; }
+  .sidebar .nav-item {
+    display: block;
+    padding: 11px 20px;
+    color: #a3adc2;
+    text-decoration: none;
+    font-size: 0.92rem;
+    border-left: 3px solid transparent;
+  }
+  .sidebar .nav-item:hover { color: #e8eaf0; }
+  .sidebar .nav-item.active { color: #fff; background: #1c2333; border-left-color: #4c6ef5; }
+  .content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid #232a3d;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 1.15rem; margin: 0; }
+  header a { color: #a3adc2; text-decoration: none; font-size: 0.9rem; }
+  header a:hover { color: #e8eaf0; }
+  header .idea-btn {
+    background: #232a3d;
+    color: #c3cadb;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-right: 14px;
+  }
+  header .idea-btn:hover { background: #2c3550; }
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px;
+    max-width: 760px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  .bubble-row { display: flex; margin-bottom: 16px; }
+  .bubble-row.user { justify-content: flex-end; }
+  .bubble {
+    max-width: 75%;
+    padding: 12px 16px;
+    border-radius: 14px;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .bubble-row.user .bubble { background: #4c6ef5; color: #fff; border-bottom-right-radius: 4px; }
+  .bubble-row.assistant .bubble { background: #171d2b; border: 1px solid #232a3d; border-bottom-left-radius: 4px; }
+  .bubble-row.assistant.idea .bubble { border-color: #4c6ef5; background: #171d2b; }
+  .idea-label { font-size: 0.72rem; color: #4c6ef5; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; }
+  .empty { color: #a3adc2; text-align: center; padding: 60px 20px; }
+  .input-bar {
+    border-top: 1px solid #232a3d;
+    padding: 16px 28px;
+    flex-shrink: 0;
+  }
+  .input-inner { max-width: 760px; margin: 0 auto; display: flex; gap: 10px; }
+  #message-input {
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #2c3550;
+    background: #10141f;
+    color: #e8eaf0;
+    font-size: 0.95rem;
+    resize: none;
+    font-family: inherit;
+  }
+  #send-btn {
+    padding: 0 20px;
+    border: none;
+    border-radius: 10px;
+    background: #4c6ef5;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #send-btn:disabled { background: #2c3550; cursor: default; }
+  .error-banner {
+    max-width: 760px;
+    margin: 0 auto 12px;
+    background: #3a1a1a;
+    border: 1px solid #6b2b2b;
+    color: #ff9b9b;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Ads Agent</div>
+  <a class="nav-item" href="/">Dashboard</a>
+  <a class="nav-item" href="/accounts">FB Accounts</a>
+  <a class="nav-item" href="/cpa-networks">CPA Networks</a>
+  <a class="nav-item" href="/landing-pages">Landing Pages</a>
+  <a class="nav-item" href="/creatives">Creatives</a>
+  <a class="nav-item active" href="/chat">Chat</a>
+</nav>
+<div class="content">
+<header>
+  <h1>Chat</h1>
+  <div>
+    <button class="idea-btn" id="idea-btn">Ask for ideas</button>
+    <span style="color:#a3adc2; font-size:0.9rem; margin-right:14px;">{{ user }}</span>
+    <a href="/logout">Log out</a>
+  </div>
+</header>
+<div id="messages">
+  <div class="error-banner" id="error-banner"></div>
+  {% if not messages %}
+  <div class="empty" id="empty-hint">
+    Ask about your accounts, offers, or click "Ask for ideas" for suggestions.
+  </div>
+  {% endif %}
+  {% for m in messages %}
+  <div class="bubble-row {{ m.role }} {{ 'idea' if m.kind == 'idea' else '' }}">
+    <div class="bubble">
+      {% if m.kind == 'idea' %}<div class="idea-label">Agent idea</div>{% endif %}
+      {{ m.content }}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<div class="input-bar">
+  <div class="input-inner">
+    <textarea id="message-input" rows="1" placeholder="Message the agent..."></textarea>
+    <button id="send-btn">Send</button>
+  </div>
+</div>
+</div>
+</div>
+
+<script>
+const messagesEl = document.getElementById('messages');
+const emptyHint = document.getElementById('empty-hint');
+const input = document.getElementById('message-input');
+const sendBtn = document.getElementById('send-btn');
+const ideaBtn = document.getElementById('idea-btn');
+const errorBanner = document.getElementById('error-banner');
+
+function showError(text) {
+  errorBanner.textContent = text;
+  errorBanner.style.display = 'block';
+}
+
+function addBubble(role, content, kind) {
+  if (emptyHint) emptyHint.remove();
+  const row = document.createElement('div');
+  row.className = 'bubble-row ' + role + (kind === 'idea' ? ' idea' : '');
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  if (kind === 'idea') {
+    const label = document.createElement('div');
+    label.className = 'idea-label';
+    label.textContent = 'Agent idea';
+    bubble.appendChild(label);
+  }
+  bubble.appendChild(document.createTextNode(content));
+  row.appendChild(bubble);
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+async function sendMessage() {
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  sendBtn.disabled = true;
+  errorBanner.style.display = 'none';
+  addBubble('user', text);
+
+  try {
+    const res = await fetch('/chat/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showError(data.error || 'Failed to send message.');
+      return;
+    }
+    addBubble('assistant', data.reply, 'message');
+  } catch (err) {
+    showError('Network error: ' + err);
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+async function askForIdea() {
+  ideaBtn.disabled = true;
+  errorBanner.style.display = 'none';
+  try {
+    const res = await fetch('/chat/idea', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      showError(data.error || 'Failed to get an idea.');
+      return;
+    }
+    addBubble('assistant', data.reply, 'idea');
+  } catch (err) {
+    showError('Network error: ' + err);
+  } finally {
+    ideaBtn.disabled = false;
+  }
+}
+
+sendBtn.addEventListener('click', sendMessage);
+ideaBtn.addEventListener('click', askForIdea);
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+messagesEl.scrollTop = messagesEl.scrollHeight;
+</script>
+</body>
+</html>

@@ -90,6 +90,16 @@ class TrackedAccount(BaseModel):
     name: str = ""
 
 
+class ChatMessage(BaseModel):
+    """One message in the agent chat — a user message, a reply, or a
+    proactive idea the agent posted on its own."""
+
+    role: str  # "user" | "assistant"
+    content: str
+    created_at: str
+    kind: str = "message"  # "message" | "idea"
+
+
 class SavedCreativeSet(BaseModel):
     """A generated batch of ad creatives, stored for browsing/reuse."""
 

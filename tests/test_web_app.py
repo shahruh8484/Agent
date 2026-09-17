@@ -467,6 +467,75 @@ def test_delete_creative_set(web_settings, mocker):
     assert "No creatives generated yet" in page_after.text
 
 
+def test_chat_page_requires_login(web_settings):
+    client = build_client(web_settings)
+    response = client.get("/chat", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/login"
+
+
+def test_chat_send_requires_login(web_settings):
+    client = build_client(web_settings)
+    response = client.post("/chat/send", json={"message": "hi"})
+    assert response.status_code == 401
+
+
+def test_chat_send_success(web_settings, mocker):
+    fake_llm = FakeLLM(response="Sure, here is a suggestion.")
+    mocker.patch("fbadsagent.web.app.get_llm_provider", return_value=fake_llm)
+
+    client = build_client(web_settings)
+    login(client)
+
+    response = client.post("/chat/send", json={"message": "What should I do next?"})
+    assert response.status_code == 200
+    assert response.json() == {"reply": "Sure, here is a suggestion."}
+
+    page = client.get("/chat")
+    assert "What should I do next?" in page.text
+    assert "Sure, here is a suggestion." in page.text
+
+    # the context summary reaches the LLM
+    system_prompt, prompt = fake_llm.calls[0]
+    assert "Current dashboard state" in system_prompt
+    assert "What should I do next?" in prompt
+
+
+def test_chat_send_empty_message_rejected(web_settings):
+    client = build_client(web_settings)
+    login(client)
+    response = client.post("/chat/send", json={"message": "   "})
+    assert response.status_code == 400
+
+
+def test_chat_send_llm_error(web_settings, mocker):
+    from fbadsagent.llm.provider import LLMError
+
+    mocker.patch("fbadsagent.web.app.get_llm_provider", side_effect=LLMError("no key"))
+    client = build_client(web_settings)
+    login(client)
+
+    response = client.post("/chat/send", json={"message": "hi"})
+    assert response.status_code == 400
+    assert "no key" in response.json()["error"]
+
+
+def test_chat_idea_appends_idea_message(web_settings, mocker):
+    fake_llm = FakeLLM(response="Try a video creative for this offer.")
+    mocker.patch("fbadsagent.web.app.get_llm_provider", return_value=fake_llm)
+
+    client = build_client(web_settings)
+    login(client)
+
+    response = client.post("/chat/idea")
+    assert response.status_code == 200
+    assert response.json() == {"reply": "Try a video creative for this offer."}
+
+    page = client.get("/chat")
+    assert "Agent idea" in page.text
+    assert "Try a video creative for this offer." in page.text
+
+
 def test_update_access_token_reflected_in_status(web_settings):
     web_settings.fb_access_token = ""  # nothing seeded
     client = build_client(web_settings)

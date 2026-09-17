@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # survives container rebuilds — see docker-compose.yml).
     data_dir: str = "data"
 
+    # How often (hours) the chat page's background loop posts a proactive
+    # idea on its own. Set to 0 to disable the background loop entirely.
+    chat_idea_interval_hours: int = 6
+
     def fb_ad_account_ids_list(self) -> list[str]:
         ids = [x.strip() for x in self.fb_ad_account_ids.split(",") if x.strip()]
         if not ids and self.fb_ad_account_id:

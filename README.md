@@ -175,6 +175,25 @@ Any other network name just stores credentials — pulling data for it
 needs a client written against that network's own docs, following
 `traffhub.py`/`insights_client.py` as a pattern.
 
+### Chat page
+
+Sidebar → **Chat** is a conversation with the agent, grounded in the
+dashboard's live state (FB accounts, CPA networks, landing pages,
+creative sets — see `fbadsagent/web/chat_context.py`). Ask it questions,
+or click **Ask for ideas** to get one concrete suggestion on demand.
+
+It also posts proactively on its own: a background loop (started in the
+app's lifespan, `_background_idea_loop` in `fbadsagent/web/app.py`) asks
+the LLM for an idea every `CHAT_IDEA_INTERVAL_HOURS` (default 6, 0
+disables it) and appends it to the chat, so opening the tab later shows
+ideas the agent posted between visits. History persists in
+`data/chat.json` (same volume as the other stores, capped at the most
+recent 200 messages).
+
+Needs `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY` + `LLM_PROVIDER=openai`)
+same as Creatives — without one, sending a message shows a clear error
+inline and the background loop just logs and skips that cycle.
+
 ### Creatives page
 
 Sidebar → **Creatives** generates ad copy + an image per variant from a
@@ -251,7 +270,7 @@ page is the source of truth.
 pytest
 ```
 
-All 70 tests run offline — network calls (Ad Library, Insights API,
+All 80 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
 and the dashboard is tested through FastAPI's `TestClient`.
 
