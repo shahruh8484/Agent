@@ -28,12 +28,15 @@ class AnthropicProvider(LLMProvider):
         self._model = settings.anthropic_model
 
     def generate(self, system: str, prompt: str, max_tokens: int = 1024) -> str:
-        response = self._client.messages.create(
-            model=self._model,
-            max_tokens=max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        try:
+            response = self._client.messages.create(
+                model=self._model,
+                max_tokens=max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": prompt}],
+            )
+        except Exception as exc:
+            raise LLMError(f"Anthropic API error: {exc}") from exc
         return "".join(block.text for block in response.content if hasattr(block, "text"))
 
 
@@ -47,14 +50,17 @@ class OpenAIProvider(LLMProvider):
         self._model = settings.openai_model
 
     def generate(self, system: str, prompt: str, max_tokens: int = 1024) -> str:
-        response = self._client.chat.completions.create(
-            model=self._model,
-            max_tokens=max_tokens,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt},
-            ],
-        )
+        try:
+            response = self._client.chat.completions.create(
+                model=self._model,
+                max_tokens=max_tokens,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+        except Exception as exc:
+            raise LLMError(f"OpenAI API error: {exc}") from exc
         return response.choices[0].message.content or ""
 
 
