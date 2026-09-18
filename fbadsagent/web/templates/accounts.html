@@ -85,7 +85,10 @@
   .status-ok { color: #51cf66; }
   .status-missing { color: #ff9b9b; }
   .error { background: #3a1a1a; border: 1px solid #6b2b2b; color: #ff9b9b; padding: 10px 12px; border-radius: 8px; margin-bottom: 18px; font-size: 0.88rem; }
+  .success { background: #10301c; border: 1px solid #235a34; color: #6fd68c; padding: 10px 12px; border-radius: 8px; margin-bottom: 18px; font-size: 0.88rem; }
   .add-form { margin-top: 16px; }
+  .sync-btn { background: #232a3d; color: #c3cadb; }
+  .sync-btn:hover { background: #2c3550; }
 </style>
 </head>
 <body>
@@ -110,6 +113,7 @@
 </header>
 <main>
   {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  {% if synced is not none %}<div class="success">Synced {{ synced }} ad account(s) from Facebook.</div>{% endif %}
 
   <section>
     <h2>Access token</h2>
@@ -127,7 +131,16 @@
 
   <section>
     <h2>Tracked ad accounts</h2>
-    <p class="hint">Accounts shown as options on the Dashboard page.</p>
+    <p class="hint">
+      Accounts shown as options on the Dashboard and Agent pages. Click
+      "Sync from Facebook" to auto-fill this list from every ad account
+      your access token currently has permission on — no need to type
+      account IDs by hand once that permission is granted in Business
+      Settings.
+    </p>
+    <form method="post" action="/accounts/sync" style="margin-bottom:14px;">
+      <button type="submit" class="sync-btn">Sync from Facebook</button>
+    </form>
     <table>
       <thead><tr><th>Account ID</th><th>Name</th><th></th></tr></thead>
       <tbody>

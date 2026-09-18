@@ -26,6 +26,32 @@ class InsightsError(RuntimeError):
     pass
 
 
+def list_ad_accounts(settings: Settings, access_token: str | None = None) -> list[dict]:
+    """Ad accounts the given token can act on — used to auto-populate the
+    FB Accounts page from Facebook instead of typing account IDs by hand.
+    """
+    token = access_token or settings.fb_access_token
+    if not token:
+        raise InsightsError(
+            "No Facebook access token set. Add one on the FB Accounts page "
+            "(or FB_ACCESS_TOKEN in .env) before syncing."
+        )
+
+    url = f"{GRAPH_BASE}/{settings.fb_api_version}/me/adaccounts"
+    params = {"access_token": token, "fields": "account_id,name", "limit": 200}
+
+    response = requests.get(url, params=params, timeout=30)
+    if response.status_code != 200:
+        raise InsightsError(
+            f"Facebook API returned {response.status_code}: {response.text}"
+        )
+
+    return [
+        {"id": f"act_{row['account_id']}", "name": row.get("name", "")}
+        for row in response.json().get("data", [])
+    ]
+
+
 class FacebookInsightsClient:
     def __init__(self, settings: Settings):
         self._settings = settings

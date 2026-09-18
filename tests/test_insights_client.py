@@ -1,7 +1,11 @@
 import pytest
 
 from fbadsagent.config import Settings
-from fbadsagent.web.insights_client import FacebookInsightsClient, InsightsError
+from fbadsagent.web.insights_client import (
+    FacebookInsightsClient,
+    InsightsError,
+    list_ad_accounts,
+)
 
 
 def test_get_account_insights_requires_access_token():
@@ -72,3 +76,41 @@ def test_get_account_insights_raises_on_error_status(mocker, settings):
     client = FacebookInsightsClient(settings)
     with pytest.raises(InsightsError):
         client.get_account_insights("act_123")
+
+
+def test_list_ad_accounts_requires_access_token():
+    with pytest.raises(InsightsError):
+        list_ad_accounts(Settings(fb_access_token=""))
+
+
+def test_list_ad_accounts_parses_response(mocker, settings):
+    fake_response = mocker.Mock()
+    fake_response.status_code = 200
+    fake_response.json.return_value = {
+        "data": [
+            {"account_id": "111", "name": "Main store"},
+            {"account_id": "222", "name": "Second store"},
+        ]
+    }
+    mocker.patch(
+        "fbadsagent.web.insights_client.requests.get", return_value=fake_response
+    )
+
+    accounts = list_ad_accounts(settings)
+
+    assert accounts == [
+        {"id": "act_111", "name": "Main store"},
+        {"id": "act_222", "name": "Second store"},
+    ]
+
+
+def test_list_ad_accounts_raises_on_error_status(mocker, settings):
+    fake_response = mocker.Mock()
+    fake_response.status_code = 403
+    fake_response.text = "Forbidden"
+    mocker.patch(
+        "fbadsagent.web.insights_client.requests.get", return_value=fake_response
+    )
+
+    with pytest.raises(InsightsError):
+        list_ad_accounts(settings)

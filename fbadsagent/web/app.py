@@ -43,7 +43,7 @@ from fbadsagent.web.chat_context import build_system_prompt
 from fbadsagent.web.chat_store import ChatStore
 from fbadsagent.web.cpa_store import CpaNetworkStore
 from fbadsagent.web.creative_store import CreativeStore
-from fbadsagent.web.insights_client import FacebookInsightsClient, InsightsError
+from fbadsagent.web.insights_client import FacebookInsightsClient, InsightsError, list_ad_accounts
 from fbadsagent.web.landing_store import LandingPageStore, slugify
 from fbadsagent.web.product_store import AgentRunLogStore, ProductStore
 from fbadsagent.web.security import verify_password
@@ -227,7 +227,7 @@ def create_app(
         )
 
     @app.get("/accounts")
-    def accounts_page(request: Request, error: str | None = None):
+    def accounts_page(request: Request, error: str | None = None, synced: int | None = None):
         if not is_authenticated(request):
             return RedirectResponse("/login", status_code=302)
         return templates.TemplateResponse(
@@ -238,6 +238,7 @@ def create_app(
                 "accounts": account_store.list_accounts(),
                 "access_token_set": bool(account_store.get_access_token()),
                 "error": error,
+                "synced": synced,
             },
         )
 
@@ -263,6 +264,18 @@ def create_app(
             return RedirectResponse("/login", status_code=302)
         account_store.remove_account(account_id)
         return RedirectResponse("/accounts", status_code=302)
+
+    @app.post("/accounts/sync")
+    def sync_accounts(request: Request):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        try:
+            fetched = list_ad_accounts(settings, account_store.get_access_token())
+        except InsightsError as exc:
+            return RedirectResponse(f"/accounts?error={exc}", status_code=302)
+        for acc in fetched:
+            account_store.add_account(acc["id"], acc["name"])
+        return RedirectResponse(f"/accounts?synced={len(fetched)}", status_code=302)
 
     @app.get("/cpa-networks")
     def cpa_networks_page(request: Request):

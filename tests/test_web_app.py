@@ -159,6 +159,40 @@ def test_add_and_remove_account(web_settings):
     assert "act_999888777" not in page_after.text
 
 
+def test_sync_accounts_adds_fetched_accounts(web_settings, mocker):
+    mocker.patch(
+        "fbadsagent.web.app.list_ad_accounts",
+        return_value=[
+            {"id": "act_555", "name": "Synced Store"},
+            {"id": "act_111", "name": "Already Tracked"},
+        ],
+    )
+    client = build_client(web_settings)
+    login(client)
+
+    sync = client.post("/accounts/sync", follow_redirects=False)
+    assert sync.status_code == 302
+    assert sync.headers["location"] == "/accounts?synced=2"
+
+    page = client.get("/accounts")
+    assert "act_555" in page.text
+    assert "Synced Store" in page.text
+
+
+def test_sync_accounts_surfaces_provider_errors(web_settings, mocker):
+    from fbadsagent.web.insights_client import InsightsError
+
+    mocker.patch(
+        "fbadsagent.web.app.list_ad_accounts", side_effect=InsightsError("no token")
+    )
+    client = build_client(web_settings)
+    login(client)
+
+    sync = client.post("/accounts/sync", follow_redirects=False)
+    assert sync.status_code == 302
+    assert sync.headers["location"] == "/accounts?error=no%20token"
+
+
 def test_cpa_networks_page_requires_login(web_settings):
     client = build_client(web_settings)
     response = client.get("/cpa-networks", follow_redirects=False)

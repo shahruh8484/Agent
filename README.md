@@ -290,6 +290,16 @@ named volume (`app_data`) so it survives `docker compose up --build`.
 *first* time the app starts with no existing data file — after that, the
 page is the source of truth.
 
+Click **Sync from Facebook** instead of typing account IDs by hand — it
+calls `GET /me/adaccounts` with the configured access token (falls back to
+`FB_ACCESS_TOKEN` in `.env` if no token is set on this page) and adds
+every ad account that token currently has permission on. For a System
+User token, that's every ad account granted to it in Meta Business
+Settings — granting that access to a new account is still a manual,
+one-time step in Business Settings (Facebook requires a human admin to do
+this, it can't be done via API by the app itself), but after that, syncing
+picks it up automatically instead of copying account IDs one by one.
+
 ### What it shows
 
 - Account selector (whatever's added on the FB Accounts page) and a
