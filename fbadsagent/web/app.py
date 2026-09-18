@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -583,7 +583,7 @@ def create_app(
         )
 
     @app.post("/agent/add")
-    def add_agent_product(
+    async def add_agent_product(
         request: Request,
         name: str = Form(...),
         description: str = Form(...),
@@ -594,6 +594,7 @@ def create_app(
         cpa_network: str = Form("traff-hub"),
         campaign_hash: str = Form(""),
         reference_landing_urls: str = Form(""),
+        reference_screenshots: list[UploadFile] = File(default=[]),
     ):
         if not is_authenticated(request):
             return RedirectResponse("/login", status_code=302)
@@ -601,9 +602,20 @@ def create_app(
         reference_url_list = [
             u.strip() for u in reference_landing_urls.splitlines() if u.strip()
         ]
+        product_id = uuid.uuid4().hex[:12]
+        screenshot_paths = []
+        uploads = [f for f in reference_screenshots if f.filename]
+        if uploads:
+            screenshots_dir = Path(settings.data_dir) / "reference_screenshots" / product_id
+            screenshots_dir.mkdir(parents=True, exist_ok=True)
+            for i, upload in enumerate(uploads):
+                ext = Path(upload.filename).suffix or ".png"
+                dest = screenshots_dir / f"{i}{ext}"
+                dest.write_bytes(await upload.read())
+                screenshot_paths.append(str(dest))
         product_store.add_product(
             AgentProduct(
-                id=uuid.uuid4().hex[:12],
+                id=product_id,
                 name=name,
                 description=description,
                 price=price,
@@ -612,6 +624,7 @@ def create_app(
                 fb_ad_account_id=fb_ad_account_id,
                 cpa_network=cpa_network,
                 campaign_hash=campaign_hash,
+                reference_screenshot_paths=screenshot_paths,
                 reference_landing_urls=reference_url_list,
             )
         )

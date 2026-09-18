@@ -12,13 +12,21 @@ from fbadsagent.web.landing_store import LandingPageStore
 class ScriptedLLM:
     """Returns a different canned JSON response per call, in order."""
 
-    def __init__(self, responses: list[str]):
+    def __init__(self, responses: list[str], image_response: str = ""):
         self._responses = list(responses)
+        self._image_response = image_response
         self.calls: list[tuple[str, str]] = []
+        self.image_calls: list[tuple[str, str, list[str]]] = []
 
     def generate(self, system: str, prompt: str, max_tokens: int = 1024) -> str:
         self.calls.append((system, prompt))
         return self._responses.pop(0)
+
+    def generate_with_images(
+        self, system: str, prompt: str, image_paths: list[str], max_tokens: int = 1024
+    ) -> str:
+        self.image_calls.append((system, prompt, image_paths))
+        return self._image_response
 
 
 def make_agent_product(**overrides) -> AgentProduct:
@@ -211,6 +219,55 @@ def test_run_agent_uses_reference_landing_pages(settings, tmp_path, mocker):
     assert "Competitor headline: Never Charge Twice" in landing_prompt
 
 
+def test_run_agent_uses_reference_screenshots(settings, tmp_path, mocker):
+    mocker.patch("fbadsagent.web.agent_runner.AdLibraryClient").return_value.search_competitor_ads.side_effect = AdLibraryError(
+        "no token"
+    )
+    scripted_llm = ScriptedLLM(
+        [
+            json.dumps(
+                [
+                    {
+                        "primary_text": "x",
+                        "headline": "x",
+                        "description": "x",
+                        "call_to_action": "SHOP_NOW",
+                        "image_prompt": "x",
+                    }
+                ]
+            ),
+            json.dumps({"headline": "x", "subheadline": "x", "benefits": ["x"], "cta_text": "x"}),
+        ],
+        image_response="Headline: Never Charge Twice a Day. CTA: Shop Now.",
+    )
+    mocker.patch("fbadsagent.web.agent_runner.get_llm_provider", return_value=scripted_llm)
+
+    mock_ads_client_cls = mocker.patch("fbadsagent.web.agent_runner.FacebookAdsClient")
+    mock_ads_client_cls.return_value.create_campaign.return_value = CampaignPlan(
+        campaign_name="x",
+        objective="OUTCOME_SALES",
+        daily_budget=25.0,
+        status="PAUSED",
+        dry_run=False,
+        campaign_id="fb-campaign-123",
+    )
+
+    landing_store, creative_store = make_stores(tmp_path)
+    screenshot_path = tmp_path / "screenshot.png"
+    screenshot_path.write_bytes(b"fake-png-bytes")
+    product = make_agent_product(reference_screenshot_paths=[str(screenshot_path)])
+
+    result = run_agent_for_product(product, settings, landing_store, creative_store)
+
+    assert result.status == "success"
+    assert len(scripted_llm.image_calls) == 1
+    _, _, image_paths = scripted_llm.image_calls[0]
+    assert image_paths == [str(screenshot_path)]
+
+    landing_prompt = scripted_llm.calls[1][1]
+    assert "Headline: Never Charge Twice a Day. CTA: Shop Now." in landing_prompt
+
+
 def test_run_agent_tolerates_reference_fetch_failure(settings, tmp_path, mocker):
     mocker.patch("fbadsagent.web.agent_runner.AdLibraryClient").return_value.search_competitor_ads.side_effect = AdLibraryError(
         "no token"
@@ -249,6 +306,53 @@ def test_run_agent_tolerates_reference_fetch_failure(settings, tmp_path, mocker)
 
     landing_store, creative_store = make_stores(tmp_path)
     product = make_agent_product(reference_landing_urls=["https://unreachable.example"])
+
+    result = run_agent_for_product(product, settings, landing_store, creative_store)
+
+    assert result.status == "success"
+
+
+def test_run_agent_tolerates_screenshot_description_failure(settings, tmp_path, mocker):
+    mocker.patch("fbadsagent.web.agent_runner.AdLibraryClient").return_value.search_competitor_ads.side_effect = AdLibraryError(
+        "no token"
+    )
+
+    class FailingImageLLM(ScriptedLLM):
+        def generate_with_images(self, system, prompt, image_paths, max_tokens=1024):
+            raise LLMError("vision not supported")
+
+    scripted_llm = FailingImageLLM(
+        [
+            json.dumps(
+                [
+                    {
+                        "primary_text": "x",
+                        "headline": "x",
+                        "description": "x",
+                        "call_to_action": "SHOP_NOW",
+                        "image_prompt": "x",
+                    }
+                ]
+            ),
+            json.dumps({"headline": "x", "subheadline": "x", "benefits": ["x"], "cta_text": "x"}),
+        ]
+    )
+    mocker.patch("fbadsagent.web.agent_runner.get_llm_provider", return_value=scripted_llm)
+
+    mock_ads_client_cls = mocker.patch("fbadsagent.web.agent_runner.FacebookAdsClient")
+    mock_ads_client_cls.return_value.create_campaign.return_value = CampaignPlan(
+        campaign_name="x",
+        objective="OUTCOME_SALES",
+        daily_budget=25.0,
+        status="PAUSED",
+        dry_run=False,
+        campaign_id="fb-campaign-123",
+    )
+
+    landing_store, creative_store = make_stores(tmp_path)
+    screenshot_path = tmp_path / "screenshot.png"
+    screenshot_path.write_bytes(b"fake-png-bytes")
+    product = make_agent_product(reference_screenshot_paths=[str(screenshot_path)])
 
     result = run_agent_for_product(product, settings, landing_store, creative_store)
 

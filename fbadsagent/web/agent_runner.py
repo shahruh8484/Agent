@@ -27,6 +27,13 @@ from fbadsagent.web.landing_store import LandingPageStore, slugify
 
 logger = logging.getLogger(__name__)
 
+SCREENSHOT_SYSTEM_PROMPT = (
+    "You analyze a screenshot of a competitor's landing page. Describe its "
+    "headline, subheadline, key benefits or bullet points, call-to-action "
+    "text, and overall structure/tone in plain text, so a copywriter who "
+    "cannot see the image can use it as a style reference."
+)
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -92,6 +99,18 @@ def run_agent_for_product(
             reference_texts.append(fetch_reference_text(url))
         except ReferenceFetchError as exc:
             logger.info("Reference landing page skipped for %s: %s", product.name, exc)
+
+    if product.reference_screenshot_paths:
+        try:
+            reference_texts.append(
+                llm.generate_with_images(
+                    SCREENSHOT_SYSTEM_PROMPT,
+                    "Describe this competitor landing page screenshot.",
+                    product.reference_screenshot_paths,
+                )
+            )
+        except LLMError as exc:
+            logger.info("Reference screenshots skipped for %s: %s", product.name, exc)
 
     try:
         copy = generate_landing_copy(llm, product_input, insights, reference_texts)

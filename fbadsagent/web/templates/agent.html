@@ -170,11 +170,13 @@
     <h2>Add a product</h2>
     <p class="hint">
       Set up the campaign on your CPA network first (see CPA Networks page)
-      and paste its hash here. If you give competitor landing page URLs,
-      the agent fetches their visible text and uses it as a style/structure
-      reference when writing this product's landing page copy.
+      and paste its hash here. If you give competitor landing page URLs or
+      screenshots, the agent reads them (visible text for URLs, a vision
+      model's description for screenshots) and uses that as a
+      style/structure reference when writing this product's landing page
+      copy — not copied verbatim.
     </p>
-    <form method="post" action="/agent/add">
+    <form method="post" action="/agent/add" enctype="multipart/form-data">
       <div class="grid-form">
         <div class="field">
           <label for="name">Product name</label>
@@ -224,6 +226,13 @@
       <div class="field">
         <label for="reference_landing_urls">Reference competitor landing pages (one URL per line, optional)</label>
         <textarea id="reference_landing_urls" name="reference_landing_urls" rows="3" placeholder="https://competitor.com/offer-page"></textarea>
+      </div>
+      <div class="field">
+        <label for="reference_screenshots">
+          Or upload screenshots instead (e.g. frames from a screen recording of
+          a competitor's landing page, optional)
+        </label>
+        <input id="reference_screenshots" name="reference_screenshots" type="file" accept="image/*" multiple>
       </div>
       <button type="submit">Add product</button>
     </form>

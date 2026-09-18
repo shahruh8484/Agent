@@ -252,11 +252,16 @@ yourself when you're happy with it.
 1. Add a product: name, description, price, daily budget, keywords, which
    Facebook ad account to launch under, which CPA network + campaign
    hash the landing page should forward leads to (same as the Landing
-   Pages page), and optionally one or more competitor landing page URLs.
-   When given, the agent fetches their visible text
-   (`fbadsagent/landing/reference_fetcher.py`) and includes it in the
-   landing-page-copy prompt as a style/structure reference — a page that
-   fails to fetch is skipped, not fatal to the run.
+   Pages page), and optionally a competitor reference — either landing
+   page URLs, or screenshots (e.g. frames from a screen recording) if the
+   page isn't live at a URL. URLs are fetched as plain text
+   (`fbadsagent/landing/reference_fetcher.py`); screenshots are described
+   by the configured LLM's vision call
+   (`LLMProvider.generate_with_images`, all three providers — Anthropic,
+   OpenAI, Gemini — support it). Either way, the result is folded into the
+   landing-page-copy prompt as a style/structure reference, explicitly
+   not to be copied verbatim — a URL or screenshot that fails is skipped,
+   not fatal to the run.
 2. Click **Run now** to trigger a full pipeline run immediately, or set
    `AGENT_RUN_INTERVAL_HOURS` in `.env` (default 0 = off) so it runs every
    product on that interval by itself, unattended.
@@ -329,7 +334,7 @@ picks it up automatically instead of copying account IDs one by one.
 pytest
 ```
 
-All 121 tests run offline — network calls (Ad Library, Insights API,
+All 127 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
 and the dashboard is tested through FastAPI's `TestClient`.
 

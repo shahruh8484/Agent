@@ -178,6 +178,7 @@ class AgentProduct(BaseModel):
     cpa_network: str = "traff-hub"
     campaign_hash: str = ""
     reference_landing_urls: list[str] = Field(default_factory=list)
+    reference_screenshot_paths: list[str] = Field(default_factory=list)
 
     def to_product_input(self) -> "ProductInput":
         return ProductInput(

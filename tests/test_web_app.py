@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -218,6 +219,36 @@ def test_add_agent_product_parses_reference_urls(web_settings, tmp_path):
     products = product_store.list_products()
     assert len(products) == 1
     assert products[0].reference_landing_urls == ["https://a.com/x", "https://b.com/y"]
+
+
+def test_add_agent_product_saves_uploaded_screenshots(web_settings, tmp_path):
+    from fbadsagent.web.product_store import ProductStore
+
+    product_store = ProductStore(tmp_path / "agent_products.json")
+    app = create_app(
+        settings=web_settings,
+        insights_client=FakeInsightsClient(make_summary()),
+        product_store=product_store,
+    )
+    client = TestClient(app)
+    login(client)
+
+    client.post(
+        "/agent/add",
+        data={"name": "Wireless Earbuds Pro", "description": "desc"},
+        files=[
+            ("reference_screenshots", ("shot1.png", b"fake-png-bytes-1", "image/png")),
+            ("reference_screenshots", ("shot2.png", b"fake-png-bytes-2", "image/png")),
+        ],
+        follow_redirects=False,
+    )
+
+    products = product_store.list_products()
+    assert len(products) == 1
+    saved_paths = products[0].reference_screenshot_paths
+    assert len(saved_paths) == 2
+    for path in saved_paths:
+        assert Path(path).exists()
 
 
 def test_cpa_networks_page_requires_login(web_settings):
