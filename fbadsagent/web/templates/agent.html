@@ -174,7 +174,11 @@
       screenshots, the agent reads them (visible text for URLs, a vision
       model's description for screenshots) and uses that as a
       style/structure reference when writing this product's landing page
-      copy — not copied verbatim.
+      copy — not copied verbatim. Choose <strong>Interactive quiz</strong>
+      below to generate a question-by-question funnel like some competitor
+      pages use — the agent never invents personas, statistics, medical
+      cure claims, or fake social proof for it, regardless of what a
+      reference page contains; only the product's real, given benefits.
     </p>
     <form method="post" action="/agent/add" enctype="multipart/form-data">
       <div class="grid-form">
@@ -222,6 +226,13 @@
           <label for="campaign_hash">CPA campaign hash</label>
           <input id="campaign_hash" name="campaign_hash" type="text" placeholder="6c9c0e1f">
         </div>
+      </div>
+      <div class="field">
+        <label for="landing_style">Landing page style</label>
+        <select id="landing_style" name="landing_style">
+          <option value="static">Static (headline, benefits, CTA)</option>
+          <option value="quiz">Interactive quiz (question-by-question, then a result + order form)</option>
+        </select>
       </div>
       <div class="field">
         <label for="reference_landing_urls">Reference competitor landing pages (one URL per line, optional)</label>

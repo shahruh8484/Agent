@@ -312,6 +312,61 @@ def test_run_agent_tolerates_reference_fetch_failure(settings, tmp_path, mocker)
     assert result.status == "success"
 
 
+def test_run_agent_quiz_style_publishes_quiz_page(settings, tmp_path, mocker):
+    mocker.patch("fbadsagent.web.agent_runner.AdLibraryClient").return_value.search_competitor_ads.side_effect = AdLibraryError(
+        "no token"
+    )
+    scripted_llm = ScriptedLLM(
+        [
+            json.dumps(
+                [
+                    {
+                        "primary_text": "x",
+                        "headline": "x",
+                        "description": "x",
+                        "call_to_action": "SHOP_NOW",
+                        "image_prompt": "x",
+                    }
+                ]
+            ),
+            json.dumps(
+                {
+                    "headline": "A Few Quick Questions",
+                    "subheadline": "Find your fit.",
+                    "quiz_questions": [
+                        {"text": "Do you exercise often?", "options": ["Yes", "No"]},
+                    ],
+                    "quiz_result_message": "These earbuds match your routine.",
+                    "cta_text": "See My Recommendation",
+                }
+            ),
+        ]
+    )
+    mocker.patch("fbadsagent.web.agent_runner.get_llm_provider", return_value=scripted_llm)
+
+    mock_ads_client_cls = mocker.patch("fbadsagent.web.agent_runner.FacebookAdsClient")
+    mock_ads_client_cls.return_value.create_campaign.return_value = CampaignPlan(
+        campaign_name="x",
+        objective="OUTCOME_SALES",
+        daily_budget=25.0,
+        status="PAUSED",
+        dry_run=False,
+        campaign_id="fb-campaign-123",
+    )
+
+    landing_store, creative_store = make_stores(tmp_path)
+    product = make_agent_product(landing_style="quiz")
+
+    result = run_agent_for_product(product, settings, landing_store, creative_store)
+
+    assert result.status == "success"
+    page = landing_store.get_page(result.landing_page_slug)
+    assert page.style == "quiz"
+    assert page.quiz_result_message == "These earbuds match your routine."
+    assert len(page.quiz_questions) == 1
+    assert page.quiz_questions[0].text == "Do you exercise often?"
+
+
 def test_run_agent_tolerates_screenshot_description_failure(settings, tmp_path, mocker):
     mocker.patch("fbadsagent.web.agent_runner.AdLibraryClient").return_value.search_competitor_ads.side_effect = AdLibraryError(
         "no token"

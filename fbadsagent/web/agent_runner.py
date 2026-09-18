@@ -16,7 +16,7 @@ from fbadsagent.config import Settings
 from fbadsagent.creatives.image_generator import ImageGenerationError, generate_images
 from fbadsagent.facebook.ad_library import AdLibraryClient, AdLibraryError
 from fbadsagent.facebook.ads_client import FacebookAdsClient
-from fbadsagent.landing.generator import generate_landing_copy
+from fbadsagent.landing.generator import generate_landing_copy, generate_quiz_landing_copy
 from fbadsagent.landing.reference_fetcher import ReferenceFetchError, fetch_reference_text
 from fbadsagent.llm.competitor_analysis import analyze_competitor_ads
 from fbadsagent.llm.copywriter import generate_ad_variants
@@ -112,26 +112,46 @@ def run_agent_for_product(
         except LLMError as exc:
             logger.info("Reference screenshots skipped for %s: %s", product.name, exc)
 
+    is_quiz = product.landing_style == "quiz"
     try:
-        copy = generate_landing_copy(llm, product_input, insights, reference_texts)
+        if is_quiz:
+            copy = generate_quiz_landing_copy(llm, product_input, insights, reference_texts)
+        else:
+            copy = generate_landing_copy(llm, product_input, insights, reference_texts)
     except LLMError as exc:
         return _error_result(
             product, f"Landing page generation failed: {exc}", triggered_by, creative_set_id
         )
 
     slug = f"{slugify(product.name)}-{uuid.uuid4().hex[:6]}"
-    landing_store.add_page(
-        LandingPageConfig(
-            slug=slug,
-            title=product.name,
-            headline=copy["headline"],
-            subheadline=copy["subheadline"],
-            benefits=copy["benefits"],
-            cta_text=copy["cta_text"],
-            cpa_network=product.cpa_network,
-            campaign_hash=product.campaign_hash,
+    if is_quiz:
+        landing_store.add_page(
+            LandingPageConfig(
+                slug=slug,
+                title=product.name,
+                headline=copy["headline"],
+                subheadline=copy["subheadline"],
+                cta_text=copy["cta_text"],
+                cpa_network=product.cpa_network,
+                campaign_hash=product.campaign_hash,
+                style="quiz",
+                quiz_questions=copy["quiz_questions"],
+                quiz_result_message=copy["quiz_result_message"],
+            )
         )
-    )
+    else:
+        landing_store.add_page(
+            LandingPageConfig(
+                slug=slug,
+                title=product.name,
+                headline=copy["headline"],
+                subheadline=copy["subheadline"],
+                benefits=copy["benefits"],
+                cta_text=copy["cta_text"],
+                cpa_network=product.cpa_network,
+                campaign_hash=product.campaign_hash,
+            )
+        )
 
     domain = settings.domain.strip()
     landing_url = f"https://{domain}/lp/{slug}" if domain else f"/lp/{slug}"

@@ -399,6 +399,12 @@ def create_app(
         page = landing_store.get_page(slug)
         if page is None:
             return JSONResponse({"error": "not found"}, status_code=404)
+        if page.style == "quiz":
+            context = {
+                "page": page,
+                "quiz_questions_json": [q.model_dump() for q in page.quiz_questions],
+            }
+            return templates.TemplateResponse(request, "landing_quiz.html", context)
         return templates.TemplateResponse(request, "landing_public.html", {"page": page})
 
     @app.post("/lp/{slug}/lead")
@@ -595,6 +601,7 @@ def create_app(
         campaign_hash: str = Form(""),
         reference_landing_urls: str = Form(""),
         reference_screenshots: list[UploadFile] = File(default=[]),
+        landing_style: str = Form("static"),
     ):
         if not is_authenticated(request):
             return RedirectResponse("/login", status_code=302)
@@ -626,6 +633,7 @@ def create_app(
                 campaign_hash=campaign_hash,
                 reference_screenshot_paths=screenshot_paths,
                 reference_landing_urls=reference_url_list,
+                landing_style=landing_style if landing_style in ("static", "quiz") else "static",
             )
         )
         return RedirectResponse("/agent", status_code=302)

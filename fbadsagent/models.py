@@ -110,6 +110,14 @@ class SavedCreativeSet(BaseModel):
     images: list[GeneratedImage] = Field(default_factory=list)
 
 
+class QuizQuestion(BaseModel):
+    """One step of an interactive quiz-style landing page — a question
+    with single-choice button options, no branching logic."""
+
+    text: str
+    options: list[str] = Field(default_factory=list)
+
+
 class LandingPageConfig(BaseModel):
     """A published landing page: content plus where its leads go."""
 
@@ -121,6 +129,11 @@ class LandingPageConfig(BaseModel):
     cta_text: str = "Get Started"
     cpa_network: str = "traff-hub"
     campaign_hash: str = ""
+    # "static" (default: headline/subheadline/benefits/CTA) or "quiz"
+    # (an interactive Q&A funnel — see quiz_questions/quiz_result_message).
+    style: str = "static"
+    quiz_questions: list[QuizQuestion] = Field(default_factory=list)
+    quiz_result_message: str = ""
 
 
 class CpaNetworkCredential(BaseModel):
@@ -179,6 +192,9 @@ class AgentProduct(BaseModel):
     campaign_hash: str = ""
     reference_landing_urls: list[str] = Field(default_factory=list)
     reference_screenshot_paths: list[str] = Field(default_factory=list)
+    # "static" (headline/subheadline/benefits/CTA) or "quiz" (an
+    # interactive Q&A funnel — see landing/generator.py's honesty rules).
+    landing_style: str = "static"
 
     def to_product_input(self) -> "ProductInput":
         return ProductInput(

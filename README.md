@@ -262,10 +262,22 @@ yourself when you're happy with it.
    landing-page-copy prompt as a style/structure reference, explicitly
    not to be copied verbatim — a URL or screenshot that fails is skipped,
    not fatal to the run.
-2. Click **Run now** to trigger a full pipeline run immediately, or set
+2. Pick a **landing page style**: `static` (headline/subheadline/benefits/
+   CTA, one page) or `quiz` — an interactive question-by-question funnel
+   (`fbadsagent/web/templates/landing_quiz.html`) modeled on the "quiz
+   then personalized offer" pattern common in CPA funnels. The quiz
+   generator (`generate_quiz_landing_copy` in
+   `fbadsagent/landing/generator.py`) has hard-coded honesty rules baked
+   into its system prompt — it never invents a doctor/expert persona,
+   never fabricates statistics or studies, never claims the product cures
+   a medical condition or diagnoses the visitor, and never fakes social
+   proof or scarcity — regardless of what a reference URL/screenshot
+   shows. Reference material can inform structure and pacing only, not
+   claims.
+3. Click **Run now** to trigger a full pipeline run immediately, or set
    `AGENT_RUN_INTERVAL_HOURS` in `.env` (default 0 = off) so it runs every
    product on that interval by itself, unattended.
-3. Each run is logged (`data/agent_runs.json`) with its outcome — success
+4. Each run is logged (`data/agent_runs.json`) with its outcome — success
    (with links to the landing page and, once you look it up, the FB
    campaign) or a clear error message if any step failed (no LLM
    configured, no FB ad account assigned, Facebook API rejected the
@@ -334,7 +346,7 @@ picks it up automatically instead of copying account IDs one by one.
 pytest
 ```
 
-All 127 tests run offline — network calls (Ad Library, Insights API,
+All 133 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
 and the dashboard is tested through FastAPI's `TestClient`.
 

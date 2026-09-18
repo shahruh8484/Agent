@@ -221,6 +221,33 @@ def test_add_agent_product_parses_reference_urls(web_settings, tmp_path):
     assert products[0].reference_landing_urls == ["https://a.com/x", "https://b.com/y"]
 
 
+def test_add_agent_product_stores_landing_style(web_settings, tmp_path):
+    from fbadsagent.web.product_store import ProductStore
+
+    product_store = ProductStore(tmp_path / "agent_products.json")
+    app = create_app(
+        settings=web_settings,
+        insights_client=FakeInsightsClient(make_summary()),
+        product_store=product_store,
+    )
+    client = TestClient(app)
+    login(client)
+
+    client.post(
+        "/agent/add",
+        data={
+            "name": "Glycofort",
+            "description": "Blood sugar support supplement",
+            "landing_style": "quiz",
+        },
+        follow_redirects=False,
+    )
+
+    products = product_store.list_products()
+    assert len(products) == 1
+    assert products[0].landing_style == "quiz"
+
+
 def test_add_agent_product_saves_uploaded_screenshots(web_settings, tmp_path):
     from fbadsagent.web.product_store import ProductStore
 
@@ -381,6 +408,40 @@ def test_public_landing_page_renders_without_login(web_settings):
     assert response.status_code == 200
     assert "Hear Every Detail" in response.text
     assert "40h battery" in response.text
+
+
+def test_public_quiz_landing_page_renders_quiz_template(web_settings, tmp_path):
+    from fbadsagent.models import LandingPageConfig, QuizQuestion
+    from fbadsagent.web.landing_store import LandingPageStore
+
+    landing_store = LandingPageStore(tmp_path / "landing_pages.json")
+    landing_store.add_page(
+        LandingPageConfig(
+            slug="glycofort-quiz",
+            title="Glycofort",
+            headline="A Few Quick Questions",
+            subheadline="Find out what fits your routine.",
+            cta_text="See My Recommendation",
+            cpa_network="traff-hub",
+            campaign_hash="6c9c0e1f",
+            style="quiz",
+            quiz_questions=[QuizQuestion(text="Do you exercise often?", options=["Yes", "No"])],
+            quiz_result_message="Glycofort supports normal blood sugar levels.",
+        )
+    )
+    app = create_app(
+        settings=web_settings,
+        insights_client=FakeInsightsClient(make_summary()),
+        landing_store=landing_store,
+    )
+    client = TestClient(app)
+
+    response = client.get("/lp/glycofort-quiz")
+
+    assert response.status_code == 200
+    assert "Do you exercise often?" in response.text
+    assert "Glycofort supports normal blood sugar levels." in response.text
+    assert "Analyzing your answers" in response.text
 
 
 def test_public_landing_page_404_when_missing(web_settings):

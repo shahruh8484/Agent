@@ -64,6 +64,87 @@ def generate_landing_copy(
     }
 
 
+QUIZ_SYSTEM_PROMPT = (
+    "You are a conversion copywriter building an interactive quiz-style "
+    "landing page: a short sequence of lifestyle/preference questions with "
+    "button-style answer options, ending in a personalized product "
+    "recommendation screen.\n\n"
+    "Hard rules, no exceptions:\n"
+    "- Never invent a doctor, expert, clinic, institute, or any other "
+    "persona or authority the product doesn't actually have.\n"
+    "- Never invent statistics, study results, percentages, or patient/"
+    "customer counts. Only use benefits explicitly given in the product "
+    "description.\n"
+    "- Never claim the product cures, treats, or eliminates a medical "
+    "condition, or diagnose the reader based on their answers. If the "
+    "product is health-adjacent, describe it only as support/lifestyle "
+    "aid, matching how it's actually described, never as a cure.\n"
+    "- Never fabricate social proof (e.g. 'X just ordered this') or fake "
+    "urgency/scarcity ('only N left') not stated by the caller.\n"
+    "- Questions should be genuinely engaging and relevant to why someone "
+    "would want this product (habits, goals, preferences) — not a fake "
+    "medical intake form.\n\n"
+    "Respond with STRICT JSON only matching "
+    '{"headline": string, "subheadline": string, '
+    '"quiz_questions": [{"text": string, "options": [string, ...]}, ...] '
+    "(3-5 questions, 2-4 options each), "
+    '"quiz_result_message": string (a short, honest, benefit-driven pitch '
+    "for the product show after the quiz, referencing the product's real "
+    'described benefits only), "cta_text": string}. No prose outside the '
+    "JSON."
+)
+
+
+def generate_quiz_landing_copy(
+    llm: LLMProvider,
+    product: ProductInput,
+    insights: CompetitorInsights,
+    reference_texts: list[str] | None = None,
+) -> dict:
+    """Like generate_landing_copy, but for the interactive quiz-style page
+    (fbadsagent/web/templates/landing_quiz.html) — a question-by-question
+    funnel instead of a single static page. See QUIZ_SYSTEM_PROMPT for the
+    honesty constraints this enforces regardless of what reference_texts
+    contains.
+    """
+    prompt = (
+        f"Product: {product.name}\n"
+        f"Description: {product.description}\n"
+        f"Price: {product.price} {product.currency}\n"
+        f"Recommended angle: {insights.recommended_angle}\n\n"
+        "Write the quiz questions, options, result message and CTA for "
+        "this product."
+    )
+    if reference_texts:
+        examples = "\n\n".join(
+            f"--- Reference funnel {i + 1} ---\n{text}"
+            for i, text in enumerate(reference_texts)
+        )
+        prompt += (
+            "\n\nHere is a reference for the funnel's general structure and "
+            "pacing (question style, tone, how it builds to the offer). Do "
+            "not copy any claims, statistics, personas, or wording from it "
+            "— only its structure, and only where it doesn't conflict with "
+            "the hard rules in your system prompt:\n\n" + examples
+        )
+    raw = llm.generate(QUIZ_SYSTEM_PROMPT, prompt, max_tokens=1200)
+    data = _parse_json(raw)
+
+    questions = [
+        {"text": q.get("text", ""), "options": q.get("options") or []}
+        for q in (data.get("quiz_questions") or [])
+        if q.get("text")
+    ]
+
+    return {
+        "headline": data.get("headline") or product.name,
+        "subheadline": data.get("subheadline") or product.description,
+        "quiz_questions": questions,
+        "quiz_result_message": data.get("quiz_result_message") or product.description,
+        "cta_text": data.get("cta_text") or "Get Started",
+    }
+
+
 def generate_landing_page(
     llm: LLMProvider,
     settings: Settings,
