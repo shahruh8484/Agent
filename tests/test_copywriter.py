@@ -47,6 +47,17 @@ def test_generate_ad_variants_falls_back_on_bad_json(product):
     assert variants[0].headline == product.name
 
 
+def test_generate_ad_variants_includes_language_in_prompt(product):
+    llm = FakeLLM(response="[]")
+    insights = CompetitorInsights()
+    product.language = "Uzbek"
+
+    generate_ad_variants(llm, product, insights, n=1)
+
+    _, prompt = llm.calls[0]
+    assert "Write all copy in Uzbek." in prompt
+
+
 def test_analyze_competitor_ads_empty_list_skips_llm(product):
     llm = FakeLLM(response="{}")
     insights = analyze_competitor_ads(llm, product.name, [])

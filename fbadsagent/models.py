@@ -16,6 +16,7 @@ class ProductInput(BaseModel):
     target_countries: list[str] = Field(default_factory=lambda: ["US"])
     daily_budget: float = 20.0
     keywords: list[str] = Field(default_factory=list)
+    language: str = "English"
 
     def search_query(self) -> str:
         return " ".join(self.keywords) if self.keywords else self.name
@@ -195,6 +196,9 @@ class AgentProduct(BaseModel):
     # "static" (headline/subheadline/benefits/CTA) or "quiz" (an
     # interactive Q&A funnel — see landing/generator.py's honesty rules).
     landing_style: str = "static"
+    # Language the agent writes ad copy and landing page content in.
+    # Defaults to Uzbek since that's this account's primary market.
+    target_language: str = "Uzbek"
 
     def to_product_input(self) -> "ProductInput":
         return ProductInput(
@@ -205,6 +209,7 @@ class AgentProduct(BaseModel):
             target_countries=self.target_countries,
             daily_budget=self.daily_budget,
             keywords=self.keywords,
+            language=self.target_language,
         )
 
 

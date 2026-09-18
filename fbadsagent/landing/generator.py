@@ -40,7 +40,8 @@ def generate_landing_copy(
         f"Description: {product.description}\n"
         f"Price: {product.price} {product.currency}\n"
         f"Recommended angle: {insights.recommended_angle}\n\n"
-        "Write compelling, benefit-driven landing page copy for this product."
+        "Write compelling, benefit-driven landing page copy for this product. "
+        f"Write all copy in {product.language}."
     )
     if reference_texts:
         examples = "\n\n".join(
@@ -113,7 +114,8 @@ def generate_quiz_landing_copy(
         f"Price: {product.price} {product.currency}\n"
         f"Recommended angle: {insights.recommended_angle}\n\n"
         "Write the quiz questions, options, result message and CTA for "
-        "this product."
+        "this product. "
+        f"Write all copy in {product.language}."
     )
     if reference_texts:
         examples = "\n\n".join(

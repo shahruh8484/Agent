@@ -468,11 +468,17 @@ def create_app(
         description: str = Form(...),
         price: float | None = Form(None),
         variant_count: int = Form(3),
+        language: str = Form("Uzbek"),
     ):
         if not is_authenticated(request):
             return RedirectResponse("/login", status_code=302)
 
-        product = ProductInput(name=product_name, description=description, price=price)
+        product = ProductInput(
+            name=product_name,
+            description=description,
+            price=price,
+            language=language.strip() or "Uzbek",
+        )
         variant_count = max(1, min(variant_count, 5))
 
         try:
@@ -657,6 +663,7 @@ def create_app(
         reference_landing_urls: str = Form(""),
         reference_screenshots: list[UploadFile] = File(default=[]),
         landing_style: str = Form("static"),
+        target_language: str = Form("Uzbek"),
     ):
         if not is_authenticated(request):
             return RedirectResponse("/login", status_code=302)
@@ -689,6 +696,7 @@ def create_app(
                 reference_screenshot_paths=screenshot_paths,
                 reference_landing_urls=reference_url_list,
                 landing_style=landing_style if landing_style in ("static", "quiz") else "static",
+                target_language=target_language.strip() or "Uzbek",
             )
         )
         return RedirectResponse("/agent", status_code=302)

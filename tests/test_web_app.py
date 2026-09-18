@@ -248,6 +248,56 @@ def test_add_agent_product_stores_landing_style(web_settings, tmp_path):
     assert products[0].landing_style == "quiz"
 
 
+def test_add_agent_product_defaults_language_to_uzbek(web_settings, tmp_path):
+    from fbadsagent.web.product_store import ProductStore
+
+    product_store = ProductStore(tmp_path / "agent_products.json")
+    app = create_app(
+        settings=web_settings,
+        insights_client=FakeInsightsClient(make_summary()),
+        product_store=product_store,
+    )
+    client = TestClient(app)
+    login(client)
+
+    client.post(
+        "/agent/add",
+        data={"name": "Glycofort", "description": "Blood sugar support supplement"},
+        follow_redirects=False,
+    )
+
+    products = product_store.list_products()
+    assert len(products) == 1
+    assert products[0].target_language == "Uzbek"
+
+
+def test_add_agent_product_stores_custom_language(web_settings, tmp_path):
+    from fbadsagent.web.product_store import ProductStore
+
+    product_store = ProductStore(tmp_path / "agent_products.json")
+    app = create_app(
+        settings=web_settings,
+        insights_client=FakeInsightsClient(make_summary()),
+        product_store=product_store,
+    )
+    client = TestClient(app)
+    login(client)
+
+    client.post(
+        "/agent/add",
+        data={
+            "name": "Wireless Earbuds Pro",
+            "description": "desc",
+            "target_language": "English",
+        },
+        follow_redirects=False,
+    )
+
+    products = product_store.list_products()
+    assert len(products) == 1
+    assert products[0].target_language == "English"
+
+
 def test_add_agent_product_saves_uploaded_screenshots(web_settings, tmp_path):
     from fbadsagent.web.product_store import ProductStore
 
@@ -573,6 +623,10 @@ def test_generate_creatives_success(web_settings, mocker):
     assert match is not None
     image_response = client.get(match.group(0))
     assert image_response.status_code == 200
+
+    # defaults to Uzbek when no language is given in the form
+    _, prompt = fake_llm.calls[0]
+    assert "Write all copy in Uzbek." in prompt
 
 
 def test_generate_creatives_llm_error_shows_message(web_settings, mocker):

@@ -287,10 +287,16 @@ yourself when you're happy with it.
    proof or scarcity — regardless of what a reference URL/screenshot
    shows. Reference material can inform structure and pacing only, not
    claims.
-3. Click **Run now** to trigger a full pipeline run immediately, or set
+3. Pick a **language** for the ad copy and landing page content
+   (`AgentProduct.target_language`, defaults to Uzbek) — every LLM prompt
+   that writes copy (`generate_ad_variants`, `generate_landing_copy`,
+   `generate_quiz_landing_copy`) is told to write in it. The standalone
+   Creatives page's manual generator has the same field and default, for
+   one-off creative generation outside the full agent pipeline.
+4. Click **Run now** to trigger a full pipeline run immediately, or set
    `AGENT_RUN_INTERVAL_HOURS` in `.env` (default 0 = off) so it runs every
    product on that interval by itself, unattended.
-4. Each run is logged (`data/agent_runs.json`) with its outcome — success
+5. Each run is logged (`data/agent_runs.json`) with its outcome — success
    (with links to the landing page and, once you look it up, the FB
    campaign) or a clear error message if any step failed (no LLM
    configured, no FB ad account assigned, Facebook API rejected the
@@ -359,7 +365,7 @@ picks it up automatically instead of copying account IDs one by one.
 pytest
 ```
 
-All 140 tests run offline — network calls (Ad Library, Insights API,
+All 145 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
 and the dashboard is tested through FastAPI's `TestClient`.
 

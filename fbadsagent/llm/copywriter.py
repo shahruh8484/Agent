@@ -32,7 +32,8 @@ def generate_ad_variants(
         f"Competitor common hooks: {', '.join(insights.common_hooks) or 'none found'}\n"
         f"Competitor common offers: {', '.join(insights.common_offers) or 'none found'}\n\n"
         f"Write {n} distinct ad copy variants that differentiate us from "
-        "competitors while staying on-brand for the product."
+        "competitors while staying on-brand for the product. "
+        f"Write all copy in {product.language}."
     )
 
     raw = llm.generate(SYSTEM_PROMPT, prompt, max_tokens=1200)

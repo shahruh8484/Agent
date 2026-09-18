@@ -81,6 +81,42 @@ def test_generate_landing_copy_without_reference_texts_omits_section(product):
     assert "Competitor landing page" not in prompt
 
 
+def test_generate_landing_copy_includes_language_in_prompt(product):
+    llm = FakeLLM(
+        response=json.dumps(
+            {"headline": "x", "subheadline": "x", "benefits": ["x"], "cta_text": "x"}
+        )
+    )
+    insights = CompetitorInsights()
+    product.language = "Uzbek"
+
+    generate_landing_copy(llm, product, insights)
+
+    _, prompt = llm.calls[0]
+    assert "Write all copy in Uzbek." in prompt
+
+
+def test_generate_quiz_landing_copy_includes_language_in_prompt(product):
+    llm = FakeLLM(
+        response=json.dumps(
+            {
+                "headline": "x",
+                "subheadline": "x",
+                "quiz_questions": [],
+                "quiz_result_message": "x",
+                "cta_text": "x",
+            }
+        )
+    )
+    insights = CompetitorInsights()
+    product.language = "Uzbek"
+
+    generate_quiz_landing_copy(llm, product, insights)
+
+    _, prompt = llm.calls[0]
+    assert "Write all copy in Uzbek." in prompt
+
+
 def test_generate_quiz_landing_copy_parses_questions(product):
     llm = FakeLLM(
         response=json.dumps(
