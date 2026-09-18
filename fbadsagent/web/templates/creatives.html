@@ -45,27 +45,6 @@
   header a { color: #a3adc2; text-decoration: none; font-size: 0.9rem; }
   header a:hover { color: #e8eaf0; }
   main { padding: 24px 28px 48px; max-width: 900px; margin: 0 auto; }
-  section {
-    background: #171d2b;
-    border: 1px solid #232a3d;
-    border-radius: 12px;
-    padding: 20px 22px;
-    margin-bottom: 24px;
-  }
-  section h2 { font-size: 1rem; margin: 0 0 6px; }
-  section p.hint { color: #a3adc2; font-size: 0.85rem; margin: 0 0 16px; }
-  label { display: block; font-size: 0.85rem; color: #a3adc2; margin-bottom: 6px; }
-  input {
-    width: 100%;
-    padding: 10px 12px;
-    border-radius: 8px;
-    border: 1px solid #2c3550;
-    background: #10141f;
-    color: #e8eaf0;
-    font-size: 0.95rem;
-  }
-  .grid-form { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 14px; }
-  .field { margin-bottom: 12px; }
   button {
     padding: 10px 18px;
     border: none;
@@ -122,42 +101,12 @@
 <main>
   {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
-  <section>
-    <h2>Generate creatives</h2>
-    <p class="hint">
-      Writes ad copy with your configured LLM (ANTHROPIC_API_KEY/OPENAI_API_KEY)
-      and generates an image per variant (IMAGE_PROVIDER — stub by default,
-      openai for real images).
-    </p>
-    <form method="post" action="/creatives/generate">
-      <div class="grid-form">
-        <div class="field">
-          <label for="product_name">Product name</label>
-          <input id="product_name" name="product_name" type="text" placeholder="Wireless Earbuds Pro" required>
-        </div>
-        <div class="field">
-          <label for="price">Price</label>
-          <input id="price" name="price" type="number" step="0.01" placeholder="49.99">
-        </div>
-        <div class="field">
-          <label for="variant_count">Variants</label>
-          <input id="variant_count" name="variant_count" type="number" min="1" max="5" value="3">
-        </div>
-      </div>
-      <div class="field">
-        <label for="description">Description</label>
-        <input id="description" name="description" type="text" placeholder="Noise-cancelling wireless earbuds with 40h battery life" required>
-      </div>
-      <div class="field">
-        <label for="language">Language</label>
-        <input id="language" name="language" type="text" value="Uzbek">
-      </div>
-      <button type="submit">Generate</button>
-    </form>
-  </section>
-
   {% if not sets %}
-  <div class="empty">No creatives generated yet.</div>
+  <div class="empty">
+    No creatives yet. Add a product on the Agent page (or ask Chat to
+    launch one) — creatives are generated automatically as part of that
+    pipeline and will show up here.
+  </div>
   {% endif %}
 
   {% for set in sets %}

@@ -405,24 +405,35 @@ def test_landing_pages_page_requires_login(web_settings):
     assert response.headers["location"] == "/login"
 
 
-def test_add_and_remove_landing_page(web_settings):
-    client = build_client(web_settings)
-    login(client)
+def make_landing_page(**overrides):
+    from fbadsagent.models import LandingPageConfig
 
-    add = client.post(
-        "/landing-pages/add",
-        data={
-            "title": "Wireless Earbuds Pro",
-            "headline": "Hear Every Detail",
-            "subheadline": "Premium audio, all day long.",
-            "benefits": "40h battery\nANC\nWaterproof",
-            "cta_text": "Get Yours",
-            "cpa_network": "traff-hub",
-            "campaign_hash": "6c9c0e1f",
-        },
-        follow_redirects=False,
+    defaults = dict(
+        slug="wireless-earbuds-pro",
+        title="Wireless Earbuds Pro",
+        headline="Hear Every Detail",
+        subheadline="Premium audio, all day long.",
+        benefits=["40h battery", "ANC", "Waterproof"],
+        cta_text="Get Yours",
+        cpa_network="traff-hub",
+        campaign_hash="6c9c0e1f",
     )
-    assert add.status_code == 302
+    defaults.update(overrides)
+    return LandingPageConfig(**defaults)
+
+
+def test_remove_landing_page(web_settings, tmp_path):
+    from fbadsagent.web.landing_store import LandingPageStore
+
+    landing_store = LandingPageStore(tmp_path / "landing_pages.json")
+    landing_store.add_page(make_landing_page())
+    app = create_app(
+        settings=web_settings,
+        insights_client=FakeInsightsClient(make_summary()),
+        landing_store=landing_store,
+    )
+    client = TestClient(app)
+    login(client)
 
     page = client.get("/landing-pages")
     assert "/lp/wireless-earbuds-pro" in page.text
@@ -437,23 +448,17 @@ def test_add_and_remove_landing_page(web_settings):
     assert "No landing pages yet" in page_after.text
 
 
-def test_public_landing_page_renders_without_login(web_settings):
-    client = build_client(web_settings)
-    login(client)
-    client.post(
-        "/landing-pages/add",
-        data={
-            "title": "Wireless Earbuds Pro",
-            "headline": "Hear Every Detail",
-            "subheadline": "Premium audio.",
-            "benefits": "40h battery",
-            "cta_text": "Get Yours",
-            "cpa_network": "traff-hub",
-            "campaign_hash": "6c9c0e1f",
-        },
-    )
+def test_public_landing_page_renders_without_login(web_settings, tmp_path):
+    from fbadsagent.web.landing_store import LandingPageStore
 
-    anon_client = build_client(web_settings)  # fresh, unauthenticated session
+    landing_store = LandingPageStore(tmp_path / "landing_pages.json")
+    landing_store.add_page(make_landing_page())
+    app = create_app(
+        settings=web_settings,
+        insights_client=FakeInsightsClient(make_summary()),
+        landing_store=landing_store,
+    )
+    anon_client = TestClient(app)  # unauthenticated — public page needs no login
     response = anon_client.get("/lp/wireless-earbuds-pro")
     assert response.status_code == 200
     assert "Hear Every Detail" in response.text
@@ -500,26 +505,26 @@ def test_public_landing_page_404_when_missing(web_settings):
     assert response.status_code == 404
 
 
-def test_submit_lead_success(web_settings, mocker):
+def test_submit_lead_success(web_settings, tmp_path, mocker):
+    from fbadsagent.web.landing_store import LandingPageStore
+
     fake_response = mocker.Mock()
     fake_response.status_code = 200
     fake_response.json.return_value = {"success": True, "transaction_id": "abc"}
     mocker.patch("fbadsagent.integrations.traffhub.requests.post", return_value=fake_response)
 
-    client = build_client(web_settings)
+    landing_store = LandingPageStore(tmp_path / "landing_pages.json")
+    landing_store.add_page(make_landing_page())
+    app = create_app(
+        settings=web_settings,
+        insights_client=FakeInsightsClient(make_summary()),
+        landing_store=landing_store,
+    )
+    client = TestClient(app)
     login(client)
     client.post("/cpa-networks/add", data={"name": "traff-hub", "api_key": "real-key"})
-    client.post(
-        "/landing-pages/add",
-        data={
-            "title": "Wireless Earbuds Pro",
-            "headline": "Hear Every Detail",
-            "cpa_network": "traff-hub",
-            "campaign_hash": "6c9c0e1f",
-        },
-    )
 
-    anon_client = build_client(web_settings)
+    anon_client = TestClient(app)
     response = anon_client.post(
         "/lp/wireless-earbuds-pro/lead", json={"fio": "Test Test", "phone": "+10000000000"}
     )
@@ -527,18 +532,17 @@ def test_submit_lead_success(web_settings, mocker):
     assert response.json() == {"success": True}
 
 
-def test_submit_lead_missing_network_config(web_settings):
-    client = build_client(web_settings)
-    login(client)
-    client.post(
-        "/landing-pages/add",
-        data={
-            "title": "Wireless Earbuds Pro",
-            "headline": "Hear Every Detail",
-            "cpa_network": "traff-hub",
-            "campaign_hash": "6c9c0e1f",
-        },
+def test_submit_lead_missing_network_config(web_settings, tmp_path):
+    from fbadsagent.web.landing_store import LandingPageStore
+
+    landing_store = LandingPageStore(tmp_path / "landing_pages.json")
+    landing_store.add_page(make_landing_page())
+    app = create_app(
+        settings=web_settings,
+        insights_client=FakeInsightsClient(make_summary()),
+        landing_store=landing_store,
     )
+    client = TestClient(app)
 
     response = client.post(
         "/lp/wireless-earbuds-pro/lead", json={"fio": "Test Test", "phone": "+10000000000"}
@@ -547,24 +551,24 @@ def test_submit_lead_missing_network_config(web_settings):
     assert response.json()["success"] is False
 
 
-def test_submit_lead_traffhub_error_returns_502(web_settings, mocker):
+def test_submit_lead_traffhub_error_returns_502(web_settings, tmp_path, mocker):
+    from fbadsagent.web.landing_store import LandingPageStore
+
     fake_response = mocker.Mock()
     fake_response.status_code = 403
     fake_response.text = "Invalid api_key"
     mocker.patch("fbadsagent.integrations.traffhub.requests.post", return_value=fake_response)
 
-    client = build_client(web_settings)
+    landing_store = LandingPageStore(tmp_path / "landing_pages.json")
+    landing_store.add_page(make_landing_page())
+    app = create_app(
+        settings=web_settings,
+        insights_client=FakeInsightsClient(make_summary()),
+        landing_store=landing_store,
+    )
+    client = TestClient(app)
     login(client)
     client.post("/cpa-networks/add", data={"name": "traff-hub", "api_key": "bad-key"})
-    client.post(
-        "/landing-pages/add",
-        data={
-            "title": "Wireless Earbuds Pro",
-            "headline": "Hear Every Detail",
-            "cpa_network": "traff-hub",
-            "campaign_hash": "6c9c0e1f",
-        },
-    )
 
     response = client.post(
         "/lp/wireless-earbuds-pro/lead", json={"fio": "Test Test", "phone": "+10000000000"}
@@ -580,98 +584,54 @@ def test_creatives_page_requires_login(web_settings):
     assert response.headers["location"] == "/login"
 
 
-def test_generate_creatives_success(web_settings, mocker):
-    fake_llm = FakeLLM(
-        response=json.dumps(
-            [
-                {
-                    "primary_text": "40 hours of pure sound.",
-                    "headline": "All-Day Battery",
-                    "description": "Shop now",
-                    "call_to_action": "SHOP_NOW",
-                    "image_prompt": "earbuds on charging case",
-                }
-            ]
+def test_creatives_page_shows_seeded_set_and_serves_its_image(web_settings, tmp_path):
+    from fbadsagent.models import AdCreativeCopy, GeneratedImage, SavedCreativeSet
+    from fbadsagent.web.creative_store import CreativeStore
+
+    data_dir = tmp_path / "data"
+    creatives_dir = data_dir / "creatives"
+    creatives_dir.mkdir(parents=True)
+    image_path = creatives_dir / "variant-1.png"
+    image_path.write_bytes(b"fake-png-bytes")
+
+    web_settings.data_dir = str(data_dir)
+    creative_store = CreativeStore(data_dir / "creative_sets.json")
+    creative_store.add_set(
+        SavedCreativeSet(
+            id="set1",
+            product_name="Wireless Earbuds Pro",
+            created_at="2026-09-18 12:00 UTC",
+            creatives=[
+                AdCreativeCopy(
+                    variant_id="v1",
+                    primary_text="40 hours of pure sound.",
+                    headline="All-Day Battery",
+                    description="Shop now",
+                    call_to_action="SHOP_NOW",
+                )
+            ],
+            images=[GeneratedImage(variant_id="v1", path=str(image_path), prompt="x", provider="stub")],
         )
     )
-    mocker.patch("fbadsagent.web.app.get_llm_provider", return_value=fake_llm)
-
-    client = build_client(web_settings)
-    login(client)
-
-    response = client.post(
-        "/creatives/generate",
-        data={
-            "product_name": "Wireless Earbuds Pro",
-            "description": "Noise-cancelling earbuds",
-            "price": "49.99",
-            "variant_count": "1",
-        },
-        follow_redirects=False,
+    app = create_app(
+        settings=web_settings,
+        insights_client=FakeInsightsClient(make_summary()),
+        creative_store=creative_store,
     )
-    assert response.status_code == 302
+    client = TestClient(app)
+    login(client)
 
     page = client.get("/creatives")
     assert "Wireless Earbuds Pro" in page.text
     assert "All-Day Battery" in page.text
-    assert "/creative-assets/" in page.text
 
-    # the generated image is actually being served
-    import re
-
-    match = re.search(r'/creative-assets/[\w.-]+\.png', page.text)
-    assert match is not None
-    image_response = client.get(match.group(0))
+    image_response = client.get("/creative-assets/variant-1.png")
     assert image_response.status_code == 200
 
-    # defaults to Uzbek when no language is given in the form
-    _, prompt = fake_llm.calls[0]
-    assert "Write all copy in Uzbek." in prompt
-
-
-def test_generate_creatives_llm_error_shows_message(web_settings, mocker):
-    from fbadsagent.llm.provider import LLMError
-
-    mocker.patch("fbadsagent.web.app.get_llm_provider", side_effect=LLMError("no api key"))
-
-    client = build_client(web_settings)
-    login(client)
-
-    response = client.post(
-        "/creatives/generate",
-        data={"product_name": "Widget", "description": "A widget", "variant_count": "1"},
-    )
-    assert response.status_code == 400
-    assert "no api key" in response.text
-
-
-def test_delete_creative_set(web_settings, mocker):
-    fake_llm = FakeLLM(
-        response=json.dumps(
-            [{"primary_text": "x", "headline": "x", "description": "x", "call_to_action": "SHOP_NOW", "image_prompt": "x"}]
-        )
-    )
-    mocker.patch("fbadsagent.web.app.get_llm_provider", return_value=fake_llm)
-
-    client = build_client(web_settings)
-    login(client)
-    client.post(
-        "/creatives/generate",
-        data={"product_name": "Widget", "description": "A widget", "variant_count": "1"},
-    )
-
-    page = client.get("/creatives")
-    import re
-
-    set_id_match = re.search(r'name="set_id" value="(\w+)"', page.text)
-    assert set_id_match is not None
-
-    remove = client.post(
-        "/creatives/delete", data={"set_id": set_id_match.group(1)}, follow_redirects=False
-    )
+    remove = client.post("/creatives/delete", data={"set_id": "set1"}, follow_redirects=False)
     assert remove.status_code == 302
     page_after = client.get("/creatives")
-    assert "No creatives generated yet" in page_after.text
+    assert "No creatives yet" in page_after.text
 
 
 def test_chat_page_requires_login(web_settings):

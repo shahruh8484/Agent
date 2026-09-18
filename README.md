@@ -209,45 +209,31 @@ triggered this way show up in the Agent page's run log with
 
 ### Creatives page
 
-Sidebar → **Creatives** generates ad copy + an image per variant from a
-product name/description/price, using the same modules the CLI pipeline
-uses (`fbadsagent/llm/copywriter.py`, `fbadsagent/creatives/image_generator.py`),
-and stores the results as a browsable gallery (`data/creative_sets.json`;
-images under `data/creatives/`, served at `/creative-assets/...`).
-
-Needs an LLM key set per `LLM_PROVIDER` — `anthropic`, `openai`, or `gemini`
-(the last has a free tier, see `.env.example`) — to write copy; without
-one, generation fails with a clear error shown on the page rather than a
-crash. Images use `IMAGE_PROVIDER=stub` by default
-(placeholder, no cost); set `IMAGE_PROVIDER=openai` or `IMAGE_PROVIDER=gemini`
-(free-tier eligible, same `GEMINI_API_KEY` as the LLM) for real ones. This
-page skips the competitor-research step the CLI pipeline does — it's a
-quicker "just generate creatives" path, not a replacement for the full
-`python -m fbadsagent.main` pipeline.
+Sidebar → **Creatives** is now a read-only gallery (`data/creative_sets.json`;
+images under `data/creatives/`, served at `/creative-assets/...`) of what
+the Agent pipeline has generated — there's no manual "generate" form
+here anymore. To make a creative set, add a product on the Agent page
+(or ask Chat to launch one); it'll show up here once that run completes.
+You can still remove a set from the gallery.
 
 ### Landing Pages page
 
-Sidebar → **Landing Pages** publishes lead-capture pages, each with a
-name + phone form that POSTs straight to a CPA network's `send_lead`
-(currently traff-hub only). Pages are public at `/lp/{slug}` (no login —
-this is what you send ad traffic to); managing them (create/remove) is
-login-protected under `/landing-pages`.
+Sidebar → **Landing Pages** is a read-only list of published pages
+(`/lp/{slug}` — no login, this is what you send ad traffic to), each with
+a lead form that POSTs straight to its CPA network's `send_lead`
+(currently traff-hub only). There's no manual "publish" form — pages are
+only created by the Agent pipeline now; you can still remove one from
+here.
 
 Flow to actually run traffic:
 1. On traff-hub: create a campaign with **Тип кампании = API** (not
    "Партнёрская ссылка" — that needs their domain-parking flow instead)
    and copy its campaign hash.
 2. On CPA Networks: make sure `traff-hub` has a working API key.
-3. On Landing Pages: publish a page, paste that campaign hash in.
-4. Point your Facebook ad's link at `https://yourdomain/lp/{slug}`.
-   When someone submits the form, the lead is forwarded to traff-hub via
-   `TraffHubClient.send_lead()` in real time.
-
-Content is entered manually for now (title/headline/benefits/CTA) — the
-CLI's AI landing-page generator (`fbadsagent/landing/generator.py`) isn't
-wired into this page yet; a natural next step is generating that copy
-with the LLM and publishing straight from the pipeline instead of typing
-it by hand.
+3. On the Agent page: add a product with that campaign hash, run it (or
+   ask Chat to launch it) — it publishes the page automatically.
+4. Point your Facebook ad's link at `https://yourdomain/lp/{slug}`
+   (already done automatically for campaigns the agent creates).
 
 ### Agent page
 
@@ -290,9 +276,7 @@ yourself when you're happy with it.
 3. Pick a **language** for the ad copy and landing page content
    (`AgentProduct.target_language`, defaults to Uzbek) — every LLM prompt
    that writes copy (`generate_ad_variants`, `generate_landing_copy`,
-   `generate_quiz_landing_copy`) is told to write in it. The standalone
-   Creatives page's manual generator has the same field and default, for
-   one-off creative generation outside the full agent pipeline.
+   `generate_quiz_landing_copy`) is told to write in it.
 4. Click **Run now** to trigger a full pipeline run immediately, or set
    `AGENT_RUN_INTERVAL_HOURS` in `.env` (default 0 = off) so it runs every
    product on that interval by itself, unattended.
@@ -365,7 +349,7 @@ picks it up automatically instead of copying account IDs one by one.
 pytest
 ```
 
-All 145 tests run offline — network calls (Ad Library, Insights API,
+All 143 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
 and the dashboard is tested through FastAPI's `TestClient`.
 

@@ -54,19 +54,6 @@
   }
   section h2 { font-size: 1rem; margin: 0 0 6px; }
   section p.hint { color: #a3adc2; font-size: 0.85rem; margin: 0 0 16px; }
-  label { display: block; font-size: 0.85rem; color: #a3adc2; margin-bottom: 6px; }
-  input, textarea {
-    width: 100%;
-    padding: 10px 12px;
-    border-radius: 8px;
-    border: 1px solid #2c3550;
-    background: #10141f;
-    color: #e8eaf0;
-    font-size: 0.95rem;
-    font-family: inherit;
-  }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-  .field { margin-bottom: 12px; }
   button {
     padding: 10px 18px;
     border: none;
@@ -130,51 +117,14 @@
           </td>
         </tr>
         {% else %}
-        <tr class="empty-row"><td colspan="4">No landing pages yet.</td></tr>
+        <tr class="empty-row"><td colspan="4">
+          No landing pages yet. Add a product on the Agent page (or ask
+          Chat to launch one) — pages are published automatically as part
+          of that pipeline and will show up here.
+        </td></tr>
         {% endfor %}
       </tbody>
     </table>
-  </section>
-
-  <section>
-    <h2>Publish a new page</h2>
-    <p class="hint">
-      Set up the network's campaign first (CPA Networks page + the network's
-      own dashboard), then paste its campaign hash here.
-    </p>
-    <form method="post" action="/landing-pages/add">
-      <div class="field">
-        <label for="title">Page title</label>
-        <input id="title" name="title" type="text" placeholder="Wireless Earbuds Pro" required>
-      </div>
-      <div class="field">
-        <label for="headline">Headline</label>
-        <input id="headline" name="headline" type="text" placeholder="Hear Every Detail" required>
-      </div>
-      <div class="field">
-        <label for="subheadline">Subheadline</label>
-        <input id="subheadline" name="subheadline" type="text" placeholder="Premium audio, all day long.">
-      </div>
-      <div class="field">
-        <label for="benefits">Benefits (one per line)</label>
-        <textarea id="benefits" name="benefits" rows="4" placeholder="40h battery&#10;Active noise cancelling&#10;Waterproof"></textarea>
-      </div>
-      <div class="field">
-        <label for="cta_text">Button text</label>
-        <input id="cta_text" name="cta_text" type="text" value="Get Started">
-      </div>
-      <div class="grid">
-        <div class="field">
-          <label for="cpa_network">CPA network</label>
-          <input id="cpa_network" name="cpa_network" type="text" value="traff-hub" required>
-        </div>
-        <div class="field">
-          <label for="campaign_hash">Campaign hash</label>
-          <input id="campaign_hash" name="campaign_hash" type="text" placeholder="6c9c0e1f" required>
-        </div>
-      </div>
-      <button type="submit">Publish page</button>
-    </form>
   </section>
 </main>
 </div>

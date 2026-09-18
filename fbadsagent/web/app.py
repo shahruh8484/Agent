@@ -25,18 +25,9 @@ from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
 from fbadsagent.config import Settings, get_settings
-from fbadsagent.creatives.image_generator import ImageGenerationError, generate_images
 from fbadsagent.integrations.traffhub import TraffHubClient, TraffHubError
-from fbadsagent.llm.copywriter import generate_ad_variants
 from fbadsagent.llm.provider import LLMError, get_llm_provider
-from fbadsagent.models import (
-    AgentProduct,
-    ChatMessage,
-    CompetitorInsights,
-    LandingPageConfig,
-    ProductInput,
-    SavedCreativeSet,
-)
+from fbadsagent.models import AgentProduct, ChatMessage
 from fbadsagent.web.account_store import AccountStore
 from fbadsagent.web.agent_runner import run_agent_for_product
 from fbadsagent.web.chat_commands import LaunchCommand, parse_launch_command
@@ -45,7 +36,7 @@ from fbadsagent.web.chat_store import ChatStore
 from fbadsagent.web.cpa_store import CpaNetworkStore
 from fbadsagent.web.creative_store import CreativeStore
 from fbadsagent.web.insights_client import FacebookInsightsClient, InsightsError, list_ad_accounts
-from fbadsagent.web.landing_store import LandingPageStore, slugify
+from fbadsagent.web.landing_store import LandingPageStore
 from fbadsagent.web.product_store import AgentRunLogStore, ProductStore
 from fbadsagent.web.security import verify_password
 
@@ -151,7 +142,7 @@ def create_app(
                     result = await asyncio.to_thread(
                         run_agent_for_product,
                         product,
-                        settings,
+                        creative_assets_settings,
                         landing_store,
                         creative_store,
                         "schedule",
@@ -359,35 +350,6 @@ def create_app(
             },
         )
 
-    @app.post("/landing-pages/add")
-    def add_landing_page(
-        request: Request,
-        title: str = Form(...),
-        headline: str = Form(...),
-        subheadline: str = Form(""),
-        benefits: str = Form(""),
-        cta_text: str = Form("Get Started"),
-        cpa_network: str = Form(...),
-        campaign_hash: str = Form(...),
-    ):
-        if not is_authenticated(request):
-            return RedirectResponse("/login", status_code=302)
-        slug = slugify(title)
-        benefit_list = [line.strip() for line in benefits.splitlines() if line.strip()]
-        landing_store.add_page(
-            LandingPageConfig(
-                slug=slug,
-                title=title,
-                headline=headline,
-                subheadline=subheadline,
-                benefits=benefit_list,
-                cta_text=cta_text or "Get Started",
-                cpa_network=cpa_network,
-                campaign_hash=campaign_hash,
-            )
-        )
-        return RedirectResponse("/landing-pages", status_code=302)
-
     @app.post("/landing-pages/delete")
     def delete_landing_page(request: Request, slug: str = Form(...)):
         if not is_authenticated(request):
@@ -461,53 +423,6 @@ def create_app(
             },
         )
 
-    @app.post("/creatives/generate")
-    def generate_creatives(
-        request: Request,
-        product_name: str = Form(...),
-        description: str = Form(...),
-        price: float | None = Form(None),
-        variant_count: int = Form(3),
-        language: str = Form("Uzbek"),
-    ):
-        if not is_authenticated(request):
-            return RedirectResponse("/login", status_code=302)
-
-        product = ProductInput(
-            name=product_name,
-            description=description,
-            price=price,
-            language=language.strip() or "Uzbek",
-        )
-        variant_count = max(1, min(variant_count, 5))
-
-        try:
-            llm = get_llm_provider(settings)
-            creatives = generate_ad_variants(llm, product, CompetitorInsights(), n=variant_count)
-            images = generate_images(creative_assets_settings, creatives)
-        except (LLMError, ImageGenerationError) as exc:
-            return templates.TemplateResponse(
-                request,
-                "creatives.html",
-                {
-                    "user": request.session.get("user"),
-                    "sets": creative_store.list_sets(),
-                    "error": str(exc),
-                },
-                status_code=400,
-            )
-
-        creative_store.add_set(
-            SavedCreativeSet(
-                id=uuid.uuid4().hex[:12],
-                product_name=product_name,
-                created_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-                creatives=creatives,
-                images=images,
-            )
-        )
-        return RedirectResponse("/creatives", status_code=302)
-
     @app.post("/creatives/delete")
     def delete_creative_set(request: Request, set_id: str = Form(...)):
         if not is_authenticated(request):
@@ -563,7 +478,7 @@ def create_app(
         lines = [f"Launching {command.count} campaign(s) for {product.name}..."]
         for i in range(1, command.count + 1):
             result = run_agent_for_product(
-                product, settings, landing_store, creative_store, "chat"
+                product, creative_assets_settings, landing_store, creative_store, "chat"
             )
             agent_run_log.append(result)
             if result.status == "success":
@@ -715,7 +630,7 @@ def create_app(
         product = product_store.get_product(product_id)
         if product is not None:
             result = run_agent_for_product(
-                product, settings, landing_store, creative_store, "manual"
+                product, creative_assets_settings, landing_store, creative_store, "manual"
             )
             agent_run_log.append(result)
         return RedirectResponse("/agent", status_code=302)
