@@ -648,8 +648,10 @@ def test_chat_send_success(web_settings, mocker):
     assert "What should I do next?" in page.text
     assert "Sure, here is a suggestion." in page.text
 
-    # the context summary reaches the LLM
-    system_prompt, prompt = fake_llm.calls[0]
+    # the context summary reaches the LLM (last call — the first is the
+    # launch-command classifier, which "Sure, here is a suggestion." fails
+    # to parse as JSON and so falls through to the normal reply path)
+    system_prompt, prompt = fake_llm.calls[-1]
     assert "Current dashboard state" in system_prompt
     assert "What should I do next?" in prompt
 
@@ -687,6 +689,120 @@ def test_chat_idea_appends_idea_message(web_settings, mocker):
     page = client.get("/chat")
     assert "Agent idea" in page.text
     assert "Try a video creative for this offer." in page.text
+
+
+def test_chat_send_launch_command_for_unknown_product_asks_to_add_it(web_settings, mocker):
+    fake_llm = FakeLLM(
+        response=json.dumps(
+            {
+                "is_launch_command": True,
+                "product_name": "Glycofort",
+                "count": 1,
+                "daily_budget": None,
+            }
+        )
+    )
+    mocker.patch("fbadsagent.web.app.get_llm_provider", return_value=fake_llm)
+
+    client = build_client(web_settings)
+    login(client)
+
+    response = client.post("/chat/send", json={"message": "launch Glycofort"})
+    assert response.status_code == 200
+    assert "don't have a product called" in response.json()["reply"]
+
+
+def test_chat_send_launch_command_runs_agent_for_matching_product(web_settings, tmp_path, mocker):
+    from fbadsagent.facebook.ad_library import AdLibraryError
+    from fbadsagent.models import AgentProduct, CampaignPlan
+    from fbadsagent.web.product_store import AgentRunLogStore, ProductStore
+
+    class ScriptedLLM:
+        def __init__(self, responses):
+            self._responses = list(responses)
+            self.calls = []
+
+        def generate(self, system, prompt, max_tokens=1024):
+            self.calls.append((system, prompt))
+            return self._responses.pop(0)
+
+    classifier_llm = FakeLLM(
+        response=json.dumps(
+            {
+                "is_launch_command": True,
+                "product_name": "glycofort",
+                "count": 1,
+                "daily_budget": None,
+            }
+        )
+    )
+    mocker.patch("fbadsagent.web.app.get_llm_provider", return_value=classifier_llm)
+
+    pipeline_llm = ScriptedLLM(
+        [
+            json.dumps(
+                [
+                    {
+                        "primary_text": "x",
+                        "headline": "x",
+                        "description": "x",
+                        "call_to_action": "SHOP_NOW",
+                        "image_prompt": "x",
+                    }
+                ]
+            ),
+            json.dumps({"headline": "x", "subheadline": "x", "benefits": ["x"], "cta_text": "x"}),
+        ]
+    )
+    mocker.patch("fbadsagent.web.agent_runner.get_llm_provider", return_value=pipeline_llm)
+    mocker.patch(
+        "fbadsagent.web.agent_runner.AdLibraryClient"
+    ).return_value.search_competitor_ads.side_effect = AdLibraryError("no token")
+    mock_ads_client_cls = mocker.patch("fbadsagent.web.agent_runner.FacebookAdsClient")
+    mock_ads_client_cls.return_value.create_campaign.return_value = CampaignPlan(
+        campaign_name="Glycofort - AI Agent Campaign",
+        objective="OUTCOME_SALES",
+        daily_budget=5.0,
+        status="PAUSED",
+        dry_run=False,
+        campaign_id="fb-campaign-123",
+    )
+
+    product_store = ProductStore(tmp_path / "agent_products.json")
+    product_store.add_product(
+        AgentProduct(
+            id="p1",
+            name="Glycofort",
+            description="Blood sugar support supplement",
+            daily_budget=20.0,
+            fb_ad_account_id="act_123",
+            cpa_network="traff-hub",
+            campaign_hash="6c9c0e1f",
+        )
+    )
+    agent_run_log = AgentRunLogStore(tmp_path / "agent_runs.json")
+    app = create_app(
+        settings=web_settings,
+        insights_client=FakeInsightsClient(make_summary()),
+        product_store=product_store,
+        agent_run_log=agent_run_log,
+    )
+    client = TestClient(app)
+    login(client)
+
+    response = client.post(
+        "/chat/send", json={"message": "запусти 1 рк на glycofort с 5 долларами бюджета"}
+    )
+
+    assert response.status_code == 200
+    reply = response.json()["reply"]
+    assert "Success" in reply
+    assert "/lp/" in reply
+
+    runs = agent_run_log.list_runs()
+    assert len(runs) == 1
+    assert runs[0].triggered_by == "chat"
+    assert runs[0].status == "success"
 
 
 def test_update_access_token_reflected_in_status(web_settings):

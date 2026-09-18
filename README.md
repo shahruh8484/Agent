@@ -194,6 +194,19 @@ Needs an LLM key set per `LLM_PROVIDER` (same as Creatives, including the
 free-tier `gemini` option) — without one, sending a message shows a clear
 error inline and the background loop just logs and skips that cycle.
 
+**Chat doubles as a command line for the agent.** Every message you send
+is first checked (`fbadsagent/web/chat_commands.py`) for a launch
+request — e.g. "launch 2 campaigns for Glycofort at $5/day" — via a
+strict-JSON LLM classifier, before falling through to a normal reply if
+it isn't one. A recognized command is matched against your existing
+products on the Agent page by name (exact match first, then a loose
+substring match) and runs `run_agent_for_product` that many times
+(capped at 5 per message), reusing that product's already-configured FB
+ad account and CPA campaign hash — it never invents those. If no product
+matches, it says so and lists what you do have, instead of guessing. Runs
+triggered this way show up in the Agent page's run log with
+`triggered_by: "chat"`, same as a manual "Run now" click.
+
 ### Creatives page
 
 Sidebar → **Creatives** generates ad copy + an image per variant from a
@@ -346,7 +359,7 @@ picks it up automatically instead of copying account IDs one by one.
 pytest
 ```
 
-All 133 tests run offline — network calls (Ad Library, Insights API,
+All 140 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
 and the dashboard is tested through FastAPI's `TestClient`.
 

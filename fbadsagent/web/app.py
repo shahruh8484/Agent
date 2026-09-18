@@ -39,6 +39,7 @@ from fbadsagent.models import (
 )
 from fbadsagent.web.account_store import AccountStore
 from fbadsagent.web.agent_runner import run_agent_for_product
+from fbadsagent.web.chat_commands import LaunchCommand, parse_launch_command
 from fbadsagent.web.chat_context import build_system_prompt
 from fbadsagent.web.chat_store import ChatStore
 from fbadsagent.web.cpa_store import CpaNetworkStore
@@ -527,6 +528,49 @@ def create_app(
     def _now() -> str:
         return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
+    def _find_product_by_name(name: str) -> AgentProduct | None:
+        name_lower = name.strip().lower()
+        products = product_store.list_products()
+        for p in products:
+            if p.name.strip().lower() == name_lower:
+                return p
+        for p in products:
+            if name_lower in p.name.lower() or p.name.lower() in name_lower:
+                return p
+        return None
+
+    def _handle_launch_command(command: LaunchCommand) -> str:
+        product = _find_product_by_name(command.product_name)
+        if product is None:
+            names = ", ".join(p.name for p in product_store.list_products()) or "none yet"
+            return (
+                f'I don\'t have a product called "{command.product_name}" set up '
+                "yet. Add it first on the Agent page (with its Facebook ad "
+                "account and CPA campaign hash) — I can't invent those. "
+                f"Products I do have: {names}."
+            )
+
+        if command.daily_budget:
+            product = product.model_copy(update={"daily_budget": command.daily_budget})
+
+        domain = settings.domain.strip()
+        lines = [f"Launching {command.count} campaign(s) for {product.name}..."]
+        for i in range(1, command.count + 1):
+            result = run_agent_for_product(
+                product, settings, landing_store, creative_store, "chat"
+            )
+            agent_run_log.append(result)
+            if result.status == "success":
+                url = (
+                    f"https://{domain}/lp/{result.landing_page_slug}"
+                    if domain
+                    else f"/lp/{result.landing_page_slug}"
+                )
+                lines.append(f"{i}. Success — {result.message} Landing page: {url}")
+            else:
+                lines.append(f"{i}. Failed — {result.message}")
+        return "\n".join(lines)
+
     @app.post("/chat/send")
     def chat_send(request: Request, body: ChatSendRequest):
         if not is_authenticated(request):
@@ -536,15 +580,26 @@ def create_app(
         if not message:
             return JSONResponse({"error": "Message is empty."}, status_code=400)
 
-        history = chat_store.list_messages()[-MAX_CHAT_HISTORY_FOR_PROMPT:]
-        transcript = "\n".join(f"{m.role}: {m.content}" for m in history)
-        prompt = f"{transcript}\nuser: {message}\nassistant:" if transcript else f"user: {message}\nassistant:"
-
         try:
             llm = get_llm_provider(settings)
-            reply = llm.generate(_system_prompt(), prompt, max_tokens=800)
         except LLMError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
+
+        command = parse_launch_command(llm, message)
+        if command is not None:
+            reply = _handle_launch_command(command)
+        else:
+            history = chat_store.list_messages()[-MAX_CHAT_HISTORY_FOR_PROMPT:]
+            transcript = "\n".join(f"{m.role}: {m.content}" for m in history)
+            prompt = (
+                f"{transcript}\nuser: {message}\nassistant:"
+                if transcript
+                else f"user: {message}\nassistant:"
+            )
+            try:
+                reply = llm.generate(_system_prompt(), prompt, max_tokens=800)
+            except LLMError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
 
         chat_store.append(ChatMessage(role="user", content=message, created_at=_now()))
         chat_store.append(ChatMessage(role="assistant", content=reply, created_at=_now()))
