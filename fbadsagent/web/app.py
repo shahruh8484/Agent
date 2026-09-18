@@ -181,6 +181,7 @@ def create_app(
     )
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
     app.mount("/creative-assets", StaticFiles(directory=str(creatives_dir)), name="creative-assets")
+    app.mount("/static", StaticFiles(directory=str(TEMPLATES_DIR.parent / "static")), name="static")
 
     def is_authenticated(request: Request) -> bool:
         return bool(request.session.get("authenticated"))
