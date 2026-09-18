@@ -17,6 +17,7 @@ from fbadsagent.creatives.image_generator import ImageGenerationError, generate_
 from fbadsagent.facebook.ad_library import AdLibraryClient, AdLibraryError
 from fbadsagent.facebook.ads_client import FacebookAdsClient
 from fbadsagent.landing.generator import generate_landing_copy
+from fbadsagent.landing.reference_fetcher import ReferenceFetchError, fetch_reference_text
 from fbadsagent.llm.competitor_analysis import analyze_competitor_ads
 from fbadsagent.llm.copywriter import generate_ad_variants
 from fbadsagent.llm.provider import LLMError, get_llm_provider
@@ -82,9 +83,18 @@ def run_agent_for_product(
     )
 
     # 3. Landing page — generate copy, publish as a public /lp/{slug} page
-    # with a lead form wired to the product's CPA network.
+    # with a lead form wired to the product's CPA network. Reference
+    # competitor landing pages are best-effort: a page that fails to
+    # fetch is skipped, not fatal.
+    reference_texts = []
+    for url in product.reference_landing_urls:
+        try:
+            reference_texts.append(fetch_reference_text(url))
+        except ReferenceFetchError as exc:
+            logger.info("Reference landing page skipped for %s: %s", product.name, exc)
+
     try:
-        copy = generate_landing_copy(llm, product_input, insights)
+        copy = generate_landing_copy(llm, product_input, insights, reference_texts)
     except LLMError as exc:
         return _error_result(
             product, f"Landing page generation failed: {exc}", triggered_by, creative_set_id

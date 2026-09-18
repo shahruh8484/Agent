@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from fbadsagent.landing.generator import generate_landing_page
+from fbadsagent.landing.generator import generate_landing_copy, generate_landing_page
 from fbadsagent.models import CompetitorInsights
 from tests.conftest import FakeLLM
 
@@ -38,3 +38,39 @@ def test_generate_landing_page_falls_back_on_bad_json(settings, product):
 
     assert page.headline == product.name
     assert Path(page.html_path).exists()
+
+
+def test_generate_landing_copy_includes_reference_texts_in_prompt(product):
+    llm = FakeLLM(
+        response=json.dumps(
+            {
+                "headline": "Hear Every Detail",
+                "subheadline": "Premium audio.",
+                "benefits": ["40h battery"],
+                "cta_text": "Get Yours",
+            }
+        )
+    )
+    insights = CompetitorInsights(recommended_angle="battery life")
+
+    generate_landing_copy(
+        llm, product, insights, reference_texts=["Competitor headline: Never miss a beat"]
+    )
+
+    system, prompt = llm.calls[0]
+    assert "Competitor headline: Never miss a beat" in prompt
+    assert "do not copy their wording" in prompt
+
+
+def test_generate_landing_copy_without_reference_texts_omits_section(product):
+    llm = FakeLLM(
+        response=json.dumps(
+            {"headline": "x", "subheadline": "x", "benefits": ["x"], "cta_text": "x"}
+        )
+    )
+    insights = CompetitorInsights()
+
+    generate_landing_copy(llm, product, insights)
+
+    _, prompt = llm.calls[0]
+    assert "Competitor landing page" not in prompt

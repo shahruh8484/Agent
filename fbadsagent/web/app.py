@@ -593,10 +593,14 @@ def create_app(
         fb_ad_account_id: str = Form(""),
         cpa_network: str = Form("traff-hub"),
         campaign_hash: str = Form(""),
+        reference_landing_urls: str = Form(""),
     ):
         if not is_authenticated(request):
             return RedirectResponse("/login", status_code=302)
         keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
+        reference_url_list = [
+            u.strip() for u in reference_landing_urls.splitlines() if u.strip()
+        ]
         product_store.add_product(
             AgentProduct(
                 id=uuid.uuid4().hex[:12],
@@ -608,6 +612,7 @@ def create_app(
                 fb_ad_account_id=fb_ad_account_id,
                 cpa_network=cpa_network,
                 campaign_hash=campaign_hash,
+                reference_landing_urls=reference_url_list,
             )
         )
         return RedirectResponse("/agent", status_code=302)

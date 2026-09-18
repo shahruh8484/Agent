@@ -193,6 +193,33 @@ def test_sync_accounts_surfaces_provider_errors(web_settings, mocker):
     assert sync.headers["location"] == "/accounts?error=no%20token"
 
 
+def test_add_agent_product_parses_reference_urls(web_settings, tmp_path):
+    from fbadsagent.web.product_store import ProductStore
+
+    product_store = ProductStore(tmp_path / "agent_products.json")
+    app = create_app(
+        settings=web_settings,
+        insights_client=FakeInsightsClient(make_summary()),
+        product_store=product_store,
+    )
+    client = TestClient(app)
+    login(client)
+
+    client.post(
+        "/agent/add",
+        data={
+            "name": "Wireless Earbuds Pro",
+            "description": "Noise-cancelling wireless earbuds",
+            "reference_landing_urls": "https://a.com/x\nhttps://b.com/y\n\n",
+        },
+        follow_redirects=False,
+    )
+
+    products = product_store.list_products()
+    assert len(products) == 1
+    assert products[0].reference_landing_urls == ["https://a.com/x", "https://b.com/y"]
+
+
 def test_cpa_networks_page_requires_login(web_settings):
     client = build_client(web_settings)
     response = client.get("/cpa-networks", follow_redirects=False)

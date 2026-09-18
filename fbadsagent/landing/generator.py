@@ -22,10 +22,19 @@ SYSTEM_PROMPT = (
 
 
 def generate_landing_copy(
-    llm: LLMProvider, product: ProductInput, insights: CompetitorInsights
+    llm: LLMProvider,
+    product: ProductInput,
+    insights: CompetitorInsights,
+    reference_texts: list[str] | None = None,
 ) -> dict:
     """LLM-written landing page copy, reused by both the CLI's static-file
-    generator below and the web agent's published-landing-page flow."""
+    generator below and the web agent's published-landing-page flow.
+
+    reference_texts, when given, is the visible text scraped from
+    competitor landing pages the caller wants used as a style/structure
+    reference — not to copy, but to match how the market already frames
+    this kind of offer.
+    """
     prompt = (
         f"Product: {product.name}\n"
         f"Description: {product.description}\n"
@@ -33,6 +42,17 @@ def generate_landing_copy(
         f"Recommended angle: {insights.recommended_angle}\n\n"
         "Write compelling, benefit-driven landing page copy for this product."
     )
+    if reference_texts:
+        examples = "\n\n".join(
+            f"--- Competitor landing page {i + 1} ---\n{text}"
+            for i, text in enumerate(reference_texts)
+        )
+        prompt += (
+            "\n\nHere is the visible text from competitor landing pages for "
+            "similar products. Use them as a reference for structure, offer "
+            "framing and tone — do not copy their wording, write original "
+            "copy for this product:\n\n" + examples
+        )
     raw = llm.generate(SYSTEM_PROMPT, prompt, max_tokens=800)
     data = _parse_json(raw)
 
@@ -49,8 +69,9 @@ def generate_landing_page(
     settings: Settings,
     product: ProductInput,
     insights: CompetitorInsights,
+    reference_texts: list[str] | None = None,
 ) -> LandingPage:
-    copy = generate_landing_copy(llm, product, insights)
+    copy = generate_landing_copy(llm, product, insights, reference_texts)
     headline = copy["headline"]
     subheadline = copy["subheadline"]
     benefits = copy["benefits"]

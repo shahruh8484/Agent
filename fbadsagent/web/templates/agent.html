@@ -55,7 +55,7 @@
   section h2 { font-size: 1rem; margin: 0 0 6px; }
   section p.hint { color: #a3adc2; font-size: 0.85rem; margin: 0 0 16px; }
   label { display: block; font-size: 0.85rem; color: #a3adc2; margin-bottom: 6px; }
-  input, select {
+  input, select, textarea {
     width: 100%;
     padding: 10px 12px;
     border-radius: 8px;
@@ -63,6 +63,7 @@
     background: #10141f;
     color: #e8eaf0;
     font-size: 0.95rem;
+    font-family: inherit;
   }
   .grid-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
   .field { margin-bottom: 12px; }
@@ -167,7 +168,12 @@
 
   <section>
     <h2>Add a product</h2>
-    <p class="hint">Set up the campaign on your CPA network first (see CPA Networks page) and paste its hash here.</p>
+    <p class="hint">
+      Set up the campaign on your CPA network first (see CPA Networks page)
+      and paste its hash here. If you give competitor landing page URLs,
+      the agent fetches their visible text and uses it as a style/structure
+      reference when writing this product's landing page copy.
+    </p>
     <form method="post" action="/agent/add">
       <div class="grid-form">
         <div class="field">
@@ -214,6 +220,10 @@
           <label for="campaign_hash">CPA campaign hash</label>
           <input id="campaign_hash" name="campaign_hash" type="text" placeholder="6c9c0e1f">
         </div>
+      </div>
+      <div class="field">
+        <label for="reference_landing_urls">Reference competitor landing pages (one URL per line, optional)</label>
+        <textarea id="reference_landing_urls" name="reference_landing_urls" rows="3" placeholder="https://competitor.com/offer-page"></textarea>
       </div>
       <button type="submit">Add product</button>
     </form>
