@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-<title>Sign in — Ads Agent Dashboard</title>
+<title>Вход — Ads Agent Dashboard</title>
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
@@ -66,11 +66,11 @@
     <h1>Ads Agent Dashboard</h1>
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
     <form method="post" action="/login">
-      <label for="username">Username</label>
+      <label for="username">Имя пользователя</label>
       <input id="username" name="username" type="text" autocomplete="username" required autofocus>
-      <label for="password">Password</label>
+      <label for="password">Пароль</label>
       <input id="password" name="password" type="password" autocomplete="current-password" required>
-      <button type="submit">Sign in</button>
+      <button type="submit">Войти</button>
     </form>
   </div>
 </body>

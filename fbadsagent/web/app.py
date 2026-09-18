@@ -44,14 +44,14 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 logger = logging.getLogger(__name__)
 
 DATE_PRESETS = [
-    ("today", "Today"),
-    ("yesterday", "Yesterday"),
-    ("last_7d", "Last 7 days"),
-    ("last_14d", "Last 14 days"),
-    ("last_30d", "Last 30 days"),
-    ("last_90d", "Last 90 days"),
-    ("this_month", "This month"),
-    ("last_month", "Last month"),
+    ("today", "Сегодня"),
+    ("yesterday", "Вчера"),
+    ("last_7d", "Последние 7 дней"),
+    ("last_14d", "Последние 14 дней"),
+    ("last_30d", "Последние 30 дней"),
+    ("last_90d", "Последние 90 дней"),
+    ("this_month", "Этот месяц"),
+    ("last_month", "Прошлый месяц"),
 ]
 
 
@@ -193,7 +193,7 @@ def create_app(
             return templates.TemplateResponse(
                 request,
                 "login.html",
-                {"error": "Invalid username or password"},
+                {"error": "Неверное имя пользователя или пароль"},
                 status_code=401,
             )
         request.session["authenticated"] = True
@@ -291,19 +291,19 @@ def create_app(
 
         network = next((n for n in cpa_store.list_networks() if n.name == name), None)
         if network is None:
-            message = f"{name}: not found."
+            message = f"{name}: не найдена."
         elif name.strip().lower() != "traff-hub":
             message = (
-                f"{name}: no API client implemented for this network yet "
-                "(only traff-hub is wired up so far)."
+                f"{name}: для этой сети пока не реализован API-клиент "
+                "(подключён только traff-hub)."
             )
         elif not network.api_key:
-            message = f"{name}: no API key saved."
+            message = f"{name}: API-ключ не сохранён."
         else:
             try:
                 client = TraffHubClient(network.api_key, network.base_url)
                 client.list_conversions(page=1, on_page=1)
-                message = f"{name}: connection OK."
+                message = f"{name}: соединение установлено."
             except TraffHubError as exc:
                 message = f"{name}: {exc}"
 
@@ -463,19 +463,19 @@ def create_app(
     def _handle_launch_command(command: LaunchCommand) -> str:
         product = _find_product_by_name(command.product_name)
         if product is None:
-            names = ", ".join(p.name for p in product_store.list_products()) or "none yet"
+            names = ", ".join(p.name for p in product_store.list_products()) or "пока нет"
             return (
-                f'I don\'t have a product called "{command.product_name}" set up '
-                "yet. Add it first on the Agent page (with its Facebook ad "
-                "account and CPA campaign hash) — I can't invent those. "
-                f"Products I do have: {names}."
+                f'У меня нет продукта с названием "{command.product_name}". '
+                "Сначала добавь его на странице Агент (с рекламным аккаунтом "
+                "Facebook и CPA campaign hash) — я не могу это придумать. "
+                f"Уже добавленные продукты: {names}."
             )
 
         if command.daily_budget:
             product = product.model_copy(update={"daily_budget": command.daily_budget})
 
         domain = settings.domain.strip()
-        lines = [f"Launching {command.count} campaign(s) for {product.name}..."]
+        lines = [f"Запускаю {command.count} кампани(й/ю) для {product.name}..."]
         for i in range(1, command.count + 1):
             result = run_agent_for_product(
                 product, creative_assets_settings, landing_store, creative_store, "chat"
@@ -487,9 +487,9 @@ def create_app(
                     if domain
                     else f"/lp/{result.landing_page_slug}"
                 )
-                lines.append(f"{i}. Success — {result.message} Landing page: {url}")
+                lines.append(f"{i}. Успех — {result.message} Лендинг: {url}")
             else:
-                lines.append(f"{i}. Failed — {result.message}")
+                lines.append(f"{i}. Ошибка — {result.message}")
         return "\n".join(lines)
 
     @app.post("/chat/send")

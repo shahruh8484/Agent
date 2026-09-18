@@ -56,7 +56,7 @@ def test_login_with_wrong_password_rejected(web_settings):
     client = build_client(web_settings)
     response = client.post("/login", data={"username": "admin", "password": "wrong"})
     assert response.status_code == 401
-    assert "Invalid username or password" in response.text
+    assert "Неверное имя пользователя или пароль" in response.text
 
 
 def test_login_then_access_dashboard_and_api(web_settings):
@@ -355,7 +355,7 @@ def test_add_and_remove_cpa_network(web_settings):
     remove = client.post("/cpa-networks/delete", data={"name": "traff-hub"}, follow_redirects=False)
     assert remove.status_code == 302
     page_after = client.get("/cpa-networks")
-    assert "No networks added yet" in page_after.text
+    assert "Сетей пока нет" in page_after.text
 
 
 def test_test_cpa_network_unsupported_network(web_settings):
@@ -365,7 +365,7 @@ def test_test_cpa_network_unsupported_network(web_settings):
 
     response = client.post("/cpa-networks/test", data={"name": "some-other-network"})
     assert response.status_code == 200
-    assert "no API client implemented" in response.text
+    assert "не реализован API-клиент" in response.text
 
 
 def test_test_cpa_network_traffhub_success(web_settings, mocker):
@@ -380,7 +380,7 @@ def test_test_cpa_network_traffhub_success(web_settings, mocker):
 
     response = client.post("/cpa-networks/test", data={"name": "traff-hub"})
     assert response.status_code == 200
-    assert "connection OK" in response.text
+    assert "соединение установлено" in response.text
 
 
 def test_test_cpa_network_traffhub_failure(web_settings, mocker):
@@ -445,7 +445,7 @@ def test_remove_landing_page(web_settings, tmp_path):
     )
     assert remove.status_code == 302
     page_after = client.get("/landing-pages")
-    assert "No landing pages yet" in page_after.text
+    assert "Лендингов пока нет" in page_after.text
 
 
 def test_public_landing_page_renders_without_login(web_settings, tmp_path):
@@ -631,7 +631,7 @@ def test_creatives_page_shows_seeded_set_and_serves_its_image(web_settings, tmp_
     remove = client.post("/creatives/delete", data={"set_id": "set1"}, follow_redirects=False)
     assert remove.status_code == 302
     page_after = client.get("/creatives")
-    assert "No creatives yet" in page_after.text
+    assert "Креативов пока нет" in page_after.text
 
 
 def test_chat_page_requires_login(web_settings):
@@ -701,7 +701,7 @@ def test_chat_idea_appends_idea_message(web_settings, mocker):
     assert response.json() == {"reply": "Try a video creative for this offer."}
 
     page = client.get("/chat")
-    assert "Agent idea" in page.text
+    assert "Идея агента" in page.text
     assert "Try a video creative for this offer." in page.text
 
 
@@ -723,7 +723,7 @@ def test_chat_send_launch_command_for_unknown_product_asks_to_add_it(web_setting
 
     response = client.post("/chat/send", json={"message": "launch Glycofort"})
     assert response.status_code == 200
-    assert "don't have a product called" in response.json()["reply"]
+    assert "У меня нет продукта с названием" in response.json()["reply"]
 
 
 def test_chat_send_launch_command_runs_agent_for_matching_product(web_settings, tmp_path, mocker):
@@ -810,7 +810,7 @@ def test_chat_send_launch_command_runs_agent_for_matching_product(web_settings, 
 
     assert response.status_code == 200
     reply = response.json()["reply"]
-    assert "Success" in reply
+    assert "Успех" in reply
     assert "/lp/" in reply
 
     runs = agent_run_log.list_runs()
@@ -825,9 +825,9 @@ def test_update_access_token_reflected_in_status(web_settings):
     login(client)
 
     before = client.get("/accounts")
-    assert "not set" in before.text
+    assert "не задан" in before.text
 
     client.post("/accounts/token", data={"access_token": "new-token-123"}, follow_redirects=False)
 
     after = client.get("/accounts")
-    assert "not set" not in after.text
+    assert "не задан" not in after.text

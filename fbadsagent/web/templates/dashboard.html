@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-<title>Ads Agent Dashboard</title>
+<title>Ads Agent Dashboard — Дашборд</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
   :root { color-scheme: light dark; }
@@ -93,26 +93,26 @@
 <div class="layout">
 <nav class="sidebar">
   <div class="brand">Ads Agent</div>
-  <a class="nav-item active" href="/">Dashboard</a>
-  <a class="nav-item" href="/accounts">FB Accounts</a>
-  <a class="nav-item" href="/cpa-networks">CPA Networks</a>
-  <a class="nav-item" href="/landing-pages">Landing Pages</a>
-  <a class="nav-item" href="/creatives">Creatives</a>
-  <a class="nav-item" href="/chat">Chat</a>
-  <a class="nav-item" href="/agent">Agent</a>
+  <a class="nav-item active" href="/">Дашборд</a>
+  <a class="nav-item" href="/accounts">FB Аккаунты</a>
+  <a class="nav-item" href="/cpa-networks">CPA Сети</a>
+  <a class="nav-item" href="/landing-pages">Лендинги</a>
+  <a class="nav-item" href="/creatives">Креативы</a>
+  <a class="nav-item" href="/chat">Чат</a>
+  <a class="nav-item" href="/agent">Агент</a>
 </nav>
 <div class="content">
 <header>
   <h1>Ads Agent Dashboard</h1>
   <div>
     <span style="color:#a3adc2; font-size:0.9rem; margin-right:14px;">{{ user }}</span>
-    <a href="/logout">Log out</a>
+    <a href="/logout">Выйти</a>
   </div>
 </header>
 <main>
   {% if not accounts %}
   <div class="empty">
-    No ad accounts configured yet. Add one on the <a href="/accounts" style="color:#4c6ef5;">FB Accounts</a> page.
+    Рекламные аккаунты ещё не настроены. Добавь на странице <a href="/accounts" style="color:#4c6ef5;">FB Аккаунты</a>.
   </div>
   {% else %}
   <div class="controls">
@@ -131,19 +131,19 @@
   <div id="status"></div>
 
   <div class="cards" id="cards" style="display:none;">
-    <div class="card"><div class="label">Total spend</div><div class="value" id="c-spend">-</div></div>
-    <div class="card"><div class="label">Total clicks</div><div class="value" id="c-clicks">-</div></div>
-    <div class="card"><div class="label">Total leads</div><div class="value" id="c-leads">-</div></div>
-    <div class="card"><div class="label">Impressions</div><div class="value" id="c-impr">-</div></div>
-    <div class="card"><div class="label">Avg. CPC</div><div class="value" id="c-cpc">-</div></div>
-    <div class="card"><div class="label">Avg. CPL</div><div class="value" id="c-cpl">-</div></div>
-    <div class="card"><div class="label">Avg. CTR</div><div class="value" id="c-ctr">-</div></div>
+    <div class="card"><div class="label">Общий расход</div><div class="value" id="c-spend">-</div></div>
+    <div class="card"><div class="label">Клики</div><div class="value" id="c-clicks">-</div></div>
+    <div class="card"><div class="label">Лиды</div><div class="value" id="c-leads">-</div></div>
+    <div class="card"><div class="label">Показы</div><div class="value" id="c-impr">-</div></div>
+    <div class="card"><div class="label">Средн. CPC</div><div class="value" id="c-cpc">-</div></div>
+    <div class="card"><div class="label">Средн. CPL</div><div class="value" id="c-cpl">-</div></div>
+    <div class="card"><div class="label">Средн. CTR</div><div class="value" id="c-ctr">-</div></div>
   </div>
 
   <div class="charts" id="charts" style="display:none;">
-    <div class="chart-box"><h2>Daily spend</h2><canvas id="chart-spend" height="90"></canvas></div>
-    <div class="chart-box"><h2>Daily clicks</h2><canvas id="chart-clicks" height="90"></canvas></div>
-    <div class="chart-box"><h2>Daily leads</h2><canvas id="chart-leads" height="90"></canvas></div>
+    <div class="chart-box"><h2>Расход по дням</h2><canvas id="chart-spend" height="90"></canvas></div>
+    <div class="chart-box"><h2>Клики по дням</h2><canvas id="chart-clicks" height="90"></canvas></div>
+    <div class="chart-box"><h2>Лиды по дням</h2><canvas id="chart-leads" height="90"></canvas></div>
   </div>
   {% endif %}
 </main>
@@ -182,7 +182,7 @@ async function loadInsights() {
   const datePreset = presetSelect.value;
   if (!accountId) return;
 
-  statusEl.textContent = 'Loading...';
+  statusEl.textContent = 'Загрузка...';
   statusEl.className = '';
   cardsEl.style.display = 'none';
   chartsEl.style.display = 'none';
@@ -191,7 +191,7 @@ async function loadInsights() {
     const res = await fetch(`/api/insights?account_id=${encodeURIComponent(accountId)}&date_preset=${encodeURIComponent(datePreset)}`);
     const data = await res.json();
     if (!res.ok) {
-      statusEl.textContent = data.error || 'Failed to load insights.';
+      statusEl.textContent = data.error || 'Не удалось загрузить статистику.';
       statusEl.className = 'error';
       return;
     }
@@ -213,7 +213,7 @@ async function loadInsights() {
     renderLineChart('chart-clicks', labels, data.daily.map(d => d.clicks), '#51cf66');
     renderLineChart('chart-leads', labels, data.daily.map(d => d.leads), '#ff922b');
   } catch (err) {
-    statusEl.textContent = 'Failed to load insights: ' + err;
+    statusEl.textContent = 'Не удалось загрузить статистику: ' + err;
     statusEl.className = 'error';
   }
 }

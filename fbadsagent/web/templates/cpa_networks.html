@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-<title>CPA Networks — Ads Agent Dashboard</title>
+<title>CPA Сети — Ads Agent Dashboard</title>
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
@@ -109,36 +109,37 @@
 <div class="layout">
 <nav class="sidebar">
   <div class="brand">Ads Agent</div>
-  <a class="nav-item" href="/">Dashboard</a>
-  <a class="nav-item" href="/accounts">FB Accounts</a>
-  <a class="nav-item active" href="/cpa-networks">CPA Networks</a>
-  <a class="nav-item" href="/landing-pages">Landing Pages</a>
-  <a class="nav-item" href="/creatives">Creatives</a>
-  <a class="nav-item" href="/chat">Chat</a>
-  <a class="nav-item" href="/agent">Agent</a>
+  <a class="nav-item" href="/">Дашборд</a>
+  <a class="nav-item" href="/accounts">FB Аккаунты</a>
+  <a class="nav-item active" href="/cpa-networks">CPA Сети</a>
+  <a class="nav-item" href="/landing-pages">Лендинги</a>
+  <a class="nav-item" href="/creatives">Креативы</a>
+  <a class="nav-item" href="/chat">Чат</a>
+  <a class="nav-item" href="/agent">Агент</a>
 </nav>
 <div class="content">
 <header>
-  <h1>CPA Networks</h1>
+  <h1>CPA Сети</h1>
   <div>
     <span style="color:#a3adc2; font-size:0.9rem; margin-right:14px;">{{ user }}</span>
-    <a href="/logout">Log out</a>
+    <a href="/logout">Выйти</a>
   </div>
 </header>
 <main>
   <div class="note">
-    traff-hub.com has no "list offers" API — offers/campaigns are picked
-    manually in its dashboard. The API here reports leads from your landing
-    pages back to traff-hub and checks their status. Other networks added
-    below just store credentials until a client is written for their API.
+    У traff-hub.com нет API для получения списка офферов — кампании
+    выбираются вручную в их личном кабинете. API здесь отправляет лиды
+    с твоих лендингов в traff-hub и проверяет их статус. Другие сети,
+    добавленные ниже, просто хранят учётные данные, пока не написан
+    клиент под их API.
   </div>
 
   {% if test_message %}<div class="test-msg">{{ test_message }}</div>{% endif %}
 
   <section>
-    <h2>Connected networks</h2>
+    <h2>Подключённые сети</h2>
     <table>
-      <thead><tr><th>Name</th><th>Base URL</th><th>API key</th><th></th></tr></thead>
+      <thead><tr><th>Название</th><th>Base URL</th><th>API ключ</th><th></th></tr></thead>
       <tbody>
         {% for net in networks %}
         <tr>
@@ -148,16 +149,16 @@
           <td style="white-space:nowrap;">
             <form method="post" action="/cpa-networks/test" style="display:inline; margin-right:6px;">
               <input type="hidden" name="name" value="{{ net.name }}">
-              <button type="submit" class="secondary">Test</button>
+              <button type="submit" class="secondary">Проверить</button>
             </form>
             <form method="post" action="/cpa-networks/delete" style="display:inline; margin:0;">
               <input type="hidden" name="name" value="{{ net.name }}">
-              <button type="submit" class="danger">Remove</button>
+              <button type="submit" class="danger">Удалить</button>
             </form>
           </td>
         </tr>
         {% else %}
-        <tr class="empty-row"><td colspan="4">No networks added yet.</td></tr>
+        <tr class="empty-row"><td colspan="4">Сетей пока нет.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -165,18 +166,18 @@
     <form method="post" action="/cpa-networks/add" class="add-form">
       <div class="row">
         <div class="field">
-          <label for="name">Network name</label>
+          <label for="name">Название сети</label>
           <input id="name" name="name" type="text" placeholder="traff-hub" required>
         </div>
         <div class="field">
-          <label for="base_url">Base URL (optional)</label>
+          <label for="base_url">Base URL (необязательно)</label>
           <input id="base_url" name="base_url" type="text" placeholder="https://traff-hub.com/api">
         </div>
         <div class="field">
-          <label for="api_key">API key (optional)</label>
-          <input id="api_key" name="api_key" type="password" placeholder="API key" autocomplete="off">
+          <label for="api_key">API ключ (необязательно)</label>
+          <input id="api_key" name="api_key" type="password" placeholder="API ключ" autocomplete="off">
         </div>
-        <button type="submit">Add network</button>
+        <button type="submit">Добавить сеть</button>
       </div>
     </form>
   </section>

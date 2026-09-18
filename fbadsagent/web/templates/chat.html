@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-<title>Chat — Ads Agent Dashboard</title>
+<title>Чат — Ads Agent Dashboard</title>
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
@@ -131,36 +131,36 @@
 <div class="layout">
 <nav class="sidebar">
   <div class="brand">Ads Agent</div>
-  <a class="nav-item" href="/">Dashboard</a>
-  <a class="nav-item" href="/accounts">FB Accounts</a>
-  <a class="nav-item" href="/cpa-networks">CPA Networks</a>
-  <a class="nav-item" href="/landing-pages">Landing Pages</a>
-  <a class="nav-item" href="/creatives">Creatives</a>
-  <a class="nav-item active" href="/chat">Chat</a>
-  <a class="nav-item" href="/agent">Agent</a>
+  <a class="nav-item" href="/">Дашборд</a>
+  <a class="nav-item" href="/accounts">FB Аккаунты</a>
+  <a class="nav-item" href="/cpa-networks">CPA Сети</a>
+  <a class="nav-item" href="/landing-pages">Лендинги</a>
+  <a class="nav-item" href="/creatives">Креативы</a>
+  <a class="nav-item active" href="/chat">Чат</a>
+  <a class="nav-item" href="/agent">Агент</a>
 </nav>
 <div class="content">
 <header>
-  <h1>Chat</h1>
+  <h1>Чат</h1>
   <div>
-    <button class="idea-btn" id="idea-btn">Ask for ideas</button>
+    <button class="idea-btn" id="idea-btn">Предложить идею</button>
     <span style="color:#a3adc2; font-size:0.8rem; margin-right:14px;">{{ user }}</span>
-    <a href="/logout">Log out</a>
+    <a href="/logout">Выйти</a>
   </div>
 </header>
 <div id="messages">
   <div class="error-banner" id="error-banner"></div>
   {% if not messages %}
   <div class="empty" id="empty-hint">
-    Ask about your accounts, offers, or click "Ask for ideas" for suggestions.
-    You can also tell it to act — e.g. "launch 2 campaigns for Glycofort at $5/day" —
-    for any product already added on the Agent page.
+    Спроси про аккаунты, офферы, или нажми «Предложить идею».
+    Можно также давать команды — например, «запусти 2 кампании на Glycofort с бюджетом $5» —
+    для любого продукта, уже добавленного на странице Агент.
   </div>
   {% endif %}
   {% for m in messages %}
   <div class="bubble-row {{ m.role }} {{ 'idea' if m.kind == 'idea' else '' }}">
     <div class="bubble">
-      {% if m.kind == 'idea' %}<div class="idea-label">Agent idea</div>{% endif %}
+      {% if m.kind == 'idea' %}<div class="idea-label">Идея агента</div>{% endif %}
       {{ m.content }}
     </div>
   </div>
@@ -168,8 +168,8 @@
 </div>
 <div class="input-bar">
   <div class="input-inner">
-    <textarea id="message-input" rows="1" placeholder="Message the agent..."></textarea>
-    <button id="send-btn">Send</button>
+    <textarea id="message-input" rows="1" placeholder="Напиши сообщение агенту..."></textarea>
+    <button id="send-btn">Отправить</button>
   </div>
 </div>
 </div>
@@ -197,7 +197,7 @@ function addBubble(role, content, kind) {
   if (kind === 'idea') {
     const label = document.createElement('div');
     label.className = 'idea-label';
-    label.textContent = 'Agent idea';
+    label.textContent = 'Идея агента';
     bubble.appendChild(label);
   }
   bubble.appendChild(document.createTextNode(content));
@@ -222,12 +222,12 @@ async function sendMessage() {
     });
     const data = await res.json();
     if (!res.ok) {
-      showError(data.error || 'Failed to send message.');
+      showError(data.error || 'Не удалось отправить сообщение.');
       return;
     }
     addBubble('assistant', data.reply, 'message');
   } catch (err) {
-    showError('Network error: ' + err);
+    showError('Ошибка сети: ' + err);
   } finally {
     sendBtn.disabled = false;
   }
@@ -240,12 +240,12 @@ async function askForIdea() {
     const res = await fetch('/chat/idea', { method: 'POST' });
     const data = await res.json();
     if (!res.ok) {
-      showError(data.error || 'Failed to get an idea.');
+      showError(data.error || 'Не удалось получить идею.');
       return;
     }
     addBubble('assistant', data.reply, 'idea');
   } catch (err) {
-    showError('Network error: ' + err);
+    showError('Ошибка сети: ' + err);
   } finally {
     ideaBtn.disabled = false;
   }

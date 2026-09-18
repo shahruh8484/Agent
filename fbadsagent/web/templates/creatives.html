@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-<title>Creatives — Ads Agent Dashboard</title>
+<title>Креативы — Ads Agent Dashboard</title>
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
@@ -82,20 +82,20 @@
 <div class="layout">
 <nav class="sidebar">
   <div class="brand">Ads Agent</div>
-  <a class="nav-item" href="/">Dashboard</a>
-  <a class="nav-item" href="/accounts">FB Accounts</a>
-  <a class="nav-item" href="/cpa-networks">CPA Networks</a>
-  <a class="nav-item" href="/landing-pages">Landing Pages</a>
-  <a class="nav-item active" href="/creatives">Creatives</a>
-  <a class="nav-item" href="/chat">Chat</a>
-  <a class="nav-item" href="/agent">Agent</a>
+  <a class="nav-item" href="/">Дашборд</a>
+  <a class="nav-item" href="/accounts">FB Аккаунты</a>
+  <a class="nav-item" href="/cpa-networks">CPA Сети</a>
+  <a class="nav-item" href="/landing-pages">Лендинги</a>
+  <a class="nav-item active" href="/creatives">Креативы</a>
+  <a class="nav-item" href="/chat">Чат</a>
+  <a class="nav-item" href="/agent">Агент</a>
 </nav>
 <div class="content">
 <header>
-  <h1>Creatives</h1>
+  <h1>Креативы</h1>
   <div>
     <span style="color:#a3adc2; font-size:0.9rem; margin-right:14px;">{{ user }}</span>
-    <a href="/logout">Log out</a>
+    <a href="/logout">Выйти</a>
   </div>
 </header>
 <main>
@@ -103,9 +103,9 @@
 
   {% if not sets %}
   <div class="empty">
-    No creatives yet. Add a product on the Agent page (or ask Chat to
-    launch one) — creatives are generated automatically as part of that
-    pipeline and will show up here.
+    Креативов пока нет. Добавь продукт на странице Агент (или попроси
+    в чате запустить его) — креативы создаются автоматически в рамках
+    этого процесса и появятся здесь.
   </div>
   {% endif %}
 
@@ -117,7 +117,7 @@
         {{ set.created_at }}
         <form method="post" action="/creatives/delete" style="display:inline; margin-left:10px;">
           <input type="hidden" name="set_id" value="{{ set.id }}">
-          <button type="submit" class="danger">Remove</button>
+          <button type="submit" class="danger">Удалить</button>
         </form>
       </div>
     </div>

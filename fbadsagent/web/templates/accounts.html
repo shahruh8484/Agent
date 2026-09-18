@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-<title>FB Accounts — Ads Agent Dashboard</title>
+<title>FB Аккаунты — Ads Agent Dashboard</title>
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
@@ -96,54 +96,53 @@
 <div class="layout">
 <nav class="sidebar">
   <div class="brand">Ads Agent</div>
-  <a class="nav-item" href="/">Dashboard</a>
-  <a class="nav-item active" href="/accounts">FB Accounts</a>
-  <a class="nav-item" href="/cpa-networks">CPA Networks</a>
-  <a class="nav-item" href="/landing-pages">Landing Pages</a>
-  <a class="nav-item" href="/creatives">Creatives</a>
-  <a class="nav-item" href="/chat">Chat</a>
-  <a class="nav-item" href="/agent">Agent</a>
+  <a class="nav-item" href="/">Дашборд</a>
+  <a class="nav-item active" href="/accounts">FB Аккаунты</a>
+  <a class="nav-item" href="/cpa-networks">CPA Сети</a>
+  <a class="nav-item" href="/landing-pages">Лендинги</a>
+  <a class="nav-item" href="/creatives">Креативы</a>
+  <a class="nav-item" href="/chat">Чат</a>
+  <a class="nav-item" href="/agent">Агент</a>
 </nav>
 <div class="content">
 <header>
-  <h1>FB Accounts</h1>
+  <h1>FB Аккаунты</h1>
   <div>
     <span style="color:#a3adc2; font-size:0.9rem; margin-right:14px;">{{ user }}</span>
-    <a href="/logout">Log out</a>
+    <a href="/logout">Выйти</a>
   </div>
 </header>
 <main>
   {% if error %}<div class="error">{{ error }}</div>{% endif %}
-  {% if synced is not none %}<div class="success">Synced {{ synced }} ad account(s) from Facebook.</div>{% endif %}
+  {% if synced is not none %}<div class="success">Синхронизировано аккаунтов: {{ synced }}.</div>{% endif %}
 
   <section>
     <h2>Access token</h2>
     <p class="hint">
-      Status:
-      {% if access_token_set %}<span class="status-ok">set</span>{% else %}<span class="status-missing">not set</span>{% endif %}
-      — a token with the <code>ads_read</code> permission, from a Meta for Developers app.
+      Статус:
+      {% if access_token_set %}<span class="status-ok">задан</span>{% else %}<span class="status-missing">не задан</span>{% endif %}
+      — токен с правом <code>ads_read</code> из приложения Meta for Developers.
     </p>
     <form method="post" action="/accounts/token">
       <label for="access_token">Facebook access token</label>
       <input id="access_token" name="access_token" type="password" placeholder="EAAG..." autocomplete="off">
-      <div style="margin-top:14px;"><button type="submit">Save token</button></div>
+      <div style="margin-top:14px;"><button type="submit">Сохранить токен</button></div>
     </form>
   </section>
 
   <section>
-    <h2>Tracked ad accounts</h2>
+    <h2>Отслеживаемые рекламные аккаунты</h2>
     <p class="hint">
-      Accounts shown as options on the Dashboard and Agent pages. Click
-      "Sync from Facebook" to auto-fill this list from every ad account
-      your access token currently has permission on — no need to type
-      account IDs by hand once that permission is granted in Business
-      Settings.
+      Аккаунты, доступные для выбора на страницах Дашборд и Агент.
+      Нажми «Синхронизировать с Facebook», чтобы автоматически заполнить
+      список всеми аккаунтами, к которым у токена уже есть доступ — не
+      нужно вводить ID вручную, если доступ уже выдан в Business Settings.
     </p>
     <form method="post" action="/accounts/sync" style="margin-bottom:14px;">
-      <button type="submit" class="sync-btn">Sync from Facebook</button>
+      <button type="submit" class="sync-btn">Синхронизировать с Facebook</button>
     </form>
     <table>
-      <thead><tr><th>Account ID</th><th>Name</th><th></th></tr></thead>
+      <thead><tr><th>ID аккаунта</th><th>Название</th><th></th></tr></thead>
       <tbody>
         {% for acc in accounts %}
         <tr>
@@ -152,12 +151,12 @@
           <td>
             <form method="post" action="/accounts/delete" style="margin:0;">
               <input type="hidden" name="account_id" value="{{ acc.id }}">
-              <button type="submit" class="danger">Remove</button>
+              <button type="submit" class="danger">Удалить</button>
             </form>
           </td>
         </tr>
         {% else %}
-        <tr class="empty-row"><td colspan="3">No accounts added yet.</td></tr>
+        <tr class="empty-row"><td colspan="3">Аккаунтов пока нет.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -165,14 +164,14 @@
     <form method="post" action="/accounts/add" class="add-form">
       <div class="row">
         <div class="field">
-          <label for="account_id">Account ID</label>
-          <input id="account_id" name="account_id" type="text" placeholder="act_1234567890 or 1234567890" required>
+          <label for="account_id">ID аккаунта</label>
+          <input id="account_id" name="account_id" type="text" placeholder="act_1234567890 или 1234567890" required>
         </div>
         <div class="field">
-          <label for="account_name">Name (optional)</label>
-          <input id="account_name" name="account_name" type="text" placeholder="e.g. Main store">
+          <label for="account_name">Название (необязательно)</label>
+          <input id="account_name" name="account_name" type="text" placeholder="например, Основной магазин">
         </div>
-        <button type="submit">Add account</button>
+        <button type="submit">Добавить аккаунт</button>
       </div>
     </form>
   </section>

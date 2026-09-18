@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-<title>Agent — Ads Agent Dashboard</title>
+<title>Агент — Ads Agent Dashboard</title>
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
@@ -105,42 +105,42 @@
 <div class="layout">
 <nav class="sidebar">
   <div class="brand">Ads Agent</div>
-  <a class="nav-item" href="/">Dashboard</a>
-  <a class="nav-item" href="/accounts">FB Accounts</a>
-  <a class="nav-item" href="/cpa-networks">CPA Networks</a>
-  <a class="nav-item" href="/landing-pages">Landing Pages</a>
-  <a class="nav-item" href="/creatives">Creatives</a>
-  <a class="nav-item" href="/chat">Chat</a>
-  <a class="nav-item active" href="/agent">Agent</a>
+  <a class="nav-item" href="/">Дашборд</a>
+  <a class="nav-item" href="/accounts">FB Аккаунты</a>
+  <a class="nav-item" href="/cpa-networks">CPA Сети</a>
+  <a class="nav-item" href="/landing-pages">Лендинги</a>
+  <a class="nav-item" href="/creatives">Креативы</a>
+  <a class="nav-item" href="/chat">Чат</a>
+  <a class="nav-item active" href="/agent">Агент</a>
 </nav>
 <div class="content">
 <header>
-  <h1>Autonomous Agent</h1>
+  <h1>Автономный агент</h1>
   <div>
     <span style="color:#a3adc2; font-size:0.9rem; margin-right:14px;">{{ user }}</span>
-    <a href="/logout">Log out</a>
+    <a href="/logout">Выйти</a>
   </div>
 </header>
 <main>
   <div class="note">
-    For each product below, "Run now" (or the scheduled loop, if enabled)
-    researches competitors, writes ad copy + images, publishes a landing
-    page with a lead form, and creates a Facebook campaign —
-    <strong>always PAUSED</strong>. Nothing spends until you review it and
-    enable it yourself in Ads Manager.
+    Для каждого продукта ниже кнопка «Запустить сейчас» (или фоновый
+    планировщик, если включён) исследует конкурентов, пишет текст объявлений
+    и создаёт картинки, публикует лендинг с формой заявки и создаёт кампанию
+    в Facebook — <strong>всегда на паузе</strong>. Ничего не тратится, пока
+    ты сам не проверишь и не включишь кампанию в Ads Manager.
     {% if run_interval_hours > 0 %}
-    Scheduled runs are <strong>on</strong>, every {{ run_interval_hours }}h.
+    Автозапуск по расписанию <strong>включён</strong>, каждые {{ run_interval_hours }} ч.
     {% else %}
-    Scheduled runs are <strong>off</strong> — set
-    <code>AGENT_RUN_INTERVAL_HOURS</code> in <code>.env</code> to enable
-    them; until then, use "Run now" per product.
+    Автозапуск по расписанию <strong>выключен</strong> — задай
+    <code>AGENT_RUN_INTERVAL_HOURS</code> в <code>.env</code>, чтобы включить;
+    пока используй «Запустить сейчас» для каждого продукта отдельно.
     {% endif %}
   </div>
 
   <section>
-    <h2>Products</h2>
+    <h2>Продукты</h2>
     <table>
-      <thead><tr><th>Name</th><th>Budget/day</th><th>FB account</th><th>CPA network</th><th></th></tr></thead>
+      <thead><tr><th>Название</th><th>Бюджет/день</th><th>FB аккаунт</th><th>CPA сеть</th><th></th></tr></thead>
       <tbody>
         {% for p in products %}
         <tr>
@@ -151,74 +151,75 @@
           <td style="white-space:nowrap;">
             <form method="post" action="/agent/run" style="display:inline; margin-right:6px;">
               <input type="hidden" name="product_id" value="{{ p.id }}">
-              <button type="submit" class="secondary">Run now</button>
+              <button type="submit" class="secondary">Запустить сейчас</button>
             </form>
             <form method="post" action="/agent/delete" style="display:inline; margin:0;">
               <input type="hidden" name="product_id" value="{{ p.id }}">
-              <button type="submit" class="danger">Remove</button>
+              <button type="submit" class="danger">Удалить</button>
             </form>
           </td>
         </tr>
         {% else %}
-        <tr class="empty-row"><td colspan="5">No products yet — add one below.</td></tr>
+        <tr class="empty-row"><td colspan="5">Продуктов пока нет — добавь ниже.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </section>
 
   <section>
-    <h2>Add a product</h2>
+    <h2>Добавить продукт</h2>
     <p class="hint">
-      Set up the campaign on your CPA network first (see CPA Networks page)
-      and paste its hash here. If you give competitor landing page URLs or
-      screenshots, the agent reads them (visible text for URLs, a vision
-      model's description for screenshots) and uses that as a
-      style/structure reference when writing this product's landing page
-      copy — not copied verbatim. Choose <strong>Interactive quiz</strong>
-      below to generate a question-by-question funnel like some competitor
-      pages use — the agent never invents personas, statistics, medical
-      cure claims, or fake social proof for it, regardless of what a
-      reference page contains; only the product's real, given benefits.
+      Сначала настрой кампанию в своей CPA-сети (см. страницу CPA Сети) и
+      вставь её hash сюда. Если укажешь ссылки на лендинги конкурентов или
+      загрузишь скриншоты, агент прочитает их (текст со страницы для ссылок,
+      описание от vision-модели для скриншотов) и использует как референс
+      по стилю/структуре при написании текста лендинга — не копируя
+      дословно. Выбери <strong>Интерактивный квиз</strong> ниже, чтобы
+      сделать воронку вопрос-за-вопросом, как у некоторых конкурентов —
+      агент никогда не выдумывает персонажей, статистику, заявления о
+      лечении болезней или фейковые отзывы, независимо от того, что
+      содержит референсная страница; только реальные, заданные тобой
+      преимущества продукта.
     </p>
     <form method="post" action="/agent/add" enctype="multipart/form-data">
       <div class="grid-form">
         <div class="field">
-          <label for="name">Product name</label>
+          <label for="name">Название продукта</label>
           <input id="name" name="name" type="text" placeholder="Wireless Earbuds Pro" required>
         </div>
         <div class="field">
-          <label for="price">Price</label>
+          <label for="price">Цена</label>
           <input id="price" name="price" type="number" step="0.01" placeholder="49.99">
         </div>
         <div class="field">
-          <label for="daily_budget">Daily budget</label>
+          <label for="daily_budget">Дневной бюджет</label>
           <input id="daily_budget" name="daily_budget" type="number" step="1" value="20">
         </div>
       </div>
       <div class="field">
-        <label for="description">Description</label>
+        <label for="description">Описание</label>
         <input id="description" name="description" type="text" placeholder="Noise-cancelling wireless earbuds with 40h battery life" required>
       </div>
       <div class="field">
-        <label for="keywords">Keywords for competitor research (comma-separated, optional)</label>
+        <label for="keywords">Ключевые слова для анализа конкурентов (через запятую, необязательно)</label>
         <input id="keywords" name="keywords" type="text" placeholder="wireless earbuds, bluetooth headphones">
       </div>
       <div class="field">
-        <label for="target_language">Language for ad copy and landing page content</label>
+        <label for="target_language">Язык текста объявлений и лендинга</label>
         <input id="target_language" name="target_language" type="text" value="Uzbek">
       </div>
       <div class="grid-form">
         <div class="field">
-          <label for="fb_ad_account_id">Facebook ad account</label>
+          <label for="fb_ad_account_id">Рекламный аккаунт Facebook</label>
           <select id="fb_ad_account_id" name="fb_ad_account_id">
-            <option value="">Select...</option>
+            <option value="">Выбери...</option>
             {% for acc in fb_accounts %}
             <option value="{{ acc.id }}">{{ acc.name and (acc.name + " (" + acc.id + ")") or acc.id }}</option>
             {% endfor %}
           </select>
         </div>
         <div class="field">
-          <label for="cpa_network">CPA network</label>
+          <label for="cpa_network">CPA сеть</label>
           <input id="cpa_network" name="cpa_network" type="text" value="traff-hub" list="cpa-network-options">
           <datalist id="cpa-network-options">
             {% for n in cpa_networks %}
@@ -232,31 +233,31 @@
         </div>
       </div>
       <div class="field">
-        <label for="landing_style">Landing page style</label>
+        <label for="landing_style">Стиль лендинга</label>
         <select id="landing_style" name="landing_style">
-          <option value="static">Static (headline, benefits, CTA)</option>
-          <option value="quiz">Interactive quiz (question-by-question, then a result + order form)</option>
+          <option value="static">Обычный (заголовок, преимущества, кнопка)</option>
+          <option value="quiz">Интерактивный квиз (вопрос за вопросом, затем результат + форма заказа)</option>
         </select>
       </div>
       <div class="field">
-        <label for="reference_landing_urls">Reference competitor landing pages (one URL per line, optional)</label>
+        <label for="reference_landing_urls">Референсные лендинги конкурентов (по одной ссылке на строку, необязательно)</label>
         <textarea id="reference_landing_urls" name="reference_landing_urls" rows="3" placeholder="https://competitor.com/offer-page"></textarea>
       </div>
       <div class="field">
         <label for="reference_screenshots">
-          Or upload screenshots instead (e.g. frames from a screen recording of
-          a competitor's landing page, optional)
+          Или вместо этого загрузи скриншоты (например, кадры записи экрана
+          лендинга конкурента, необязательно)
         </label>
         <input id="reference_screenshots" name="reference_screenshots" type="file" accept="image/*" multiple>
       </div>
-      <button type="submit">Add product</button>
+      <button type="submit">Добавить продукт</button>
     </form>
   </section>
 
   <section>
-    <h2>Recent runs</h2>
+    <h2>Последние запуски</h2>
     <table>
-      <thead><tr><th>When</th><th>Product</th><th>Trigger</th><th>Status</th><th>Result</th></tr></thead>
+      <thead><tr><th>Когда</th><th>Продукт</th><th>Триггер</th><th>Статус</th><th>Результат</th></tr></thead>
       <tbody>
         {% for r in runs %}
         <tr>
@@ -270,7 +271,7 @@
           </td>
         </tr>
         {% else %}
-        <tr class="empty-row"><td colspan="5">No runs yet.</td></tr>
+        <tr class="empty-row"><td colspan="5">Запусков пока не было.</td></tr>
         {% endfor %}
       </tbody>
     </table>

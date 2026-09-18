@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-<title>Landing Pages — Ads Agent Dashboard</title>
+<title>Лендинги — Ads Agent Dashboard</title>
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
@@ -79,30 +79,30 @@
 <div class="layout">
 <nav class="sidebar">
   <div class="brand">Ads Agent</div>
-  <a class="nav-item" href="/">Dashboard</a>
-  <a class="nav-item" href="/accounts">FB Accounts</a>
-  <a class="nav-item" href="/cpa-networks">CPA Networks</a>
-  <a class="nav-item active" href="/landing-pages">Landing Pages</a>
-  <a class="nav-item" href="/creatives">Creatives</a>
-  <a class="nav-item" href="/chat">Chat</a>
-  <a class="nav-item" href="/agent">Agent</a>
+  <a class="nav-item" href="/">Дашборд</a>
+  <a class="nav-item" href="/accounts">FB Аккаунты</a>
+  <a class="nav-item" href="/cpa-networks">CPA Сети</a>
+  <a class="nav-item active" href="/landing-pages">Лендинги</a>
+  <a class="nav-item" href="/creatives">Креативы</a>
+  <a class="nav-item" href="/chat">Чат</a>
+  <a class="nav-item" href="/agent">Агент</a>
 </nav>
 <div class="content">
 <header>
-  <h1>Landing Pages</h1>
+  <h1>Лендинги</h1>
   <div>
     <span style="color:#a3adc2; font-size:0.9rem; margin-right:14px;">{{ user }}</span>
-    <a href="/logout">Log out</a>
+    <a href="/logout">Выйти</a>
   </div>
 </header>
 <main>
   {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
   <section>
-    <h2>Published pages</h2>
-    <p class="hint">Each page has a lead form that submits directly to the CPA network below.</p>
+    <h2>Опубликованные страницы</h2>
+    <p class="hint">У каждой страницы есть форма заявки, которая отправляется напрямую в CPA-сеть.</p>
     <table>
-      <thead><tr><th>Page</th><th>Network</th><th>Campaign hash</th><th></th></tr></thead>
+      <thead><tr><th>Страница</th><th>Сеть</th><th>Campaign hash</th><th></th></tr></thead>
       <tbody>
         {% for page in pages %}
         <tr>
@@ -112,15 +112,15 @@
           <td>
             <form method="post" action="/landing-pages/delete" style="margin:0;">
               <input type="hidden" name="slug" value="{{ page.slug }}">
-              <button type="submit" class="danger">Remove</button>
+              <button type="submit" class="danger">Удалить</button>
             </form>
           </td>
         </tr>
         {% else %}
         <tr class="empty-row"><td colspan="4">
-          No landing pages yet. Add a product on the Agent page (or ask
-          Chat to launch one) — pages are published automatically as part
-          of that pipeline and will show up here.
+          Лендингов пока нет. Добавь продукт на странице Агент (или
+          попроси в чате запустить его) — страницы публикуются
+          автоматически в рамках этого процесса и появятся здесь.
         </td></tr>
         {% endfor %}
       </tbody>
