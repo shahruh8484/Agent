@@ -99,6 +99,34 @@
     margin-bottom: 24px;
   }
   a.lp-link { color: #4c6ef5; }
+  #loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 13, 20, 0.85);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+  }
+  #loading-overlay.visible { display: flex; }
+  .spinner {
+    width: 42px;
+    height: 42px;
+    border: 4px solid #2c3550;
+    border-top-color: #4c6ef5;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading-overlay p {
+    color: #c3cadb;
+    font-size: 0.95rem;
+    max-width: 340px;
+    text-align: center;
+    margin: 0;
+  }
 </style>
 </head>
 <body>
@@ -279,5 +307,34 @@
 </main>
 </div>
 </div>
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <p id="loading-text">Агент работает — исследует конкурентов, пишет текст, создаёт картинки и публикует лендинг. Это может занять минуту-две, не закрывай страницу...</p>
+</div>
+
+<script>
+  var overlay = document.getElementById('loading-overlay');
+  var loadingText = document.getElementById('loading-text');
+  var runTexts = {
+    run: 'Агент работает — исследует конкурентов, пишет текст, создаёт картинки и публикует лендинг. Это может занять минуту-две, не закрывай страницу...',
+    add: 'Добавляем продукт...'
+  };
+
+  document.querySelectorAll('form[action="/agent/run"]').forEach(function (form) {
+    form.addEventListener('submit', function () {
+      loadingText.textContent = runTexts.run;
+      overlay.classList.add('visible');
+    });
+  });
+
+  var addForm = document.querySelector('form[action="/agent/add"]');
+  if (addForm) {
+    addForm.addEventListener('submit', function () {
+      loadingText.textContent = runTexts.add;
+      overlay.classList.add('visible');
+    });
+  }
+</script>
 </body>
 </html>
