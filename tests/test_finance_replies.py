@@ -73,6 +73,38 @@ def test_report_query_includes_category_breakdown(settings, tmp_path):
     assert today  # sanity: fixture computed without error
 
 
+def test_balance_query_does_not_mix_currencies(settings, tmp_path):
+    store = FinanceStore(tmp_path / "finance.json")
+    handle_finance_intent(
+        store, settings, FinanceIntent("add_transaction", transaction=TransactionDraft("income", 1000.0, "UZS", "X", ""))
+    )
+    handle_finance_intent(
+        store, settings, FinanceIntent("add_transaction", transaction=TransactionDraft("income", 500.0, "USD", "Y", ""))
+    )
+
+    uzs_reply = format_balance_reply(store, "UZS")
+    usd_reply = format_balance_reply(store, "USD")
+
+    assert "1 000" in uzs_reply.replace(",", " ")
+    assert "500" in usd_reply
+    assert "1500" not in usd_reply.replace(" ", "")
+
+
+def test_balance_query_intent_respects_requested_currency(settings, tmp_path):
+    store = FinanceStore(tmp_path / "finance.json")
+    handle_finance_intent(
+        store, settings, FinanceIntent("add_transaction", transaction=TransactionDraft("income", 1000.0, "UZS", "X", ""))
+    )
+    handle_finance_intent(
+        store, settings, FinanceIntent("add_transaction", transaction=TransactionDraft("income", 500.0, "USD", "Y", ""))
+    )
+
+    reply = handle_finance_intent(store, settings, FinanceIntent("balance_query", currency="USD"))
+
+    assert "500" in reply
+    assert "1000" not in reply.replace(" ", "")
+
+
 def test_handle_finance_intent_rejects_unknown_kind(settings, tmp_path):
     import pytest
 

@@ -33,6 +33,7 @@ class FinanceStore:
         start_date: str | None = None,
         end_date: str | None = None,
         type_filter: str | None = None,
+        currency_filter: str | None = None,
     ) -> list[FinanceTransaction]:
         transactions = [FinanceTransaction(**t) for t in self._read().get("transactions", [])]
         if start_date:
@@ -41,8 +42,13 @@ class FinanceStore:
             transactions = [t for t in transactions if t.date <= end_date]
         if type_filter:
             transactions = [t for t in transactions if t.type == type_filter]
+        if currency_filter:
+            transactions = [t for t in transactions if t.currency == currency_filter]
         transactions.sort(key=lambda t: (t.date, t.created_at), reverse=True)
         return transactions
+
+    def distinct_currencies(self) -> list[str]:
+        return sorted({t.currency for t in self.list_transactions()})
 
     def get_transaction(self, transaction_id: str) -> FinanceTransaction | None:
         for t in self.list_transactions():

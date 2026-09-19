@@ -2,12 +2,12 @@ from fbadsagent.finance.models import FinanceTransaction
 from fbadsagent.finance.store import FinanceStore, compute_summary, period_range
 
 
-def make_tx(id="t1", type="expense", amount=100.0, category="Еда", date="2026-09-10"):
+def make_tx(id="t1", type="expense", amount=100.0, category="Еда", date="2026-09-10", currency="UZS"):
     return FinanceTransaction(
         id=id,
         type=type,
         amount=amount,
-        currency="UZS",
+        currency=currency,
         category=category,
         note="",
         date=date,
@@ -63,6 +63,23 @@ def test_list_transactions_filters_by_type(tmp_path):
     store.add_transaction(make_tx("t2", type="expense"))
 
     assert [t.id for t in store.list_transactions(type_filter="income")] == ["t1"]
+
+
+def test_list_transactions_filters_by_currency(tmp_path):
+    store = FinanceStore(tmp_path / "finance.json")
+    store.add_transaction(make_tx("t1", currency="UZS"))
+    store.add_transaction(make_tx("t2", currency="USD"))
+
+    assert [t.id for t in store.list_transactions(currency_filter="USD")] == ["t2"]
+
+
+def test_distinct_currencies(tmp_path):
+    store = FinanceStore(tmp_path / "finance.json")
+    store.add_transaction(make_tx("t1", currency="UZS"))
+    store.add_transaction(make_tx("t2", currency="USD"))
+    store.add_transaction(make_tx("t3", currency="USD"))
+
+    assert store.distinct_currencies() == ["USD", "UZS"]
 
 
 def test_period_range_today():

@@ -101,7 +101,8 @@
   .card .value { font-size: 1.4rem; font-weight: 700; }
   .chart-box { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
   .chart-box h3 { font-size: 0.9rem; margin: 0 0 12px; color: #c3cadb; }
-  .period-select { max-width: 200px; margin-bottom: 16px; }
+  .filters { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filters select { width: auto; min-width: 160px; }
 </style>
 </head>
 <body>
@@ -126,12 +127,19 @@
   </div>
 </header>
 <main>
-  <select id="period-select" class="period-select">
-    <option value="today">Сегодня</option>
-    <option value="week">Эта неделя</option>
-    <option value="month" selected>Этот месяц</option>
-    <option value="all">Всё время</option>
-  </select>
+  <div class="filters">
+    <select id="period-select">
+      <option value="today">Сегодня</option>
+      <option value="week">Эта неделя</option>
+      <option value="month" selected>Этот месяц</option>
+      <option value="all">Всё время</option>
+    </select>
+    <select id="currency-filter">
+      {% for c in currencies %}
+      <option value="{{ c }}" {% if c == default_currency %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </div>
 
   <div class="cards">
     <div class="card"><div class="label">Баланс</div><div class="value" id="c-balance">-</div></div>
@@ -163,7 +171,11 @@
         </div>
         <div class="field">
           <label for="currency">Валюта</label>
-          <input id="currency" name="currency" type="text" value="{{ default_currency }}" required>
+          <select id="currency" name="currency">
+            {% for c in currencies %}
+            <option value="{{ c }}" {% if c == default_currency %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
         </div>
         <div class="field">
           <label for="category">Категория</label>
@@ -219,6 +231,7 @@
 
 <script>
 const periodSelect = document.getElementById('period-select');
+const currencyFilter = document.getElementById('currency-filter');
 let charts = {};
 
 function fmtMoney(n) { return Number(n).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
@@ -258,14 +271,15 @@ function renderPieChart(id, labels, data) {
 
 async function loadSummary() {
   const period = periodSelect.value;
+  const currency = currencyFilter ? currencyFilter.value : '';
   try {
-    const res = await fetch(`/api/finance/summary?period=${encodeURIComponent(period)}`);
+    const res = await fetch(`/api/finance/summary?period=${encodeURIComponent(period)}&currency=${encodeURIComponent(currency)}`);
     const data = await res.json();
     if (!res.ok) return;
 
-    document.getElementById('c-balance').textContent = fmtMoney(data.balance);
-    document.getElementById('c-income').textContent = fmtMoney(data.income);
-    document.getElementById('c-expense').textContent = fmtMoney(data.expense);
+    document.getElementById('c-balance').textContent = fmtMoney(data.balance) + ' ' + currency;
+    document.getElementById('c-income').textContent = fmtMoney(data.income) + ' ' + currency;
+    document.getElementById('c-expense').textContent = fmtMoney(data.expense) + ' ' + currency;
 
     const labels = data.daily.map(d => d.date);
     renderBarChart('chart-daily', labels, data.daily.map(d => d.income), data.daily.map(d => d.expense));
@@ -279,6 +293,7 @@ async function loadSummary() {
 }
 
 periodSelect.addEventListener('change', loadSummary);
+if (currencyFilter) currencyFilter.addEventListener('change', loadSummary);
 loadSummary();
 </script>
 </body>

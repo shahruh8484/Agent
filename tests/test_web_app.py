@@ -895,3 +895,32 @@ def test_api_finance_summary_requires_login(web_settings):
     client = build_client(web_settings)
     response = client.get("/api/finance/summary")
     assert response.status_code == 401
+
+
+def test_finance_summary_filters_by_currency(web_settings):
+    client = build_client(web_settings)
+    login(client)
+
+    client.post(
+        "/finance/add",
+        data={"type": "income", "amount": "1000", "currency": "UZS", "category": "X", "note": "", "date": "2026-09-10"},
+    )
+    client.post(
+        "/finance/add",
+        data={"type": "income", "amount": "500", "currency": "USD", "category": "Y", "note": "", "date": "2026-09-10"},
+    )
+
+    uzs = client.get("/api/finance/summary", params={"period": "all", "currency": "UZS"}).json()
+    usd = client.get("/api/finance/summary", params={"period": "all", "currency": "USD"}).json()
+
+    assert uzs["income"] == 1000.0
+    assert usd["income"] == 500.0
+
+
+def test_finance_page_lists_supported_currencies(web_settings):
+    client = build_client(web_settings)
+    login(client)
+
+    response = client.get("/finance")
+    assert "USD" in response.text
+    assert "UZS" in response.text

@@ -27,9 +27,12 @@ FINANCE_SYSTEM_PROMPT = (
     'message explicitly names one (e.g. "USD", "UZS"), otherwise null. For '
     'intent="report_query", set period (default "month" if the message asks '
     'for a report/summary without naming a period). For intent="balance_query", '
-    "period may be null (it means all-time balance). If the message isn't "
-    'about logging or checking company finances at all, use intent="other" '
-    "with every other field null. No prose outside the JSON."
+    "period may be null (it means all-time balance). For balance_query/"
+    "report_query, currency is the ISO-like code only if the message "
+    'explicitly names one (e.g. "balance in USD"), otherwise null — null means '
+    "the caller's default currency. If the message isn't about logging or "
+    'checking company finances at all, use intent="other" with every other '
+    "field null. No prose outside the JSON."
 )
 
 
@@ -48,10 +51,12 @@ class FinanceIntent:
         kind: str,
         transaction: TransactionDraft | None = None,
         period: str | None = None,
+        currency: str | None = None,
     ):
         self.kind = kind  # "add_transaction" | "balance_query" | "report_query"
         self.transaction = transaction
         self.period = period
+        self.currency = currency  # balance_query/report_query only; None = caller's default
 
 
 def parse_finance_message(llm: LLMProvider, message: str) -> FinanceIntent | None:
@@ -80,10 +85,10 @@ def parse_finance_message(llm: LLMProvider, message: str) -> FinanceIntent | Non
             ),
         )
     if intent == "balance_query":
-        return FinanceIntent("balance_query")
+        return FinanceIntent("balance_query", currency=(data.get("currency") or None))
     if intent == "report_query":
         period = data.get("period") if data.get("period") in ("today", "week", "month", "all") else "month"
-        return FinanceIntent("report_query", period=period)
+        return FinanceIntent("report_query", period=period, currency=(data.get("currency") or None))
     return None
 
 

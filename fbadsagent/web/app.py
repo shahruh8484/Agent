@@ -25,7 +25,7 @@ from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
 from fbadsagent.config import Settings, get_settings
-from fbadsagent.finance.models import FinanceTransaction
+from fbadsagent.finance.models import SUPPORTED_CURRENCIES, FinanceTransaction
 from fbadsagent.finance.store import FinanceStore, compute_summary, period_range
 from fbadsagent.integrations.traffhub import TraffHubClient, TraffHubError
 from fbadsagent.llm.provider import LLMError, get_llm_provider
@@ -645,6 +645,7 @@ def create_app(
             return RedirectResponse("/login", status_code=302)
         transactions = finance_store.list_transactions()
         categories = sorted({t.category for t in transactions})
+        currencies = sorted(set(SUPPORTED_CURRENCIES) | set(finance_store.distinct_currencies()))
         return templates.TemplateResponse(
             request,
             "finance.html",
@@ -652,6 +653,7 @@ def create_app(
                 "user": request.session.get("user"),
                 "transactions": transactions[:100],
                 "categories": categories,
+                "currencies": currencies,
                 "default_currency": settings.finance_default_currency,
                 "today": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             },
@@ -694,11 +696,15 @@ def create_app(
         return RedirectResponse("/finance", status_code=302)
 
     @app.get("/api/finance/summary")
-    def api_finance_summary(request: Request, period: str = "month"):
+    def api_finance_summary(request: Request, period: str = "month", currency: str = ""):
         if not is_authenticated(request):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         start, end = period_range(period)
-        summary = compute_summary(finance_store.list_transactions(start_date=start, end_date=end))
+        summary = compute_summary(
+            finance_store.list_transactions(
+                start_date=start, end_date=end, currency_filter=currency.strip() or None
+            )
+        )
         return JSONResponse(summary)
 
     @app.get("/api/accounts")

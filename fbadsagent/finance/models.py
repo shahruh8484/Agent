@@ -4,6 +4,11 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+# Currencies offered in the dashboard's currency dropdowns. The Telegram bot
+# isn't limited to this list — it accepts whatever ISO-like code the LLM
+# picks out of a free-text message.
+SUPPORTED_CURRENCIES = ["UZS", "USD", "EUR", "RUB"]
+
 
 class FinanceTransaction(BaseModel):
     """One income or expense record for the company's bookkeeping."""

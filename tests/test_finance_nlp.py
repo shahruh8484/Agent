@@ -81,6 +81,20 @@ def test_parse_balance_query():
     intent = parse_finance_message(llm, "какой у меня баланс?")
 
     assert intent.kind == "balance_query"
+    assert intent.currency is None
+
+
+def test_parse_balance_query_with_explicit_currency():
+    llm = FakeLLM(
+        response=json.dumps(
+            {"intent": "balance_query", "type": None, "amount": None, "currency": "USD", "category": None, "note": None, "period": None}
+        )
+    )
+
+    intent = parse_finance_message(llm, "баланс в долларах?")
+
+    assert intent.kind == "balance_query"
+    assert intent.currency == "USD"
 
 
 def test_parse_report_query_defaults_period_to_month():

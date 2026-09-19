@@ -50,25 +50,27 @@ def add_transaction(
 
 def format_add_confirmation(transaction: FinanceTransaction, store: FinanceStore) -> str:
     verb = "Доход" if transaction.type == "income" else "Расход"
-    balance = compute_summary(store.list_transactions())["balance"]
+    balance = compute_summary(store.list_transactions(currency_filter=transaction.currency))["balance"]
     lines = [
         f"{verb} записан: {_fmt_amount(transaction.amount, transaction.currency)} "
         f"— {transaction.category}."
     ]
     if transaction.note:
         lines.append(f"Заметка: {transaction.note}")
-    lines.append(f"Текущий баланс: {_fmt_amount(balance, transaction.currency)}.")
+    lines.append(f"Текущий баланс ({transaction.currency}): {_fmt_amount(balance, transaction.currency)}.")
     return "\n".join(lines)
 
 
 def format_balance_reply(store: FinanceStore, currency: str) -> str:
-    balance = compute_summary(store.list_transactions())["balance"]
+    balance = compute_summary(store.list_transactions(currency_filter=currency))["balance"]
     return f"Текущий баланс: {_fmt_amount(balance, currency)}."
 
 
 def format_report_reply(store: FinanceStore, period: str, currency: str) -> str:
     start, end = period_range(period)
-    summary = compute_summary(store.list_transactions(start_date=start, end_date=end))
+    summary = compute_summary(
+        store.list_transactions(start_date=start, end_date=end, currency_filter=currency)
+    )
     label = PERIOD_LABELS.get(period, period)
     lines = [
         f"Отчёт за {label}:",
@@ -97,7 +99,9 @@ def handle_finance_intent(
         )
         return format_add_confirmation(transaction, store)
     if intent.kind == "balance_query":
-        return format_balance_reply(store, settings.finance_default_currency)
+        return format_balance_reply(store, intent.currency or settings.finance_default_currency)
     if intent.kind == "report_query":
-        return format_report_reply(store, intent.period or "month", settings.finance_default_currency)
+        return format_report_reply(
+            store, intent.period or "month", intent.currency or settings.finance_default_currency
+        )
     raise ValueError(f"Unhandled finance intent kind: {intent.kind}")
