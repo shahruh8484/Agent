@@ -8,6 +8,14 @@ services:
     expose:
       - "8000"
 
+  finance-bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - app_data:/app/data
+    command: ["python", "-m", "fbadsagent.finance.telegram_bot"]
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped

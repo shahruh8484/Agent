@@ -25,6 +25,8 @@ from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
 from fbadsagent.config import Settings, get_settings
+from fbadsagent.finance.models import FinanceTransaction
+from fbadsagent.finance.store import FinanceStore, compute_summary, period_range
 from fbadsagent.integrations.traffhub import TraffHubClient, TraffHubError
 from fbadsagent.llm.provider import LLMError, get_llm_provider
 from fbadsagent.models import AgentProduct, ChatMessage
@@ -77,6 +79,7 @@ def create_app(
     chat_store: ChatStore | None = None,
     product_store: ProductStore | None = None,
     agent_run_log: AgentRunLogStore | None = None,
+    finance_store: FinanceStore | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     if not settings.secret_key:
@@ -103,6 +106,7 @@ def create_app(
     chat_store = chat_store or ChatStore(Path(settings.data_dir) / "chat.json")
     product_store = product_store or ProductStore(Path(settings.data_dir) / "agent_products.json")
     agent_run_log = agent_run_log or AgentRunLogStore(Path(settings.data_dir) / "agent_runs.json")
+    finance_store = finance_store or FinanceStore(Path(settings.data_dir) / "finance.json")
 
     async def _background_idea_loop() -> None:
         interval_seconds = settings.chat_idea_interval_hours * 3600
@@ -634,6 +638,68 @@ def create_app(
             )
             agent_run_log.append(result)
         return RedirectResponse("/agent", status_code=302)
+
+    @app.get("/finance")
+    def finance_page(request: Request):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        transactions = finance_store.list_transactions()
+        categories = sorted({t.category for t in transactions})
+        return templates.TemplateResponse(
+            request,
+            "finance.html",
+            {
+                "user": request.session.get("user"),
+                "transactions": transactions[:100],
+                "categories": categories,
+                "default_currency": settings.finance_default_currency,
+                "today": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            },
+        )
+
+    @app.post("/finance/add")
+    def add_finance_transaction(
+        request: Request,
+        type: str = Form(...),
+        amount: float = Form(...),
+        currency: str = Form(...),
+        category: str = Form(...),
+        note: str = Form(""),
+        date: str = Form(""),
+    ):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        if type not in ("income", "expense") or amount <= 0:
+            return RedirectResponse("/finance", status_code=302)
+        finance_store.add_transaction(
+            FinanceTransaction(
+                id=uuid.uuid4().hex[:12],
+                type=type,
+                amount=amount,
+                currency=currency.strip() or settings.finance_default_currency,
+                category=category.strip() or "Прочее",
+                note=note.strip(),
+                date=date.strip() or _now()[:10],
+                created_at=_now(),
+                source="web",
+            )
+        )
+        return RedirectResponse("/finance", status_code=302)
+
+    @app.post("/finance/delete")
+    def delete_finance_transaction(request: Request, transaction_id: str = Form(...)):
+        if not is_authenticated(request):
+            return RedirectResponse("/login", status_code=302)
+        finance_store.remove_transaction(transaction_id)
+        return RedirectResponse("/finance", status_code=302)
+
+    @app.get("/api/finance/summary")
+    def api_finance_summary(request: Request, period: str = "month"):
+        if not is_authenticated(request):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        start, end = period_range(period)
+        summary = compute_summary(finance_store.list_transactions(start_date=start, end_date=end))
+        return JSONResponse(summary)
 
     @app.get("/api/accounts")
     def api_accounts(request: Request):

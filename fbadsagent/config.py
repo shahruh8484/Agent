@@ -60,10 +60,25 @@ class Settings(BaseSettings):
     # — you can still trigger a run manually from the Agent page.
     agent_run_interval_hours: int = 0
 
+    # --- Finance agent (company bookkeeping: Telegram bot + dashboard) ---
+    telegram_bot_token: str = ""
+    # Comma-separated Telegram user IDs allowed to talk to the finance bot.
+    # Leave empty to allow anyone who finds the bot (not recommended).
+    finance_telegram_allowed_user_ids: str = ""
+    finance_default_currency: str = "UZS"
+
     def fb_ad_account_ids_list(self) -> list[str]:
         ids = [x.strip() for x in self.fb_ad_account_ids.split(",") if x.strip()]
         if not ids and self.fb_ad_account_id:
             ids = [self.fb_ad_account_id]
+        return ids
+
+    def finance_telegram_allowed_user_ids_list(self) -> list[int]:
+        ids = []
+        for x in self.finance_telegram_allowed_user_ids.split(","):
+            x = x.strip()
+            if x:
+                ids.append(int(x))
         return ids
 
 

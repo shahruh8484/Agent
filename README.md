@@ -42,6 +42,12 @@ fbadsagent/
 │   └── templates/landing_base.html.j2
 ├── orchestrator/
 │   └── pipeline.py            # Wires every stage together
+├── finance/                   # Company bookkeeping agent (separate from ads)
+│   ├── models.py              # FinanceTransaction
+│   ├── store.py                # JSON-backed transaction store + summary math
+│   ├── nlp.py                  # LLM parsing of free-text finance messages
+│   ├── replies.py              # Intent -> store mutation + formatted reply
+│   └── telegram_bot.py         # `python -m fbadsagent.finance.telegram_bot`
 └── web/                       # Login-protected analytics dashboard (FastAPI)
     ├── app.py                 # Routes: /login, /, /api/accounts, /api/insights
     ├── insights_client.py     # Facebook Marketing API Insights client
@@ -335,6 +341,48 @@ picks it up automatically instead of copying account IDs one by one.
   `lead`-family action types (lead ads, pixel leads, Messenger lead
   flows) — if your leads come from a different conversion event, adjust
   `LEAD_ACTION_TYPES` in `fbadsagent/web/insights_client.py`.
+
+## Finance agent
+
+A second, independent agent for the company's own bookkeeping — separate
+from the Facebook ads pipeline above. It lives in `fbadsagent/finance/` and
+has two front ends that share the same data:
+
+- **Telegram bot** — log transactions and ask questions in plain language,
+  e.g. "потратил 50000 на еду" or "какой у меня баланс". Parsing is
+  LLM-based (same provider as the ad copywriter/chat), so phrasing,
+  language and typos aren't an issue. Also supports `/balance` and
+  `/report [today|week|month|all]`.
+- **Финансы dashboard page** — a form to add/delete transactions by hand,
+  a table of recent operations, and charts (income vs. expense by day,
+  expense breakdown by category) for a selected period.
+
+Transactions are stored in `data/finance.json` (the same Docker volume as
+everything else), via `fbadsagent/finance/store.py`.
+
+### Setup
+
+1. Create a bot with [@BotFather](https://t.me/BotFather) on Telegram and
+   copy its token into `TELEGRAM_BOT_TOKEN` in `.env`.
+2. Get your numeric Telegram user ID (e.g. from
+   [@userinfobot](https://t.me/userinfobot)) and set
+   `FINANCE_TELEGRAM_ALLOWED_USER_IDS` (comma-separated for multiple
+   people) — anyone not on this list is refused. Leave it empty only if
+   you're fine with anyone who finds the bot being able to log
+   transactions.
+3. Set `FINANCE_DEFAULT_CURRENCY` (default `UZS`) — used when a message or
+   form entry doesn't name a currency.
+4. Run the bot locally:
+
+   ```bash
+   python -m fbadsagent.finance.telegram_bot
+   ```
+
+   In production, `docker-compose.yml` already runs it as a separate
+   `finance-bot` service alongside `app` and `caddy` — `docker compose up
+   --build` starts both.
+5. Open the dashboard's **Финансы** page (needs the same login as the rest
+   of the dashboard) for the manual-entry form and charts.
 
 ## Safety defaults
 

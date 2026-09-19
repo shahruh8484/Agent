@@ -831,3 +831,67 @@ def test_update_access_token_reflected_in_status(web_settings):
 
     after = client.get("/accounts")
     assert "не задан" not in after.text
+
+
+def test_finance_page_requires_login(web_settings):
+    client = build_client(web_settings)
+    response = client.get("/finance", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/login"
+
+
+def test_add_list_and_delete_finance_transaction(web_settings):
+    client = build_client(web_settings)
+    login(client)
+
+    add = client.post(
+        "/finance/add",
+        data={
+            "type": "expense",
+            "amount": "50000",
+            "currency": "UZS",
+            "category": "Еда",
+            "note": "обед",
+            "date": "2026-09-10",
+        },
+        follow_redirects=False,
+    )
+    assert add.status_code == 302
+    assert add.headers["location"] == "/finance"
+
+    page = client.get("/finance")
+    assert "Еда" in page.text
+    assert "обед" in page.text
+
+    summary = client.get("/api/finance/summary", params={"period": "all"})
+    assert summary.status_code == 200
+    body = summary.json()
+    assert body["expense"] == 50000.0
+    assert body["balance"] == -50000.0
+    assert body["category_totals"] == {"Еда": 50000.0}
+
+
+def test_delete_finance_transaction(web_settings):
+    from fbadsagent.finance.store import FinanceStore
+
+    finance_store = FinanceStore(Path(web_settings.data_dir) / "finance.json")
+    app = create_app(settings=web_settings, insights_client=FakeInsightsClient(make_summary()), finance_store=finance_store)
+    client = TestClient(app)
+    login(client)
+
+    client.post(
+        "/finance/add",
+        data={"type": "income", "amount": "1000", "currency": "USD", "category": "Продажи", "note": "", "date": "2026-09-01"},
+        follow_redirects=False,
+    )
+    transaction_id = finance_store.list_transactions()[0].id
+
+    delete = client.post("/finance/delete", data={"transaction_id": transaction_id}, follow_redirects=False)
+    assert delete.status_code == 302
+    assert finance_store.list_transactions() == []
+
+
+def test_api_finance_summary_requires_login(web_settings):
+    client = build_client(web_settings)
+    response = client.get("/api/finance/summary")
+    assert response.status_code == 401
