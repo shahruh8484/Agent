@@ -235,3 +235,36 @@ class PipelineResult(BaseModel):
     images: list[GeneratedImage] = Field(default_factory=list)
     landing_page: Optional[LandingPage] = None
     campaign: Optional[CampaignPlan] = None
+
+
+class BlogSite(BaseModel):
+    """A content site the blog agent created and keeps adding articles to."""
+
+    id: str
+    slug: str
+    name: str
+    tagline: str = ""
+    description: str = ""
+    topic: str
+    language: str = "Russian"
+    audience: str = ""
+    created_at: str = ""
+
+
+class ArticleSection(BaseModel):
+    heading: str = ""
+    paragraphs: list[str] = Field(default_factory=list)
+
+
+class BlogArticle(BaseModel):
+    """One article on a BlogSite. Stored as structured sections (not raw
+    HTML) so the public template can render it with autoescaping."""
+
+    site_id: str
+    slug: str
+    title: str
+    summary: str = ""
+    sections: list[ArticleSection] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    created_at: str = ""
+    triggered_by: str = "manual"  # "manual" | "schedule" | "create"

@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     # — you can still trigger a run manually from the Agent page.
     agent_run_interval_hours: int = 0
 
+    # How often (hours) the blog agent publishes one new article to every
+    # site on the "Сайты" page. 0 disables the background loop — you can
+    # still publish an article manually at any time.
+    blog_article_interval_hours: int = 24
+
     def fb_ad_account_ids_list(self) -> list[str]:
         ids = [x.strip() for x in self.fb_ad_account_ids.split(",") if x.strip()]
         if not ids and self.fb_ad_account_id:
