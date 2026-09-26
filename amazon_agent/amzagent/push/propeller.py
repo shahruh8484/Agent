@@ -81,6 +81,8 @@ def build_campaign_payload(
             # Required in practice (the API rejects a body without it);
             # "propeller" = the network's own publisher traffic.
             "traffic_categories": TRAFFIC_CATEGORIES,
+            # Required non-empty: all subscriber activity levels.
+            "user_activity": {"list": [1, 2, 3], "is_excluded": False},
         },
         "rates": [{"countries": countries, "amount": round(bid_cpc, 4)}],
         # One creative per image variant (same copy): the network rotates
@@ -89,6 +91,7 @@ def build_campaign_payload(
             {
                 "title": title[:30],
                 "description": text[:60],
+                "status": 1,  # 1 = active; the API refuses all-disabled creatives
                 "icon": icon_url,
                 "image": image_url,
             }

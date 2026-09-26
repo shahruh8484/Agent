@@ -260,43 +260,77 @@ def print_spec(spec: dict) -> None:
         print(json.dumps(path_item, ensure_ascii=False)[:3000])
 
 
+def _tiny_png() -> bytes:
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (192, 192), (230, 90, 20)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _post(client: PropellerClient, body: dict):
+    try:
+        resp = client._session.request(
+            "POST", client._base + propeller.CAMPAIGNS_PATH, json=body, timeout=60)
+    except requests.RequestException as exc:
+        return None, str(exc)
+    try:
+        return resp.status_code, resp.json()
+    except ValueError:
+        return resp.status_code, resp.text[:1500]
+
+
 def probe_validation(client: PropellerClient) -> None:
-    """POST deliberately incomplete bodies: the API rejects them and its
-    validation errors name the required fields and allowed values. Nothing
-    can be created because the bodies are invalid."""
+    """POST bodies that can't be valid: none has target_url or started_at
+    (both required) and all are drafts. The API's errors reveal the formats
+    of the remaining fields. Nothing can be created."""
+    import base64
+
     section("4. Validation probe (creates nothing)")
-    creative = {"title": "Test title", "description": "Test text",
-                "icon": "https://example.com/icon.png", "image": "https://example.com/image.png"}
-    base = {"direction": propeller.PUSH_DIRECTION, "rate_model": propeller.RATE_MODEL,
-            # status 1 = draft: even if everything else passed it wouldn't run.
-            "status": 1, "timezone": 0,
-            "targeting": {"country": {"list": ["us"], "is_excluded": False},
-                          "time_table": {"list": [], "is_excluded": True},
-                          "traffic_categories": propeller.TRAFFIC_CATEGORIES}}
-    rate = {"amount": 0.03, "countries": ["us"]}
-    # None of these has target_url or started_at (both required), so the
-    # API must reject every one: they only reveal which other fields it
-    # complains about.
-    for label, body in (
-        ("empty body", {}),
-        ("push direction only", {"direction": propeller.PUSH_DIRECTION}),
-        ("rates as list of objects", {**base, "rates": [rate]}),
-        ("rates as list of lists", {**base, "rates": [[rate]]}),
-        ("creative with title", {**base, "rates": [rate], "creatives": [creative]}),
-    ):
-        try:
-            resp = client._session.request(
-                "POST", client._base + propeller.CAMPAIGNS_PATH, json=body, timeout=30
-            )
-        except requests.RequestException as exc:
-            print(f"{label}: request failed — {exc}")
-            continue
-        if resp.status_code < 400:
-            # Should never happen with these bodies; say so loudly.
-            print(f"{label}: UNEXPECTED HTTP {resp.status_code} — {resp.text[:800]}")
-            continue
-        print(f"{label}: HTTP {resp.status_code}")
-        print(resp.text[:4000])
+    week = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    time_formats = {
+        "Mon00 strings": [f"{d}{h:02d}" for d in week for h in range(24)],
+        "hour ints 0-167": list(range(168)),
+        "day-hour strings": [f"{d}-{h}" for d in range(7) for h in range(24)],
+    }
+    png = _tiny_png()
+    b64 = base64.b64encode(png).decode()
+    public_png = "https://www.gstatic.com/images/branding/product/2x/chrome_48dp.png"
+    image_formats = {
+        "public PNG URL": public_png,
+        "raw base64": b64,
+        "data URI": f"data:image/png;base64,{b64}",
+    }
+
+    def body(time_list, image):
+        return {
+            "direction": propeller.PUSH_DIRECTION, "rate_model": propeller.RATE_MODEL,
+            "status": 1, "timezone": 0,  # draft
+            "targeting": {
+                "country": {"list": ["us"], "is_excluded": False},
+                "time_table": {"list": time_list, "is_excluded": False},
+                "user_activity": {"list": [1, 2, 3], "is_excluded": False},
+                "traffic_categories": propeller.TRAFFIC_CATEGORIES,
+            },
+            "rates": [{"amount": 0.03, "countries": ["us"]}],
+            "creatives": [{"title": "Test", "description": "Test text", "status": 1,
+                           "icon": image, "image": image}],
+        }
+
+    first_image = image_formats["public PNG URL"]
+    for label, time_list in time_formats.items():
+        code, data = _post(client, body(time_list, first_image))
+        tt = data.get("targeting", {}).get("time_table") if isinstance(data, dict) else None
+        print(f"time_table {label}: HTTP {code} -> {json.dumps(tt) if tt else 'no time_table error'}")
+    for label, image in image_formats.items():
+        code, data = _post(client, body(time_formats["Mon00 strings"], image))
+        cr = data.get("creatives") if isinstance(data, dict) else data
+        print(f"image {label}: HTTP {code} -> {json.dumps(cr)[:500] if cr else 'no creative error'}")
+    code, data = _post(client, body(time_formats["Mon00 strings"], first_image))
+    print(f"full body minus target_url/started_at: HTTP {code} -> "
+          f"{json.dumps(data, ensure_ascii=False)[:1500]}")
 
 
 def probe_stop_body(client: PropellerClient) -> None:
