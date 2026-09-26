@@ -421,6 +421,13 @@ def add_discovered_niches(deps: Deps, count: int) -> int:
         deps.say("niche discovery skipped: needs both the Amazon API and an LLM")
         return 0
     s = deps.settings
+    # One cheap probe before spending an LLM call on ideas: while Amazon
+    # refuses access (e.g. AssociateNotEligible), every idea would fail.
+    try:
+        deps.catalog.search("gift ideas", "All")
+    except CatalogError as exc:
+        deps.say(f"niche discovery paused until the Amazon API answers: {exc}")
+        return 0
     existing = [n.keywords for n in deps.store.list_niches()]
     try:
         winners = discover_niches(

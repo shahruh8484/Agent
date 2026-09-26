@@ -78,3 +78,14 @@ def test_discovery_needs_amazon_and_llm(settings, store):
     run_cycle(deps, discover=2)
     assert store.list_niches() == []
     assert any("needs both" in line for line in deps.log)
+
+
+def test_discovery_paused_while_amazon_refuses(settings, store):
+    from tests.test_creator_connections import DeniedCatalog
+
+    llm = IdeasLLM()
+    deps = Deps(settings=settings, store=store, catalog=DeniedCatalog(), llm=llm)
+    run_cycle(deps, discover=3)
+    assert store.list_niches() == []
+    assert llm.prompts == []  # no LLM money spent on ideas
+    assert any("paused until the Amazon API answers" in line for line in deps.log)
