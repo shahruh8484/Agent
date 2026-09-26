@@ -32,7 +32,7 @@ from amzagent.agent.runner import (
     stop_all,
     stop_campaign,
 )
-from amzagent.amazon.creator_connections import parse_opportunities
+from amzagent.amazon.creator_connections import parse_opportunities, parse_opportunity_details
 from amzagent.config import Settings, get_settings
 from amzagent.models import Product
 from amzagent.store import ACTIVE, STOPPED, Store
@@ -293,12 +293,13 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             (n for n in store.list_niches() if n.asins and n.keywords.lower() == name.lower()),
             None,
         )
+        details = parse_opportunity_details(text)
         if existing:
-            total = store.merge_niche_asins(existing.id, asins)
+            total = store.merge_niche_asins(existing.id, asins, details)
             niche_id = existing.id
         else:
             niche_id = store.add_niche(name, language=language.strip() or "English",
-                                       asins=asins).id
+                                       asins=asins, asin_meta=details).id
             total = len(asins)
         with_epc = sum(1 for v in asins.values() if v is not None)
         request.session["flash"] = (

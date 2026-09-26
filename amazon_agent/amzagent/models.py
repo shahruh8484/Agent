@@ -24,6 +24,9 @@ class Product(BaseModel):
     # Creator Connections "Estimated EPC" ($ per click) for imported
     # campaign products; None for products found by search.
     epc: float | None = None
+    # Built from pasted Creator Connections text because the Creators API
+    # was unavailable: no image, price or rating may be shown for it.
+    offline: bool = False
     # ISO timestamp of the API call the price came from. Amazon only lets
     # you show a price fetched within the last 24h.
     fetched_at: str = ""
@@ -56,3 +59,6 @@ class Niche(BaseModel):
     # Curated site: products come from this fixed ASIN list ({asin: EPC})
     # instead of a keyword search, e.g. Creator Connections imports.
     asins: dict[str, float | None] = Field(default_factory=dict)
+    # Card details from the pasted page ({asin: {title, brand, rating,
+    # reviews}}), used to build the site while the API is unavailable.
+    asin_meta: dict[str, dict] = Field(default_factory=dict)

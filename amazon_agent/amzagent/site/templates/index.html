@@ -5,9 +5,9 @@
 {% for p, c in products %}
   <a class="card" href="/s/{{ niche.slug }}/p/{{ p.asin }}">
     <span class="rank">#{{ loop.index }}</span>
-    <img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">
+    {% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% else %}<div class="ph" style="height:190px">{{ p.brand or p.title|truncate(30) }}</div>{% endif %}
     <h3>{{ p.title }}</h3>
-    <span class="meta">{% if p.rating %}{{ "%.1f"|format(p.rating) }} / 5 &middot; {% endif %}{{ "{:,}".format(p.review_count) }} ratings</span>
+    {% if p.rating %}<span class="meta">{{ "%.1f"|format(p.rating) }} / 5 &middot; {{ "{:,}".format(p.review_count) }} ratings</span>{% endif %}
     <span class="meta">{{ c.summary|truncate(110) }}</span>
   </a>
 {% else %}

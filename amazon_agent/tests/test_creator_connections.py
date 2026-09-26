@@ -116,3 +116,82 @@ def test_import_endpoint(settings, store):
 
     page = client.post("/import", data={"text": "no asins here", "name": "X"})
     assert "не найдено ни одного ASIN" in page.text
+
+
+from amzagent.amazon.catalog import CatalogError  # noqa: E402
+from amzagent.amazon.creator_connections import parse_opportunity_details  # noqa: E402
+
+
+def test_parse_card_details():
+    d = parse_opportunity_details(PAGE)
+    assert d["B0FYZ9QQ9Z"] == {"title": "Physician's CHOICE Fiber Gummies",
+                               "brand": "Physician's CHOICE", "rating": 4.4, "reviews": 2696}
+    assert d["B0DZ7RZ14S"]["title"] == "Shark FlexStyle, Air Multi-Styler & Drying"
+    assert d["B0DZ7RZ14S"]["rating"] == 4.6
+
+
+class DeniedCatalog:
+    def search(self, *a, **k):
+        raise CatalogError("AssociateNotEligible")
+
+    def get(self, asins):
+        raise CatalogError("AssociateNotEligible")
+
+
+def _import(store):
+    from amzagent.amazon.creator_connections import parse_opportunities
+    return store.add_niche("Top Deals", asins=parse_opportunities(PAGE),
+                           asin_meta=parse_opportunity_details(PAGE))
+
+
+def test_fallback_builds_site_from_pasted_page(settings, store):
+    settings.amazon_partner_tag = "screensoundlo-20"
+    settings.min_reviews = 300
+    niche = _import(store)
+    deps = Deps(settings=settings, store=store, catalog=DeniedCatalog(), llm=FakeLLM())
+    run_cycle(deps)
+
+    products = store.list_products(niche.id)
+    # Gummies: 2,696 reviews + $2.50 EPC ranks first, Shark (359 reviews,
+    # $1.10) next; Miss Mouth's card has no rating line -> kept, ranked last.
+    assert [p.asin for p, _ in products] == ["B0FYZ9QQ9Z", "B0DZ7RZ14S", "B01EIG6A4Q"]
+    p = products[0][0]
+    assert p.offline and p.image_url == "" and p.price is None and p.rating is None
+    assert p.url == "https://www.amazon.com/dp/B0FYZ9QQ9Z?tag=screensoundlo-20"
+    assert all(c is not None for _, c in products)
+    assert any("fallback mode" in line for line in deps.log)
+
+    settings.admin_password_hash = bcrypt.hashpw(b"pw", bcrypt.gensalt()).decode()
+    client = TestClient(create_app(settings, store, start_loop=False))
+    page = client.get("/s/top-deals/p/B0FYZ9QQ9Z").text
+    assert 'class="ph"' in page and "Price as of" not in page and "ratings on Amazon" not in page
+    assert "See current price, photos and customer reviews on Amazon" in page
+    assert client.get("/go/top-deals/B0FYZ9QQ9Z", follow_redirects=False) \
+        .headers["location"].endswith("tag=screensoundlo-20")
+
+
+def test_api_recovery_replaces_fallback_pages(settings, store):
+    settings.amazon_partner_tag = "t-20"
+    niche = _import(store)
+    run_cycle(Deps(settings=settings, store=store, catalog=DeniedCatalog(), llm=FakeLLM()))
+    assert store.list_products(niche.id)[0][0].offline
+
+    llm = FakeLLM()
+    api = ListCatalog([make_product("B0FYZ9QQ9Z"), make_product("B0DZ7RZ14S")])
+    run_cycle(Deps(settings=settings, store=store, catalog=api, llm=llm))
+    products = store.list_products(niche.id)
+    assert products and not any(p.offline for p, _ in products)
+    assert all(p.image_url for p, _ in products)
+    assert any("B0FYZ9QQ9Z" in prompt for prompt in llm.prompts)  # copy rewritten
+
+    # A later API outage must not downgrade the full pages.
+    run_cycle(Deps(settings=settings, store=store, catalog=DeniedCatalog(), llm=FakeLLM()))
+    assert not any(p.offline for p, _ in store.list_products(niche.id))
+
+
+def test_fallback_rejects_weak_cards(settings, store):
+    settings.amazon_partner_tag = "t-20"
+    settings.min_reviews = 1000  # Shark has 359
+    niche = _import(store)
+    run_cycle(Deps(settings=settings, store=store, catalog=DeniedCatalog(), llm=FakeLLM()))
+    assert "B0DZ7RZ14S" not in [p.asin for p, _ in store.list_products(niche.id)]

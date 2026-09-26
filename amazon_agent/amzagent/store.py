@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS niches (
     enabled INTEGER NOT NULL DEFAULT 1,
     site_copy TEXT,
     asins TEXT,
+    asin_meta TEXT,
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS products (
@@ -112,9 +113,10 @@ class Store:
             self._db.executescript(SCHEMA)
             # Databases created before curated (ASIN-list) sites existed.
             cols = {r[1] for r in self._db.execute("PRAGMA table_info(niches)")}
-            if "asins" not in cols:
-                self._db.execute("ALTER TABLE niches ADD COLUMN asins TEXT")
-                self._db.commit()
+            for col in ("asins", "asin_meta"):
+                if col not in cols:
+                    self._db.execute(f"ALTER TABLE niches ADD COLUMN {col} TEXT")
+            self._db.commit()
 
     def _exec(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         with self._lock:
@@ -139,6 +141,7 @@ class Store:
         language: str = "English",
         max_price: float | None = None,
         asins: dict[str, float | None] | None = None,
+        asin_meta: dict[str, dict] | None = None,
     ) -> Niche:
         base = slugify(keywords)
         slug, n = base, 2
@@ -146,9 +149,10 @@ class Store:
             slug, n = f"{base}-{n}", n + 1
         cur = self._exec(
             "INSERT INTO niches (slug, keywords, search_index, language, max_price, asins,"
-            " created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            " asin_meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (slug, keywords, search_index or "All", language or "English", max_price,
-             json.dumps(asins) if asins else None, now_iso()),
+             json.dumps(asins) if asins else None,
+             json.dumps(asin_meta) if asin_meta else None, now_iso()),
         )
         return self.get_niche(cur.lastrowid)
 
@@ -163,17 +167,33 @@ class Store:
             max_price=row["max_price"],
             enabled=bool(row["enabled"]),
             asins=json.loads(row["asins"]) if row["asins"] else {},
+            asin_meta=json.loads(row["asin_meta"]) if row["asin_meta"] else {},
         )
 
-    def merge_niche_asins(self, niche_id: int, asins: dict[str, float | None]) -> int:
-        """Add ASINs to a curated site (newer EPC wins). Returns the new total."""
+    def merge_niche_asins(
+        self,
+        niche_id: int,
+        asins: dict[str, float | None],
+        asin_meta: dict[str, dict] | None = None,
+    ) -> int:
+        """Add ASINs to a curated site (newer EPC and card details win).
+        Returns the new total."""
         niche = self.get_niche(niche_id)
         merged = dict(niche.asins)
         for asin, epc in asins.items():
             if epc is not None or asin not in merged:
                 merged[asin] = epc
-        self._exec("UPDATE niches SET asins = ? WHERE id = ?", (json.dumps(merged), niche_id))
+        meta = dict(niche.asin_meta)
+        for asin, m in (asin_meta or {}).items():
+            if m.get("title") or asin not in meta:
+                meta[asin] = m
+        self._exec("UPDATE niches SET asins = ?, asin_meta = ? WHERE id = ?",
+                   (json.dumps(merged), json.dumps(meta), niche_id))
         return len(merged)
+
+    def clear_product_copy(self, niche_id: int, asin: str) -> None:
+        self._exec("UPDATE products SET copy = NULL WHERE niche_id = ? AND asin = ?",
+                   (niche_id, asin))
 
     def get_niche(self, niche_id: int) -> Niche | None:
         row = self._one("SELECT * FROM niches WHERE id = ?", (niche_id,))

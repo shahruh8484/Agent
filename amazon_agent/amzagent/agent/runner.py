@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from amzagent.amazon.catalog import Catalog, CatalogError, CreatorsApiCatalog
+from amzagent.amazon.creator_connections import offline_products
 from amzagent.config import Settings
 from amzagent.content.llm import LLM, LLMError, get_llm
 from amzagent.content.writer import write_product_copy, write_site_copy
@@ -78,46 +79,85 @@ def build_deps(settings: Settings, store: Store) -> Deps:
 # --- 1. products + content ------------------------------------------------
 
 
+def _curated_candidates(deps: Deps, niche: Niche) -> tuple[list, bool]:
+    """Products for an imported (ASIN-list) site: live from the Creators API,
+    or — if the API refuses — built from the pasted page. Returns
+    (products, offline)."""
+    if deps.catalog is not None:
+        deps.say(f"[{niche.slug}] fetching {len(niche.asins)} imported products from Amazon")
+        try:
+            products = deps.catalog.get(list(niche.asins))
+        except CatalogError as exc:
+            deps.say(f"[{niche.slug}] Amazon API unavailable: {exc}")
+        else:
+            for p in products:
+                p.epc = niche.asins.get(p.asin)
+            return products, False
+    return [], True
+
+
 def refresh_niche(deps: Deps, niche: Niche) -> bool:
     s, store = deps.settings, deps.store
-    if deps.catalog is None:
+    if deps.catalog is None and not niche.asins:
         deps.say(f"[{niche.slug}] skipped: Amazon API not configured")
         return False
 
-    candidates = []
-    if niche.asins:
-        deps.say(f"[{niche.slug}] fetching {len(niche.asins)} imported products from Amazon")
-        try:
-            candidates = deps.catalog.get(list(niche.asins))
-        except CatalogError as exc:
-            deps.say(f"[{niche.slug}] fetch failed: {exc}")
-        for p in candidates:
-            p.epc = niche.asins.get(p.asin)
-    else:
-        deps.say(f"[{niche.slug}] searching Amazon for {niche.keywords!r}")
-    pages = 0 if niche.asins else SEARCH_PAGES
-    for page in range(1, pages + 1):
-        try:
-            found = deps.catalog.search(niche.keywords, niche.search_index, niche.max_price, page)
-        except CatalogError as exc:
-            deps.say(f"[{niche.slug}] search page {page} failed: {exc}")
-            break
-        candidates.extend(found)
-        if len(found) < 10:
-            break
-
     # An imported list was already hand-picked, so it gets a bigger shelf.
     limit = max(s.products_per_site, CURATED_SITE_SIZE) if niche.asins else s.products_per_site
-    selected, rejected = select_products(candidates, limit, s.min_rating, s.min_reviews)
-    deps.say(
-        f"[{niche.slug}] {len(candidates)} found, {len(selected)} selected, "
-        f"{len(rejected)} rejected"
-    )
+    candidates: list = []
+    offline = False
+    if niche.asins:
+        candidates, offline = _curated_candidates(deps, niche)
+    else:
+        deps.say(f"[{niche.slug}] searching Amazon for {niche.keywords!r}")
+        for page in range(1, SEARCH_PAGES + 1):
+            try:
+                found = deps.catalog.search(
+                    niche.keywords, niche.search_index, niche.max_price, page
+                )
+            except CatalogError as exc:
+                deps.say(f"[{niche.slug}] search page {page} failed: {exc}")
+                break
+            candidates.extend(found)
+            if len(found) < 10:
+                break
+
+    if offline:
+        if not s.amazon_partner_tag:
+            deps.say(f"[{niche.slug}] fallback skipped: AMAZON_PARTNER_TAG is not set")
+            return False
+        selected, rejected = offline_products(
+            niche.asins, niche.asin_meta, s.amazon_partner_tag, s.amazon_country,
+            s.min_rating, s.min_reviews, limit,
+        )
+        deps.say(
+            f"[{niche.slug}] fallback mode (no API): site built from the pasted page, "
+            f"without photos and prices — {len(selected)} selected, {len(rejected)} rejected"
+        )
+    else:
+        selected, rejected = select_products(candidates, limit, s.min_rating, s.min_reviews)
+        deps.say(
+            f"[{niche.slug}] {len(candidates)} found, {len(selected)} selected, "
+            f"{len(rejected)} rejected"
+        )
     for asin, reason in list(rejected.items())[:10]:
         deps.say(f"[{niche.slug}]   rejected {asin}: {reason}")
     if not selected:
         # Keep the current site as it is rather than emptying it.
         return False
+
+    if not offline:
+        # Copy written from a fallback card lacks the API's feature
+        # bullets: rewrite it now that real data is here.
+        was_offline = {p.asin for p, _ in store.list_products(niche.id, active_only=False)
+                       if p.offline}
+        for p in selected:
+            if p.asin in was_offline:
+                store.clear_product_copy(niche.id, p.asin)
+    elif any(not p.offline for p, _ in store.list_products(niche.id)):
+        # Never downgrade a site that already has full API pages.
+        deps.say(f"[{niche.slug}] keeping the existing full pages from the last API fetch")
+        return True
     store.replace_products(niche.id, [(p, score(p)) for p in selected])
 
     if deps.llm is None:

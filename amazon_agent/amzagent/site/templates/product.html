@@ -2,10 +2,10 @@
 {% block title %}{{ product.title|truncate(60) }} — {{ site.site_title }}{% endblock %}
 {% block content %}
 <div class="product">
-  <div><img class="hero" src="{{ product.image_url }}" alt="{{ product.title }}"></div>
+  <div>{% if product.image_url %}<img class="hero" src="{{ product.image_url }}" alt="{{ product.title }}">{% else %}<div class="ph" style="height:320px;font-size:1.4rem">{{ product.brand or product.title }}</div>{% endif %}</div>
   <div>
     <h1>{{ product.title }}</h1>
-    <div class="meta">{% if product.brand %}{{ product.brand }} &middot; {% endif %}{% if product.rating %}{{ "%.1f"|format(product.rating) }} / 5 from {{ "{:,}".format(product.review_count) }} ratings on Amazon{% endif %}</div>
+    <div class="meta">{{ product.brand }}{% if product.brand and product.rating %} &middot; {% endif %}{% if product.rating %}{{ "%.1f"|format(product.rating) }} / 5 from {{ "{:,}".format(product.review_count) }} ratings on Amazon{% endif %}</div>
     <p>{{ copy.summary }}</p>
     <div class="proscons">
       <div><h4>Pros</h4><ul>{% for x in copy.pros %}<li>{{ x }}</li>{% endfor %}</ul></div>
@@ -17,6 +17,7 @@
         <small>Price as of {{ product.fetched_at[:16].replace("T", " ") }} UTC. Product prices and availability are accurate as of the date/time indicated and are subject to change. Any price and availability information displayed on Amazon at the time of purchase will apply to the purchase of this product.</small>
       </p>
     {% endif %}
+    {% if product.offline %}<p class="meta">See current price, photos and customer reviews on Amazon.</p>{% endif %}
     <p><a class="btn" href="{{ go_url }}" rel="nofollow sponsored noopener" target="_blank">Check price on Amazon</a></p>
   </div>
 </div>
@@ -25,7 +26,7 @@
 <div class="grid">
 {% for p, c in others %}
   <a class="card" href="/s/{{ niche.slug }}/p/{{ p.asin }}">
-    <img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">
+    {% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% else %}<div class="ph" style="height:190px">{{ p.brand or p.title|truncate(30) }}</div>{% endif %}
     <h3>{{ p.title }}</h3>
   </a>
 {% endfor %}
