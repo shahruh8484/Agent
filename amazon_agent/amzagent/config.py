@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
 
+    # --- Push creatives ---
+    # ai: an image model draws a scene per variant (needs OPENAI_API_KEY);
+    # simple: text on a gradient, free. ai falls back to simple on errors.
+    push_creatives: str = "ai"
+    push_creative_variants: int = 2
+    openai_image_model: str = "gpt-image-1"
+    openai_image_quality: str = "medium"  # low | medium | high
+
     # --- PropellerAds (push notification campaigns) ---
     propeller_api_token: str = ""
     # false = build every campaign payload and log it, but send nothing.

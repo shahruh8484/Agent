@@ -83,11 +83,12 @@
 
 <h2>Пуш-кампании</h2>
 <div class="scroll"><table>
-<tr><th>#</th><th>Сайт / товар</th><th>Статус</th><th class="num">$/день</th><th class="num">Потрачено</th><th class="num">Визиты</th><th class="num">Клики</th><th class="num">$ за клик</th><th>Заметка</th><th></th></tr>
+<tr><th>#</th><th>Сайт / товар</th><th>Картинки</th><th>Статус</th><th class="num">$/день</th><th class="num">Потрачено</th><th class="num">Визиты</th><th class="num">Клики</th><th class="num">$ за клик</th><th>Заметка</th><th></th></tr>
 {% for c in campaigns %}
 <tr>
   <td>{{ c.id }}{% if c.external_id %}<br><span class="muted">PA {{ c.external_id }}</span>{% endif %}</td>
   <td><a href="/s/{{ c.slug }}/p/{{ c.asin }}" target="_blank">{{ c.slug }} / {{ c.asin }}</a></td>
+  <td style="white-space:nowrap">{% for img in c.images %}<a href="{{ img }}" target="_blank"><img src="{{ img }}" alt="" style="width:84px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--line);margin-right:4px"></a>{% endfor %}</td>
   <td><span class="pill s-{{ c.status }}">{{ {"active":"активна","dry_run":"тест","killed":"отключена агентом","stopped":"остановлена","error":"ошибка","creating":"создаётся"}.get(c.status, c.status) }}</span></td>
   <td class="num">{{ "%.2f"|format(c.daily_budget) }}</td>
   <td class="num">{{ "%.2f"|format(c.spend) }}</td>
@@ -95,9 +96,9 @@
   <td class="num">{{ c.clicks }}</td>
   <td class="num">{{ "%.2f"|format(c.cost_per_click) if c.cost_per_click is not none else "—" }}</td>
   <td>{{ c.note or "" }}{% if c.payload %}<details><summary class="muted">payload</summary><pre>{{ c.payload }}</pre></details>{% endif %}</td>
-  <td>{% if c.status in ("active","dry_run") %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/stop"><button class="danger">Стоп</button></form>{% endif %}</td>
+  <td style="white-space:nowrap">{% if c.status == "dry_run" %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/redraw"><button title="Нарисовать новые картинки">Перерисовать</button></form> {% endif %}{% if c.status in ("active","dry_run") %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/stop"><button class="danger">Стоп</button></form>{% endif %}</td>
 </tr>
-{% else %}<tr><td colspan="10" class="muted">Кампаний ещё нет.</td></tr>{% endfor %}
+{% else %}<tr><td colspan="11" class="muted">Кампаний ещё нет.</td></tr>{% endfor %}
 </table></div>
 
 <h2>Сообщения с сайта{% if messages %} ({{ messages|length }}){% endif %}</h2>

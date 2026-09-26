@@ -4,7 +4,8 @@ from amzagent.push.propeller import PropellerClient, PropellerError, build_campa
 
 
 def test_payload_shape():
-    p = build_campaign_payload("n", "https://x/p", "T" * 50, "B" * 100, "https://i", "https://m",
+    p = build_campaign_payload("n", "https://x/p", "T" * 50, "B" * 100,
+                               [("https://i1", "https://m1"), ("https://i2", "https://m2")],
                                ["us"], 0.03, 10)
     assert p["direction"] == "nativeads" and p["rate_model"] == "cpc"
     assert p["target_url"] == "https://x/p"
@@ -12,6 +13,7 @@ def test_payload_shape():
     assert p["targeting"]["country"]["list"] == ["us"]
     assert len(p["creatives"][0]["title"]) == 30
     assert len(p["creatives"][0]["description"]) == 60
+    assert [c["image"] for c in p["creatives"]] == ["https://m1", "https://m2"]
 
 
 class Resp:

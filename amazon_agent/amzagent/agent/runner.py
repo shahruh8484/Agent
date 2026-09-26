@@ -26,6 +26,7 @@ from amzagent.content.llm import LLM, LLMError, get_llm
 from amzagent.content.writer import write_product_copy, write_site_copy
 from amzagent.models import COPY_VERSION, Niche
 from amzagent.push import propeller
+from amzagent.push.ai_creatives import CreativeError, OpenAIImages, make_ai_creatives
 from amzagent.push.creatives import render_creatives
 from amzagent.push.propeller import PropellerClient, PropellerError
 from amzagent.selection.niches import discover_niches
@@ -47,6 +48,7 @@ class Deps:
     catalog: Catalog | None = None
     llm: LLM | None = None
     push: PropellerClient | None = None
+    painter: object | None = None  # draws AI push images (OpenAIImages)
     log: list[str] = field(default_factory=list)
     run_id: int | None = None
 
@@ -68,6 +70,11 @@ def build_deps(settings: Settings, store: Store) -> Deps:
         deps.llm = get_llm(settings)
     except LLMError as exc:
         deps.say(f"LLM: not configured ({exc})")
+    if settings.push_creatives == "ai":
+        try:
+            deps.painter = OpenAIImages(settings)
+        except CreativeError as exc:
+            deps.say(f"AI push images: off ({exc}), using simple ones")
     if settings.push_live:
         try:
             deps.push = PropellerClient(settings.propeller_api_token)
@@ -275,8 +282,6 @@ def launch_campaigns(deps: Deps) -> None:
         deps.say("launch skipped: PUSH_LIVE=true but PropellerAds is not configured")
         return
     running_status = ACTIVE if live else DRY_RUN
-    media_root = Path(s.data_dir) / "media"
-    base = s.public_base_url()
 
     for niche in store.list_niches():
         if not niche.enabled:
@@ -302,22 +307,7 @@ def launch_campaigns(deps: Deps) -> None:
                 return
 
             cid = store.add_campaign(niche.id, product.asin, "creating", s.campaign_daily_budget)
-            name = f"{product.asin}-c{cid}"
-            render_creatives(media_root / niche.slug, name, site_copy.site_title, copy.push_title)
-            payload = propeller.build_campaign_payload(
-                name=f"{niche.slug} {product.asin} #{cid}",
-                target_url=(
-                    f"{base}/s/{niche.slug}/p/{product.asin}"
-                    f"?c={cid}&z={propeller.ZONE_MACRO}&k={propeller.CLICK_MACRO}"
-                ),
-                title=copy.push_title,
-                text=copy.push_text,
-                icon_url=f"{base}/media/{niche.slug}/{name}-icon.png",
-                image_url=f"{base}/media/{niche.slug}/{name}-image.png",
-                countries=s.push_countries_list(),
-                bid_cpc=s.push_bid_cpc,
-                daily_budget=s.campaign_daily_budget,
-            )
+            payload = build_payload(deps, niche, site_copy, product, copy, cid)
 
             if not live:
                 store.update_campaign(cid, status=DRY_RUN, payload=payload,
@@ -338,6 +328,63 @@ def launch_campaigns(deps: Deps) -> None:
                     f"for {product.asin}, ${s.campaign_daily_budget:.2f}/day"
                 )
             slots -= 1
+
+
+def push_images(deps: Deps, niche: Niche, site_title: str, product, copy, cid: int
+                ) -> list[tuple[str, str]]:
+    """Public (icon URL, image URL) pairs for a campaign's creatives: AI
+    drawings when available, else the simple generated ones."""
+    s = deps.settings
+    out_dir = Path(s.data_dir) / "media" / niche.slug
+    base = f"{s.public_base_url()}/media/{niche.slug}"
+    name = f"{product.asin}-c{cid}"
+    if deps.painter is not None and deps.llm is not None:
+        try:
+            files = make_ai_creatives(deps.llm, deps.painter, product, copy, out_dir, name,
+                                      max(1, s.push_creative_variants))
+        except (CreativeError, LLMError) as exc:
+            deps.say(f"[{niche.slug}] AI images failed for #{cid}, using simple ones: {exc}")
+        else:
+            deps.say(f"[{niche.slug}] drew {len(files)} AI image variant(s) for #{cid}")
+            return [(f"{base}/{icon}", f"{base}/{image}") for icon, image in files]
+    render_creatives(out_dir, name, site_title, copy.push_title)
+    return [(f"{base}/{name}-icon.png", f"{base}/{name}-image.png")]
+
+
+def build_payload(deps: Deps, niche: Niche, site_copy, product, copy, cid: int) -> dict:
+    s = deps.settings
+    return propeller.build_campaign_payload(
+        name=f"{niche.slug} {product.asin} #{cid}",
+        target_url=(
+            f"{s.public_base_url()}/s/{niche.slug}/p/{product.asin}"
+            f"?c={cid}&z={propeller.ZONE_MACRO}&k={propeller.CLICK_MACRO}"
+        ),
+        title=copy.push_title,
+        text=copy.push_text,
+        images=push_images(deps, niche, site_copy.site_title, product, copy, cid),
+        countries=s.push_countries_list(),
+        bid_cpc=s.push_bid_cpc,
+        daily_budget=s.campaign_daily_budget,
+    )
+
+
+def redraw_campaign(deps: Deps, campaign_id: int) -> bool:
+    """Re-make the creatives of a dry-run campaign (e.g. after switching on
+    AI images). Live campaigns are left alone: their creatives are already
+    under review at the ad network."""
+    c = deps.store.get_campaign(campaign_id)
+    if c is None or c["status"] != DRY_RUN:
+        return False
+    niche = deps.store.get_niche(c["niche_id"])
+    site_copy = deps.store.get_site_copy(c["niche_id"]) if niche else None
+    found = deps.store.get_product(c["niche_id"], c["asin"]) if niche else None
+    if not (niche and site_copy and found and found[1]):
+        return False
+    product, copy = found
+    deps.store.update_campaign(
+        campaign_id, payload=build_payload(deps, niche, site_copy, product, copy, campaign_id)
+    )
+    return True
 
 
 def stop_all(deps: Deps, reason: str = "stopped by kill switch") -> None:

@@ -14,6 +14,7 @@ Admin (login): /, /login, /logout and the POST actions below.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 import threading
@@ -38,6 +39,7 @@ from amzagent.agent.runner import (
     KILLED,
     PAUSE_FLAG,
     build_deps,
+    redraw_campaign,
     run_cycle,
     stop_all,
     stop_campaign,
@@ -76,6 +78,15 @@ def price_is_fresh(product: Product) -> bool:
 
 def _clean(value: str | None) -> str | None:
     return value if value and SAFE_PARAM.match(value) else None
+
+
+def _payload_images(payload: str | None) -> list[str]:
+    """Main-image URLs of a campaign's creatives, for dashboard previews."""
+    try:
+        return [c["image"] for c in json.loads(payload or "{}").get("creatives", [])
+                if c.get("image")]
+    except (ValueError, AttributeError, TypeError):
+        return []
 
 
 def create_app(settings: Settings | None = None, store: Store | None = None,
@@ -358,6 +369,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 visits=store.count_events(c["id"], "visit"),
                 clicks=clicks,
                 cost_per_click=(c["spend"] / clicks) if clicks else None,
+                images=_payload_images(c["payload"]),
             )
             campaigns.append(c)
         return TEMPLATES.TemplateResponse(
@@ -469,6 +481,22 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         if c:
             # Manual stop counts as a verdict on the product: don't relaunch.
             stop_campaign(build_deps(settings, store), c, KILLED, "stopped manually")
+        return RedirectResponse("/admin", status_code=303)
+
+    @app.post("/campaigns/{campaign_id}/redraw")
+    def redraw(request: Request, campaign_id: int):
+        if not logged_in(request):
+            return to_login()
+
+        def target():
+            deps = build_deps(settings, store)
+            if redraw_campaign(deps, campaign_id):
+                logger.info("redrew creatives of campaign #%s", campaign_id)
+
+        threading.Thread(target=target, daemon=True).start()
+        request.session["flash"] = (
+            f"Кампания #{campaign_id}: агент перерисовывает картинки — обновите страницу через минуту."
+        )
         return RedirectResponse("/admin", status_code=303)
 
     @app.post("/killswitch")

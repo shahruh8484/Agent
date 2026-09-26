@@ -52,8 +52,7 @@ def build_campaign_payload(
     target_url: str,
     title: str,
     text: str,
-    icon_url: str,
-    image_url: str,
+    images: list[tuple[str, str]],
     countries: list[str],
     bid_cpc: float,
     daily_budget: float,
@@ -76,6 +75,8 @@ def build_campaign_payload(
             "country": {"list": countries, "is_excluded": False},
         },
         "rates": [{"countries": countries, "amount": round(bid_cpc, 4)}],
+        # One creative per image variant (same copy): the network rotates
+        # them and shows the better performer more.
         "creatives": [
             {
                 "title": title[:30],
@@ -83,6 +84,7 @@ def build_campaign_payload(
                 "icon": icon_url,
                 "image": image_url,
             }
+            for icon_url, image_url in images
         ],
     }
 
