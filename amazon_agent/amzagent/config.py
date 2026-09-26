@@ -51,7 +51,12 @@ class Settings(BaseSettings):
     # Kill rule: once a campaign has spent at least kill_min_spend, stop it
     # if each click through to Amazon cost more than max_cost_per_amazon_click.
     kill_min_spend: float = 1.0
-    max_cost_per_amazon_click: float = 0.40
+    # Keep a campaign only if at least this % of its site visitors click
+    # through to Amazon (0 = rule off).
+    min_amazon_rate: float = 1.0
+    # Optionally also stop it if one click to Amazon costs more than this
+    # (0 = rule off).
+    max_cost_per_amazon_click: float = 0.0
     # Zone rule: blacklist a zone after it spent this much with zero
     # clicks through to Amazon.
     zone_min_spend: float = 1.0

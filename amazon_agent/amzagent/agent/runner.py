@@ -412,12 +412,19 @@ def apply_kill_rules(deps: Deps) -> None:
         if spend < s.kill_min_spend:
             continue
         clicks = store.count_events(c["id"], "click")
+        visits = store.count_events(c["id"], "visit")
+        rate = 100 * clicks / visits if visits else 0.0
         cost = spend / clicks if clicks else None
-        if cost is None or cost > s.max_cost_per_amazon_click:
+        if s.min_amazon_rate > 0 and rate < s.min_amazon_rate:
+            stop_campaign(deps, c, KILLED,
+                          f"spent ${spend:.2f}: {clicks} of {visits} visitors went to Amazon "
+                          f"({rate:.2f}% < {s.min_amazon_rate:g}%)")
+        elif s.max_cost_per_amazon_click > 0 and (cost is None
+                                                   or cost > s.max_cost_per_amazon_click):
             shown = f"${cost:.2f}" if cost is not None else "no clicks"
             stop_campaign(deps, c, KILLED,
-                  f"spent ${spend:.2f}, cost per Amazon click {shown} "
-                  f"> ${s.max_cost_per_amazon_click:.2f}")
+                          f"spent ${spend:.2f}, cost per Amazon click {shown} "
+                          f"> ${s.max_cost_per_amazon_click:.2f}")
 
 
 def blacklist_bad_zones(deps: Deps) -> None:

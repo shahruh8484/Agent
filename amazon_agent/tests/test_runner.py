@@ -52,26 +52,45 @@ def test_switching_to_live_retires_dry_runs(settings, store):
     assert len(store.list_campaigns(statuses=(ACTIVE,))) == settings.campaigns_per_site
 
 
-def test_kill_rule_stops_expensive_campaign_and_never_relaunches(settings, store):
+def test_kill_rule_by_amazon_rate_and_never_relaunches(settings, store):
     settings.push_live = True
     niche = store.add_niche("earbuds")
     push = FakePush()
     run_cycle(_deps(settings, store, push))
     bad, good = store.list_campaigns(statuses=(ACTIVE,))
-    # bad: $6 spent, 1 click -> $6/click. good: $6 spent, 30 clicks -> $0.20/click.
+    # Both: $6 spent, 200 visits. bad: 1 to Amazon (0.5%), good: 4 (2%).
     push.spend_rows = [{"campaign_id": bad["external_id"], "zone_id": "", "spent": 6.0},
                        {"campaign_id": good["external_id"], "zone_id": "", "spent": 6.0}]
-    store.log_event("click", niche.id, bad["asin"], bad["id"])
-    for _ in range(30):
-        store.log_event("click", niche.id, good["asin"], good["id"])
+    for c, amazon in ((bad, 1), (good, 4)):
+        for _ in range(200):
+            store.log_event("visit", niche.id, c["asin"], c["id"])
+        for _ in range(amazon):
+            store.log_event("click", niche.id, c["asin"], c["id"])
 
     run_cycle(_deps(settings, store, push))
     assert store.get_campaign(bad["id"])["status"] == KILLED
+    assert "1 of 200 visitors went to Amazon (0.50% < 1%)" in store.get_campaign(bad["id"])["note"]
     assert store.get_campaign(good["id"])["status"] == ACTIVE
     assert bad["external_id"] in push.stopped
     # The freed slot goes to a new product, not back to the killed one.
     active_asins = {c["asin"] for c in store.list_campaigns(statuses=(ACTIVE,))}
     assert bad["asin"] not in active_asins and len(active_asins) == 2
+
+
+def test_optional_cost_rule(settings, store):
+    settings.push_live = True
+    settings.min_amazon_rate = 0  # rate rule off
+    settings.max_cost_per_amazon_click = 2.0
+    niche = store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    push.spend_rows = [{"campaign_id": c["external_id"], "spent": 6.0}]
+    for _ in range(2):  # $3 per Amazon click
+        store.log_event("click", niche.id, c["asin"], c["id"])
+    run_cycle(_deps(settings, store, push))
+    assert store.get_campaign(c["id"])["status"] == KILLED
+    assert "cost per Amazon click $3.00 > $2.00" in store.get_campaign(c["id"])["note"]
 
 
 def test_zone_blacklist(settings, store):
