@@ -325,3 +325,20 @@ def test_campaign_paused_by_network_counts_as_stopped(settings, store):
     push.statuses = {other["external_id"]: 6}  # really running: must retry later
     stop_campaign(_deps(settings, store, push), other, KILLED, "test")
     assert store.get_campaign(other["id"])["status"] == ACTIVE
+
+
+def test_daily_cap_counts_money_already_spent_today(settings, store):
+    settings.push_live = True
+    settings.max_daily_spend = 20
+    settings.campaigns_per_site = 2
+    niche = store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    first, second = store.list_campaigns(statuses=(ACTIVE,))
+    # first burned $8 today with no Amazon clicks -> killed; a replacement
+    # would make $8 + $10 + $10 = $28 > $20, so it must not launch.
+    push.spend_rows = [{"campaign_id": first["external_id"], "spent": 8.0}]
+    run_cycle(_deps(settings, store, push))
+    assert store.get_campaign(first["id"])["status"] == KILLED
+    assert len(push.created) == 2  # no third campaign today
+    assert niche

@@ -45,7 +45,8 @@ STATS_BLIND_MINUTES = 30
 # Share of paid push clicks that reach our page (measured: 298 of 338).
 VISITS_PER_PAID_CLICK = 0.85
 STATS_OK_FLAG = "stats_ok_at"
-STATS_ERROR_FLAG = "stats_error"  # stopped by the kill rule — never relaunched for that product
+STATS_ERROR_FLAG = "stats_error"
+TODAY_SPEND_FLAG = "spent_today"  # stopped by the kill rule — never relaunched for that product
 PAUSE_FLAG = "paused_all"
 SEARCH_PAGES = 2  # 10 items per page
 CURATED_SITE_SIZE = 30
@@ -306,6 +307,7 @@ def sync_stats(deps: Deps) -> bool:
         deps.store.set_flag(STATS_ERROR_FLAG, str(exc)[:300])
         return False
     deps.store.set_flag(STATS_OK_FLAG, now_iso())
+    sync_today_spend(deps)
     deps.store.set_flag(STATS_ERROR_FLAG, "")
     for row in totals:
         c = by_external.get(row["campaign_id"])
@@ -318,6 +320,39 @@ def sync_stats(deps: Deps) -> bool:
             deps.store.upsert_zone_stats(c["id"], row["zone_id"], row["impressions"],
                                          row["clicks"], row["spent"])
     return True
+
+
+def sync_today_spend(deps: Deps) -> None:
+    """Today's spend per campaign (including ones stopped earlier today),
+    so the daily cap counts money already spent, not just running budgets."""
+    recent = [c for c in deps.store.list_campaigns()
+              if c["external_id"] and c["status"] in (ACTIVE, KILLED, STOPPED)]
+    if not recent or deps.push is None:
+        return
+    try:
+        rows = deps.push.spend([c["external_id"] for c in recent], days=0)
+    except PropellerError as exc:
+        deps.say(f"today's spend sync failed: {exc}")
+        return
+    by_external = {r["campaign_id"]: r["spent"] for r in rows}
+    today = {str(c["id"]): by_external.get(c["external_id"], 0.0) for c in recent}
+    deps.store.set_flag(TODAY_SPEND_FLAG, json.dumps(
+        {"date": datetime.now(timezone.utc).date().isoformat(), "by_campaign": today}))
+
+
+def spent_today(store: Store, only_stopped: bool = False) -> float:
+    """Spend reported for today (by campaign id), 0 if not synced today."""
+    try:
+        data = json.loads(store.get_flag(TODAY_SPEND_FLAG, "{}"))
+    except ValueError:
+        return 0.0
+    if data.get("date") != datetime.now(timezone.utc).date().isoformat():
+        return 0.0
+    by_campaign = data.get("by_campaign", {})
+    if not only_stopped:
+        return float(sum(by_campaign.values()))
+    active = {str(c["id"]) for c in store.list_campaigns(statuses=(ACTIVE,))}
+    return float(sum(v for k, v in by_campaign.items() if k not in active))
 
 
 def stop_if_flying_blind(deps: Deps) -> bool:
@@ -493,10 +528,13 @@ def launch_campaigns(deps: Deps) -> None:
                 break
             if product.asin in taken or copy is None:
                 continue
-            if live and store.running_daily_budget() + s.campaign_daily_budget > s.max_daily_spend:
+            # Cap = money already spent today by campaigns that were stopped
+            # + budgets of the running ones + the new one.
+            committed = spent_today(store, only_stopped=True) + store.running_daily_budget()
+            if live and committed + s.campaign_daily_budget > s.max_daily_spend:
                 deps.say(
-                    f"launch paused: daily budget cap ${s.max_daily_spend:.2f} reached "
-                    f"(running ${store.running_daily_budget():.2f})"
+                    f"launch paused: daily cap ${s.max_daily_spend:.2f} reached "
+                    f"(${committed:.2f} spent or committed today)"
                 )
                 return
 

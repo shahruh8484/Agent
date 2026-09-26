@@ -48,6 +48,7 @@ from amzagent.agent.runner import (
     quick_check,
     redraw_campaign,
     run_cycle,
+    spent_today,
     stop_all,
     stop_campaign,
     sync_moderation,
@@ -494,6 +495,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "totals": totals,
                 "messages": store.list_messages(20),
                 "running_budget": store.running_daily_budget(),
+                "spent_today": spent_today(store),
+                "committed_today": spent_today(store, only_stopped=True)
+                + store.running_daily_budget(),
                 "active_count": len(store.list_campaigns(statuses=(ACTIVE,))),
             },
         )
