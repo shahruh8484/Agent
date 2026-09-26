@@ -107,7 +107,7 @@ def test_import_endpoint(settings, store):
     niches = store.list_niches()
     assert len(niches) == 1 and len(niches[0].asins) == 3
     assert "Импортировано 3 товаров (2 с EPC)" in page.text
-    assert "Импортировано" not in client.get("/").text  # shown once
+    assert "Импортировано" not in client.get("/admin").text  # shown once
 
     # Same name again adds to the same site instead of creating a new one.
     client.post("/import", data={"text": "ASIN: B0AAAAAAAA", "name": "top deals"})

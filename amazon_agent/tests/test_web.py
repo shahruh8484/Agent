@@ -65,11 +65,11 @@ def test_media_served(site):
 
 def test_dashboard_requires_login(site):
     client, _ = site
-    assert client.get("/", follow_redirects=False).status_code == 303
+    assert client.get("/admin", follow_redirects=False).status_code == 303
     assert client.post("/run", follow_redirects=False).headers["location"] == "/login"
     assert client.post("/login", data={"username": "admin", "password": "bad"}).status_code == 401
     client.post("/login", data={"username": "admin", "password": "pw"})
-    dash = client.get("/")
+    dash = client.get("/admin")
     assert dash.status_code == 200 and "Sound Picks" in dash.text and "Тестовый режим" in dash.text
 
 
@@ -78,4 +78,19 @@ def test_discover_requires_login(site):
     assert client.post("/discover", data={"count": "2"}, follow_redirects=False) \
         .headers["location"] == "/login"
     client.post("/login", data={"username": "admin", "password": "pw"})
-    assert "Подобрать сам" in client.get("/").text
+    assert "Подобрать сам" in client.get("/admin").text
+
+
+def test_public_home_lists_sites(site):
+    client, _ = site
+    home = client.get("/")
+    assert home.status_code == 200
+    assert "Sound Picks" in home.text and 'href="/s/earbuds/p/NEW"' in home.text
+    assert "Amazon Associate" in home.text and "Войти" not in home.text
+
+
+def test_login_lands_on_admin(site):
+    client, _ = site
+    resp = client.post("/login", data={"username": "admin", "password": "pw"},
+                       follow_redirects=False)
+    assert resp.headers["location"] == "/admin"

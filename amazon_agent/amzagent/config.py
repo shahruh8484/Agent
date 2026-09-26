@@ -56,6 +56,8 @@ class Settings(BaseSettings):
 
     # --- Web / deploy ---
     domain: str = ""  # public domain the sites and dashboard are served on
+    # Name shown on the public home page (defaults to the domain name)
+    site_name: str = ""
     data_dir: str = "data"
     admin_username: str = "admin"
     admin_password_hash: str = ""

@@ -199,7 +199,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 status_code=401,
             )
         request.session["user"] = username
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
 
     @app.get("/logout")
     def logout(request: Request):
@@ -207,6 +207,25 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         return to_login()
 
     @app.get("/", response_class=HTMLResponse)
+    def hub(request: Request):
+        """Public home page: every live site with a few of its products."""
+        sites = []
+        for n in store.list_niches():
+            copy = store.get_site_copy(n.id)
+            if not n.enabled or copy is None:
+                continue
+            products = [p for p, c in store.list_products(n.id) if c][:4]
+            if products:
+                sites.append({"niche": n, "site": copy, "products": products})
+        title = settings.site_name or (settings.domain.split(".")[0].title() if settings.domain
+                                       else "Top Picks")
+        return SITE_TEMPLATES.TemplateResponse(
+            request, "hub.html",
+            {"request": request, "title": title, "sites": sites,
+             "year": datetime.now(timezone.utc).year},
+        )
+
+    @app.get("/admin", response_class=HTMLResponse)
     def dashboard(request: Request):
         if not logged_in(request):
             return to_login()
@@ -255,7 +274,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             price = None
         niche = store.add_niche(keywords.strip(), search_index.strip(), language.strip(), price)
         run_in_background(niche.id)
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
 
     @app.post("/import")
     def import_opportunities(request: Request, text: str = Form(...),
@@ -265,7 +284,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         asins = parse_opportunities(text)
         if not asins:
             request.session["flash"] = "В тексте не найдено ни одного ASIN."
-            return RedirectResponse("/", status_code=303)
+            return RedirectResponse("/admin", status_code=303)
         name = name.strip() or "Top Deals"
         existing = next(
             (n for n in store.list_niches() if n.asins and n.keywords.lower() == name.lower()),
@@ -284,14 +303,14 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             f"«{name}»: {total}. Агент проверяет их на Amazon — обновите страницу через минуту."
         )
         run_in_background(niche_id)
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
 
     @app.post("/niches/{niche_id}/run")
     def run_niche(request: Request, niche_id: int):
         if not logged_in(request):
             return to_login()
         run_in_background(niche_id)
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
 
     @app.post("/niches/{niche_id}/toggle")
     def toggle_niche(request: Request, niche_id: int):
@@ -300,7 +319,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         niche = store.get_niche(niche_id)
         if niche:
             store.set_niche_enabled(niche_id, not niche.enabled)
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
 
     @app.post("/niches/{niche_id}/delete")
     def delete_niche(request: Request, niche_id: int):
@@ -311,21 +330,21 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         for c in store.list_campaigns(niche_id=niche_id, statuses=(ACTIVE,)):
             stop_campaign(deps, c, STOPPED, "site deleted")
         store.delete_niche(niche_id)
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
 
     @app.post("/discover")
     def discover(request: Request, count: int = Form(1)):
         if not logged_in(request):
             return to_login()
         run_in_background(discover=max(1, min(count, 5)))
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
 
     @app.post("/run")
     def run_all(request: Request):
         if not logged_in(request):
             return to_login()
         run_in_background()
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
 
     @app.post("/campaigns/{campaign_id}/stop")
     def stop_campaign_route(request: Request, campaign_id: int):
@@ -335,7 +354,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         if c:
             # Manual stop counts as a verdict on the product: don't relaunch.
             stop_campaign(build_deps(settings, store), c, KILLED, "stopped manually")
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
 
     @app.post("/killswitch")
     def killswitch(request: Request, on: str = Form(...)):
@@ -344,6 +363,6 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         store.set_flag(PAUSE_FLAG, "1" if on == "1" else "0")
         if on == "1":
             stop_all(build_deps(settings, store))
-        return RedirectResponse("/", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
 
     return app
