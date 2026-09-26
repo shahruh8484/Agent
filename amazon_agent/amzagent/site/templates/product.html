@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ product.title|truncate(60) }} — {{ site.site_title }}{% endblock %}
+{% block content %}
+<div class="product">
+  <div><img class="hero" src="{{ product.image_url }}" alt="{{ product.title }}"></div>
+  <div>
+    <h1>{{ product.title }}</h1>
+    <div class="meta">{% if product.brand %}{{ product.brand }} &middot; {% endif %}{% if product.rating %}{{ "%.1f"|format(product.rating) }} / 5 from {{ "{:,}".format(product.review_count) }} ratings on Amazon{% endif %}</div>
+    <p>{{ copy.summary }}</p>
+    <div class="proscons">
+      <div><h4>Pros</h4><ul>{% for x in copy.pros %}<li>{{ x }}</li>{% endfor %}</ul></div>
+      <div><h4>Keep in mind</h4><ul>{% for x in copy.cons %}<li>{{ x }}</li>{% endfor %}</ul></div>
+    </div>
+    {% if product.features %}<h4>Key features</h4><ul>{% for f in product.features %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
+    {% if price_is_fresh(product) %}
+      <p class="price">{{ product.price_display }}
+        <small>Price as of {{ product.fetched_at[:16].replace("T", " ") }} UTC. Product prices and availability are accurate as of the date/time indicated and are subject to change. Any price and availability information displayed on Amazon at the time of purchase will apply to the purchase of this product.</small>
+      </p>
+    {% endif %}
+    <p><a class="btn" href="{{ go_url }}" rel="nofollow sponsored noopener" target="_blank">Check price on Amazon</a></p>
+  </div>
+</div>
+{% if others %}
+<h2 style="margin-top:40px">More picks</h2>
+<div class="grid">
+{% for p, c in others %}
+  <a class="card" href="/s/{{ niche.slug }}/p/{{ p.asin }}">
+    <img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">
+    <h3>{{ p.title }}</h3>
+  </a>
+{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

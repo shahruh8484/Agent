@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<p style="max-width:720px">{{ site.intro }}</p>
+<div class="grid">
+{% for p, c in products %}
+  <a class="card" href="/s/{{ niche.slug }}/p/{{ p.asin }}">
+    <span class="rank">#{{ loop.index }}</span>
+    <img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">
+    <h3>{{ p.title }}</h3>
+    <span class="meta">{% if p.rating %}{{ "%.1f"|format(p.rating) }} / 5 &middot; {% endif %}{{ "{:,}".format(p.review_count) }} ratings</span>
+    <span class="meta">{{ c.summary|truncate(110) }}</span>
+  </a>
+{% else %}
+  <p>Products are being selected, check back soon.</p>
+{% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,113 @@
+from amzagent.agent.runner import KILLED, PAUSE_FLAG, Deps, run_cycle
+from amzagent.store import ACTIVE, DRY_RUN, STOPPED
+from tests.conftest import FakeCatalog, FakeLLM, FakePush, make_product
+
+
+def _deps(settings, store, push=None, products=None):
+    products = products or [make_product(f"A{i}", reviews=1000 * (i + 1)) for i in range(4)]
+    return Deps(settings=settings, store=store, catalog=FakeCatalog(products), llm=FakeLLM(),
+                push=push)
+
+
+def test_dry_run_builds_site_and_campaigns_without_sending(settings, store):
+    niche = store.add_niche("wireless earbuds")
+    assert run_cycle(_deps(settings, store))
+
+    products = store.list_products(niche.id)
+    assert [p.asin for p, _ in products] == ["A3", "A2", "A1", "A0"]  # best first
+    assert all(c is not None for _, c in products)
+    assert store.get_site_copy(niche.id).site_title == "Sound Picks"
+
+    campaigns = store.list_campaigns()
+    assert len(campaigns) == settings.campaigns_per_site
+    assert {c["status"] for c in campaigns} == {DRY_RUN}
+    assert "c=" in campaigns[0]["payload"] and "example.com/s/wireless-earbuds/p/" in campaigns[0]["payload"]
+
+    # A second cycle must not stack more dry-run campaigns.
+    run_cycle(_deps(settings, store))
+    assert len(store.list_campaigns()) == settings.campaigns_per_site
+
+
+def test_live_mode_launches_within_budget_cap(settings, store):
+    settings.push_live = True
+    settings.max_daily_spend = 25  # room for two $10 campaigns, not three
+    settings.campaigns_per_site = 3
+    store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+
+    active = store.list_campaigns(statuses=(ACTIVE,))
+    assert len(active) == 2 and len(push.created) == 2
+    assert set(push.started) == {c["external_id"] for c in active}
+    assert store.running_daily_budget() == 20
+
+
+def test_switching_to_live_retires_dry_runs(settings, store):
+    store.add_niche("earbuds")
+    run_cycle(_deps(settings, store))
+    settings.push_live = True
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    assert len(store.list_campaigns(statuses=(DRY_RUN,))) == 0
+    assert len(store.list_campaigns(statuses=(ACTIVE,))) == settings.campaigns_per_site
+
+
+def test_kill_rule_stops_expensive_campaign_and_never_relaunches(settings, store):
+    settings.push_live = True
+    niche = store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    bad, good = store.list_campaigns(statuses=(ACTIVE,))
+    # bad: $6 spent, 1 click -> $6/click. good: $6 spent, 30 clicks -> $0.20/click.
+    push.spend_rows = [{"campaign_id": bad["external_id"], "zone_id": "", "spent": 6.0},
+                       {"campaign_id": good["external_id"], "zone_id": "", "spent": 6.0}]
+    store.log_event("click", niche.id, bad["asin"], bad["id"])
+    for _ in range(30):
+        store.log_event("click", niche.id, good["asin"], good["id"])
+
+    run_cycle(_deps(settings, store, push))
+    assert store.get_campaign(bad["id"])["status"] == KILLED
+    assert store.get_campaign(good["id"])["status"] == ACTIVE
+    assert bad["external_id"] in push.stopped
+    # The freed slot goes to a new product, not back to the killed one.
+    active_asins = {c["asin"] for c in store.list_campaigns(statuses=(ACTIVE,))}
+    assert bad["asin"] not in active_asins and len(active_asins) == 2
+
+
+def test_zone_blacklist(settings, store):
+    settings.push_live = True
+    niche = store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    push.zone_rows = [
+        {"campaign_id": c["external_id"], "zone_id": "111", "spent": 2.0},  # no clicks -> bad
+        {"campaign_id": c["external_id"], "zone_id": "222", "spent": 2.0},  # has a click
+        {"campaign_id": c["external_id"], "zone_id": "333", "spent": 0.2},  # too little data
+    ]
+    store.log_event("click", niche.id, c["asin"], c["id"], "222")
+    run_cycle(_deps(settings, store, push))
+    assert push.excluded == [(c["external_id"], ["111"])]
+    run_cycle(_deps(settings, store, push))  # not re-sent
+    assert len(push.excluded) == 1
+
+
+def test_kill_switch_stops_everything(settings, store):
+    settings.push_live = True
+    store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    store.set_flag(PAUSE_FLAG, "1")
+    run_cycle(_deps(settings, store, push))
+    assert not store.list_campaigns(statuses=(ACTIVE,))
+    assert {c["status"] for c in store.list_campaigns()} == {STOPPED}
+    assert len(push.created) == 2  # nothing new launched
+
+
+def test_empty_search_keeps_existing_site(settings, store):
+    niche = store.add_niche("earbuds")
+    run_cycle(_deps(settings, store))
+    deps = _deps(settings, store)
+    deps.catalog = FakeCatalog([])
+    run_cycle(deps)
+    assert len(store.list_products(niche.id)) == 4

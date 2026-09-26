@@ -1,0 +1,30 @@
+<style>
+:root { --bg:#f6f6f3; --fg:#1d1d1b; --muted:#6b6b66; --card:#fff; --line:#e3e1da; --accent:#1f5fbf; --ok:#1b7f4b; --warn:#a15c00; --bad:#b42318; }
+@media (prefers-color-scheme: dark) { :root { --bg:#151513; --fg:#ecebe6; --muted:#a3a29b; --card:#1e1e1b; --line:#34332f; --accent:#6aa2ff; --ok:#4cc38a; --warn:#f0a13a; --bad:#ff6b5e; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+.wrap { max-width:1200px; margin:0 auto; padding:16px; }
+h1 { font-size:1.3rem; margin:0; } h2 { font-size:1.05rem; margin:28px 0 10px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; }
+.row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+.kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-top:14px; }
+.kpi b { display:block; font-size:1.35rem; }
+.kpi span { color:var(--muted); font-size:.85rem; }
+table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font-weight:600; color:var(--muted); font-size:.8rem; }
+td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+.scroll { overflow-x:auto; }
+input, select { padding:8px 10px; border:1px solid var(--line); border-radius:7px; background:var(--bg); color:var(--fg); font:inherit; }
+button { padding:7px 12px; border-radius:7px; border:1px solid var(--line); background:var(--card); color:var(--fg); font:inherit; cursor:pointer; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+button.danger { color:var(--bad); }
+form.inline { display:inline; }
+.pill { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid currentColor; }
+.s-active { color:var(--ok); } .s-dry_run { color:var(--accent); } .s-killed, .s-error { color:var(--bad); } .s-stopped, .s-creating { color:var(--muted); }
+.muted { color:var(--muted); }
+.banner { padding:10px 14px; border-radius:8px; border:1px solid var(--warn); color:var(--warn); margin-top:12px; }
+.banner.bad { border-color:var(--bad); color:var(--bad); }
+pre { white-space:pre-wrap; font-size:.78rem; margin:6px 0 0; max-height:320px; overflow:auto; }
+a { color:var(--accent); }
+</style>

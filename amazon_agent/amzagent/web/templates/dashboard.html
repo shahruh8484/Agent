@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amazon агент</title>{% include "_style.html" %}</head>
+<body><div class="wrap">
+
+<div class="row" style="justify-content:space-between">
+  <h1>Amazon агент</h1>
+  <div class="row">
+    <form class="inline" method="post" action="/run"><button class="primary">Запустить цикл сейчас</button></form>
+    <form class="inline" method="post" action="/killswitch">
+      {% if paused %}<input type="hidden" name="on" value="0"><button>Снять стоп</button>
+      {% else %}<input type="hidden" name="on" value="1"><button class="danger" onclick="return confirm('Остановить ВСЕ кампании?')">Стоп всё</button>{% endif %}
+    </form>
+    <a href="/logout">Выйти</a>
+  </div>
+</div>
+
+{% if paused %}<div class="banner bad">Включён аварийный стоп: все кампании остановлены, новые не запускаются.</div>{% endif %}
+{% if not settings.push_live %}<div class="banner">Тестовый режим (PUSH_LIVE=false): агент собирает кампании, но НЕ отправляет их в PropellerAds. Проверьте payload ниже, затем поставьте PUSH_LIVE=true.</div>{% endif %}
+
+<div class="kpis">
+  <div class="card kpi"><b>{{ niches|length }}</b><span>сайтов (ниш)</span></div>
+  <div class="card kpi"><b>{{ active_count }}</b><span>активных кампаний</span></div>
+  <div class="card kpi"><b>${{ "%.2f"|format(running_budget) }} / ${{ "%.2f"|format(settings.max_daily_spend) }}</b><span>дневной бюджет: занято / лимит</span></div>
+  <div class="card kpi"><b>{{ settings.agent_interval_hours or "выкл" }}{% if settings.agent_interval_hours %} ч{% endif %}</b><span>автозапуск цикла</span></div>
+</div>
+
+<h2>Новый сайт</h2>
+<form class="card row" method="post" action="/niches">
+  <input name="keywords" placeholder="Ниша, напр. wireless earbuds" required style="flex:2;min-width:220px">
+  <select name="search_index">
+    {% for idx in ["All","Electronics","HomeAndKitchen","SportsAndOutdoors","Beauty","ToysAndGames","PetSupplies","ToolsAndHomeImprovement","OfficeProducts","Automotive","HealthPersonalCare","Baby","GardenAndOutdoor"] %}
+    <option value="{{ idx }}">{{ idx }}</option>{% endfor %}
+  </select>
+  <input name="language" value="English" title="Язык текстов сайта" style="width:110px">
+  <input name="max_price" placeholder="Макс. цена $" style="width:120px">
+  <button class="primary">Создать и заполнить</button>
+</form>
+
+<h2>Сайты</h2>
+<div class="scroll"><table>
+<tr><th>Сайт</th><th>Ниша</th><th class="num">Товаров</th><th class="num">Визиты 7д</th><th class="num">Клики на Amazon 7д</th><th></th></tr>
+{% for n in niches %}
+<tr>
+  <td>{% if n.site %}<a href="/s/{{ n.niche.slug }}/" target="_blank">{{ n.site.site_title }}</a>{% else %}<span class="muted">создаётся…</span>{% endif %}
+      {% if not n.niche.enabled %}<span class="pill s-stopped">выкл</span>{% endif %}</td>
+  <td>{{ n.niche.keywords }} <span class="muted">({{ n.niche.search_index }})</span></td>
+  <td class="num">{{ n.products }}</td>
+  <td class="num">{{ n.stats.visit }}</td>
+  <td class="num">{{ n.stats.click }}</td>
+  <td style="white-space:nowrap">
+    <form class="inline" method="post" action="/niches/{{ n.niche.id }}/run"><button>Обновить</button></form>
+    <form class="inline" method="post" action="/niches/{{ n.niche.id }}/toggle"><button>{{ "Выключить" if n.niche.enabled else "Включить" }}</button></form>
+    <form class="inline" method="post" action="/niches/{{ n.niche.id }}/delete"><button class="danger" onclick="return confirm('Удалить сайт и остановить его кампании?')">Удалить</button></form>
+  </td>
+</tr>
+{% else %}<tr><td colspan="6" class="muted">Пока нет сайтов — добавьте нишу выше.</td></tr>{% endfor %}
+</table></div>
+
+<h2>Пуш-кампании</h2>
+<div class="scroll"><table>
+<tr><th>#</th><th>Сайт / товар</th><th>Статус</th><th class="num">$/день</th><th class="num">Потрачено</th><th class="num">Визиты</th><th class="num">Клики</th><th class="num">$ за клик</th><th>Заметка</th><th></th></tr>
+{% for c in campaigns %}
+<tr>
+  <td>{{ c.id }}{% if c.external_id %}<br><span class="muted">PA {{ c.external_id }}</span>{% endif %}</td>
+  <td><a href="/s/{{ c.slug }}/p/{{ c.asin }}" target="_blank">{{ c.slug }} / {{ c.asin }}</a></td>
+  <td><span class="pill s-{{ c.status }}">{{ {"active":"активна","dry_run":"тест","killed":"отключена агентом","stopped":"остановлена","error":"ошибка","creating":"создаётся"}.get(c.status, c.status) }}</span></td>
+  <td class="num">{{ "%.2f"|format(c.daily_budget) }}</td>
+  <td class="num">{{ "%.2f"|format(c.spend) }}</td>
+  <td class="num">{{ c.visits }}</td>
+  <td class="num">{{ c.clicks }}</td>
+  <td class="num">{{ "%.2f"|format(c.cost_per_click) if c.cost_per_click is not none else "—" }}</td>
+  <td>{{ c.note or "" }}{% if c.payload %}<details><summary class="muted">payload</summary><pre>{{ c.payload }}</pre></details>{% endif %}</td>
+  <td>{% if c.status in ("active","dry_run") %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/stop"><button class="danger">Стоп</button></form>{% endif %}</td>
+</tr>
+{% else %}<tr><td colspan="10" class="muted">Кампаний ещё нет.</td></tr>{% endfor %}
+</table></div>
+
+<h2>Журнал агента</h2>
+{% for r in runs %}
+<details class="card" style="margin-bottom:8px"{% if loop.first %} open{% endif %}>
+  <summary>{{ r.ts }} — {{ "ок" if r.ok else "с ошибками" }}</summary>
+  <pre>{{ r.log }}</pre>
+</details>
+{% else %}<p class="muted">Агент ещё не запускался.</p>{% endfor %}
+
+<h2>Правила агента</h2>
+<div class="card muted">
+  Отбор: рейтинг ≥ {{ settings.min_rating }}, отзывов ≥ {{ settings.min_reviews }}, до {{ settings.products_per_site }} товаров на сайт.<br>
+  Запуск: до {{ settings.campaigns_per_site }} кампаний на сайт, ${{ "%.2f"|format(settings.campaign_daily_budget) }}/день каждая, ставка CPC ${{ settings.push_bid_cpc }}, гео {{ settings.push_countries }}; общий лимит ${{ "%.2f"|format(settings.max_daily_spend) }}/день.<br>
+  Отключение: после ${{ "%.2f"|format(settings.kill_min_spend) }} расхода, если клик на Amazon дороже ${{ "%.2f"|format(settings.max_cost_per_amazon_click) }}. Площадки (зоны) с расходом ≥ ${{ "%.2f"|format(settings.zone_min_spend) }} и без кликов — в чёрный список.
+</div>
+
+</div></body></html>

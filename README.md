@@ -1,5 +1,8 @@
 # Facebook Ads AI Agent
 
+> This repo also contains a separate project, [`amazon_agent/`](amazon_agent/README.md):
+> an autonomous agent that builds Amazon affiliate sites and runs PropellerAds push campaigns for them.
+
 An AI agent that runs the end-to-end workflow for launching Facebook ad
 campaigns for a product:
 
