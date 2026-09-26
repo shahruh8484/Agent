@@ -37,6 +37,7 @@ ZONE_LIST_KEY = "zone"
 API_STATUS_NAMES = {1: "draft", 2: "moderation", 3: "rejected", 6: "working", 7: "paused",
                     8: "stopped"}
 API_STATUS_REJECTED = 3
+API_STATUSES_NOT_RUNNING = (1, 3, 7, 8)  # draft, rejected, paused, stopped
 TRAFFIC_CATEGORIES = ["propeller"]
 ALL_HOURS = [f"{d}{h:02d}" for d in ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
              for h in range(24)]

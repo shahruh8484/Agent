@@ -266,3 +266,43 @@ def test_stats_outage_blocks_launches_then_stops_campaigns(settings, store):
     run_cycle(_deps(settings, store, push))
     assert store.list_campaigns(statuses=(ACTIVE,)) == []  # safety stop
     assert any("no spend data" in (c["note"] or "") for c in store.list_campaigns())
+
+
+def test_kill_uses_realtime_visits_when_network_stats_lag(settings, store):
+    settings.push_live = True
+    settings.kill_min_spend = 1.0
+    settings.push_bid_cpc = 0.03
+    niche = store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    # PropellerAds still reports $0, but 40 paid visits already landed (~$1.41).
+    for _ in range(40):
+        store.log_event("visit", niche.id, c["asin"], c["id"], None)
+    run_cycle(_deps(settings, store, push))
+    killed = store.get_campaign(c["id"])
+    assert killed["status"] == KILLED and "spent $1.41" in killed["note"]
+
+
+def test_campaign_paused_by_network_counts_as_stopped(settings, store):
+    from amzagent.push.propeller import PropellerError
+
+    settings.push_live = True
+    store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+
+    def refuse(ids):
+        raise PropellerError("campaign is paused")
+
+    push.stop = refuse
+    push.statuses = {c["external_id"]: 7}  # paused by PropellerAds
+    from amzagent.agent.runner import stop_campaign
+    stop_campaign(_deps(settings, store, push), c, KILLED, "test")
+    assert store.get_campaign(c["id"])["status"] == KILLED
+
+    other = store.list_campaigns(statuses=(ACTIVE,))[0]
+    push.statuses = {other["external_id"]: 6}  # really running: must retry later
+    stop_campaign(_deps(settings, store, push), other, KILLED, "test")
+    assert store.get_campaign(other["id"])["status"] == ACTIVE

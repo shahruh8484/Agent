@@ -46,7 +46,7 @@
       <label>Ставка за клик (CPC), $<input name="push_bid_cpc" type="number" step="0.001" min="0.001" value="{{ settings.push_bid_cpc }}"></label>
       <label>Страны<input name="push_countries" value="{{ settings.push_countries }}"><span class="muted">коды через запятую: us,ca,gb</span></label>
       <label>Картинки пушей<select name="push_creatives"><option value="ai"{% if settings.push_creatives == "ai" %} selected{% endif %}>AI (OpenAI)</option><option value="simple"{% if settings.push_creatives == "simple" %} selected{% endif %}>Простые (бесплатно)</option></select></label>
-      <label>Отключать после расхода, $<input name="kill_min_spend" type="number" step="0.01" min="0" value="{{ settings.kill_min_spend }}"><span class="muted">тест товара: после этой суммы агент решает, оставить кампанию или отключить (проверка каждые 10 мин)</span></label>
+      <label>Отключать после расхода, $<input name="kill_min_spend" type="number" step="0.01" min="0" value="{{ settings.kill_min_spend }}"><span class="muted">тест товара: после этой суммы агент решает, оставить кампанию или отключить (проверка каждые 3 мин, расход считается и по визитам на сайт)</span></label>
       <label>Макс. цена клика на Amazon, $<input name="max_cost_per_amazon_click" type="number" step="0.01" min="0.01" value="{{ settings.max_cost_per_amazon_click }}"><span class="muted">дороже — кампания отключается</span></label>
       <label>Площадка без кликов, $<input name="zone_min_spend" type="number" step="0.01" min="0" value="{{ settings.zone_min_spend }}"><span class="muted">потратила столько без кликов — в чёрный список</span></label>
       <label>Держать сайтов (автоподбор)<input name="auto_niches" type="number" min="0" max="50" value="{{ settings.auto_niches }}"></label>
@@ -110,7 +110,7 @@
   <h2 style="margin:0">Пуш-кампании</h2>
   <form class="inline" method="post" action="/stats/refresh"><button class="sm">&#8635; Обновить статистику</button></form>
 </div>
-<p class="muted" style="margin:0 0 10px;font-size:.82rem">Показы, клики, расход — PropellerAds (каждые 10 мин). Визиты и переходы на Amazon — ваш сайт. «$/Amazon» — сколько стоил один переход на Amazon.</p>
+<p class="muted" style="margin:0 0 10px;font-size:.82rem">Показы, клики, расход — PropellerAds (с задержкой до часа; агент проверяет каждые 3 мин и считает расход ещё и по визитам — без задержки). Визиты и переходы на Amazon — ваш сайт. «$/Amazon» — сколько стоил один переход на Amazon.</p>
 {% macro money(v) %}{{ "$%.2f"|format(v) if v is not none else "—" }}{% endmacro %}
 {% macro pct(v) %}{{ "%.2f%%"|format(v * 100) if v is not none else "—" }}{% endmacro %}
 {% set status_names = {"active":"активна","dry_run":"тест","killed":"отключена агентом","stopped":"остановлена","error":"ошибка","creating":"создаётся"} %}

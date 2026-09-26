@@ -70,7 +70,7 @@ PRICE_MAX_AGE = timedelta(hours=24)
 # "Last updated" on the legal pages: change it when their text changes.
 LEGAL_PAGES_UPDATED = "September 26, 2026"
 CONTACT_HOURLY_LIMIT = 20
-STATS_INTERVAL_SECONDS = 10 * 60  # site-wide, keeps a spam bot from flooding the inbox
+STATS_INTERVAL_SECONDS = 3 * 60  # site-wide, keeps a spam bot from flooding the inbox
 SAFE_PARAM = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
 
 

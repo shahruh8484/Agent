@@ -42,6 +42,8 @@ KILLED = "killed"
 CREATING = "creating"  # row exists, creatives/API call still in progress
 STUCK_CREATING_MINUTES = 30
 STATS_BLIND_MINUTES = 30
+# Share of paid push clicks that reach our page (measured: 298 of 338).
+VISITS_PER_PAID_CLICK = 0.85
 STATS_OK_FLAG = "stats_ok_at"
 STATS_ERROR_FLAG = "stats_error"  # stopped by the kill rule — never relaunched for that product
 PAUSE_FLAG = "paused_all"
@@ -205,8 +207,15 @@ def stop_campaign(deps: Deps, campaign: dict, status: str, reason: str) -> None:
         try:
             deps.push.stop([campaign["external_id"]])
         except PropellerError as exc:
-            deps.say(f"campaign #{campaign['id']}: stop failed, will retry: {exc}")
-            return
+            # The API refuses to stop a campaign it already paused/stopped
+            # itself (or rejected); that's as good as stopped.
+            try:
+                api_status = deps.push.campaign_status(campaign["external_id"])
+            except PropellerError:
+                api_status = None
+            if api_status not in propeller.API_STATUSES_NOT_RUNNING:
+                deps.say(f"campaign #{campaign['id']}: stop failed, will retry: {exc}")
+                return
     deps.store.update_campaign(campaign["id"], status=status, note=reason)
     deps.say(f"campaign #{campaign['id']} ({campaign['asin']}) stopped: {reason}")
 
@@ -375,6 +384,16 @@ def include_zone(deps: Deps, campaign_id: int, zone: str) -> str | None:
     return None
 
 
+def estimated_spend(deps: Deps, campaign: dict) -> float:
+    """PropellerAds' spend figure lags (up to about an hour), while a push
+    campaign can burn several dollars in that time. Every visit logged on our
+    site is a paid click, so visits x CPC bid (scaled up for clicks that never
+    load the page) is a real-time lower bound; judge on whichever is higher."""
+    visits = deps.store.count_events(campaign["id"], "visit")
+    from_visits = visits * deps.settings.push_bid_cpc / VISITS_PER_PAID_CLICK
+    return max(campaign["spend"], from_visits)
+
+
 def apply_kill_rules(deps: Deps) -> None:
     s, store = deps.settings, deps.store
     for c in store.list_campaigns(statuses=(ACTIVE,)):
@@ -389,14 +408,15 @@ def apply_kill_rules(deps: Deps) -> None:
         if c["asin"] not in active_asins:
             stop_campaign(deps, c, STOPPED, "product no longer selected")
             continue
-        if c["spend"] < s.kill_min_spend:
+        spend = estimated_spend(deps, c)
+        if spend < s.kill_min_spend:
             continue
         clicks = store.count_events(c["id"], "click")
-        cost = c["spend"] / clicks if clicks else None
+        cost = spend / clicks if clicks else None
         if cost is None or cost > s.max_cost_per_amazon_click:
             shown = f"${cost:.2f}" if cost is not None else "no clicks"
             stop_campaign(deps, c, KILLED,
-                  f"spent ${c['spend']:.2f}, cost per Amazon click {shown} "
+                  f"spent ${spend:.2f}, cost per Amazon click {shown} "
                   f"> ${s.max_cost_per_amazon_click:.2f}")
 
 
