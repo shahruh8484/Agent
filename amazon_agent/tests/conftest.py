@@ -62,6 +62,7 @@ class FakePush:
         self.created, self.started, self.stopped, self.excluded = [], [], [], []
         self.spend_rows, self.zone_rows = [], []
         self.statuses: dict[str, int] = {}
+        self.replaced = []
         self._next = 1000
 
     def create_campaign(self, payload):
@@ -83,8 +84,12 @@ class FakePush:
     def campaign_status(self, campaign_id):
         return self.statuses.get(campaign_id, 2)
 
+    def set_excluded_zones(self, campaign_id, zones):
+        self.replaced.append((campaign_id, list(zones)))
+
     def spend(self, campaign_ids, days=30, by_zone=False):
-        return self.zone_rows if by_zone else self.spend_rows
+        rows = self.zone_rows if by_zone else self.spend_rows
+        return [{"impressions": 0, "clicks": 0, "zone_id": "", **r} for r in rows]
 
 
 @pytest.fixture

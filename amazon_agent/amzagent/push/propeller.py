@@ -30,6 +30,8 @@ EXCLUDE_ZONES_PATH = "/adv/campaigns/{id}/targeting/exclude/zone"
 BALANCE_PATH = "/adv/balance"
 
 STATUS_MODERATION = 2
+# Body key for targeting/exclude/zone (see propeller_check section 8).
+ZONE_LIST_KEY = "zone"
 # Campaign statuses the API reports (GET /adv/campaigns/{id})
 API_STATUS_NAMES = {1: "draft", 2: "moderation", 3: "rejected", 6: "working", 7: "paused",
                     8: "stopped"}
@@ -79,6 +81,13 @@ def inline_images(payload: dict[str, Any], resolve_file) -> dict[str, Any]:
         for c in payload.get("creatives", [])
     ]
     return out
+
+
+def _first(row: dict, *keys: str):
+    for key in keys:
+        if row.get(key) not in (None, ""):
+            return row[key]
+    return None
 
 
 class PropellerError(RuntimeError):
@@ -181,8 +190,17 @@ class PropellerClient:
         self._request("PUT", STOP_PATH, json={"campaign_ids": [int(i) for i in campaign_ids]})
 
     def exclude_zones(self, campaign_id: str, zones: list[str]) -> None:
+        """Add zones to the campaign's exclude list (PATCH appends)."""
         self._request(
-            "PATCH", EXCLUDE_ZONES_PATH.format(id=campaign_id), json={"zone": zones}
+            "PATCH", EXCLUDE_ZONES_PATH.format(id=campaign_id),
+            json={ZONE_LIST_KEY: [int(z) for z in zones]},
+        )
+
+    def set_excluded_zones(self, campaign_id: str, zones: list[str]) -> None:
+        """Replace the whole exclude list (PUT), e.g. to re-enable a zone."""
+        self._request(
+            "PUT", EXCLUDE_ZONES_PATH.format(id=campaign_id),
+            json={ZONE_LIST_KEY: [int(z) for z in zones]},
         )
 
     def update_campaign(self, campaign_id: str, fields: dict[str, Any]) -> None:
@@ -205,7 +223,8 @@ class PropellerClient:
             return None
 
     def spend(self, campaign_ids: list[str], days: int = 30, by_zone: bool = False) -> list[dict]:
-        """Rows of {"campaign_id", "zone_id"?, "spent"} for the last `days`."""
+        """Rows of {"campaign_id", "zone_id", "impressions", "clicks",
+        "spent"} for the last `days` (zone_id is "" unless by_zone)."""
         if not campaign_ids:
             return []
         group_by = ["campaign_id", "zone_id"] if by_zone else ["campaign_id"]
@@ -215,16 +234,24 @@ class PropellerClient:
             "tz": "+0000",
             "group_by[]": group_by,
             "campaign_id[]": [int(i) for i in campaign_ids],
+            "per_page": 1000,
         }
         data = self._request("GET", STATISTICS_PATH, params=params)
-        rows = data.get("data", data) if isinstance(data, dict) else data
+        if isinstance(data, dict):
+            rows = data.get("result", data.get("data", data.get("items", [])))
+        else:
+            rows = data
         out = []
-        for row in rows or []:
-            spent = row.get("spent", row.get("money", row.get("cost", 0)))
+        for row in rows if isinstance(rows, list) else []:
+            if not isinstance(row, dict):
+                continue
+            spent = _first(row, "spent", "money", "cost")
             out.append(
                 {
                     "campaign_id": str(row.get("campaign_id", "")),
                     "zone_id": str(row.get("zone_id", "")) if by_zone else "",
+                    "impressions": int(float(_first(row, "impressions", "shows") or 0)),
+                    "clicks": int(float(_first(row, "clicks") or 0)),
                     "spent": float(spent or 0),
                 }
             )

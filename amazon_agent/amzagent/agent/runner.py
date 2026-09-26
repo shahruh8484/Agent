@@ -32,7 +32,7 @@ from amzagent.push.creatives import render_creatives
 from amzagent.push.propeller import PropellerClient, PropellerError
 from amzagent.selection.niches import discover_niches
 from amzagent.selection.selector import score, select_products
-from amzagent.store import ACTIVE, DRY_RUN, ERROR, STOPPED, Store
+from amzagent.store import ACTIVE, DRY_RUN, ERROR, STOPPED, Store, now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -252,20 +252,69 @@ def sync_moderation(deps: Deps) -> None:
             deps.store.update_campaign(c["id"], note=f"PropellerAds: {name}")
 
 
-def sync_spend(deps: Deps) -> None:
-    active = deps.store.list_campaigns(statuses=(ACTIVE,))
+def sync_stats(deps: Deps) -> None:
+    """Pull impressions / clicks / spend per campaign and per zone from
+    PropellerAds into the store (what the dashboard shows and the kill and
+    zone rules read)."""
+    active = [c for c in deps.store.list_campaigns(statuses=(ACTIVE,)) if c["external_id"]]
     if not active or deps.push is None:
         return
-    by_external = {c["external_id"]: c for c in active if c["external_id"]}
+    by_external = {c["external_id"]: c for c in active}
     try:
-        rows = deps.push.spend(list(by_external), days=365)
+        totals = deps.push.spend(list(by_external), days=365)
+        zones = deps.push.spend(list(by_external), days=365, by_zone=True)
     except PropellerError as exc:
-        deps.say(f"spend sync failed: {exc}")
+        deps.say(f"stats sync failed: {exc}")
         return
-    for row in rows:
-        campaign = by_external.get(row["campaign_id"])
-        if campaign:
-            deps.store.update_campaign(campaign["id"], spend=row["spent"])
+    for row in totals:
+        c = by_external.get(row["campaign_id"])
+        if c:
+            deps.store.update_campaign(c["id"], spend=row["spent"], impressions=row["impressions"],
+                                       ad_clicks=row["clicks"], stats_at=now_iso())
+    for row in zones:
+        c = by_external.get(row["campaign_id"])
+        if c and row["zone_id"]:
+            deps.store.upsert_zone_stats(c["id"], row["zone_id"], row["impressions"],
+                                         row["clicks"], row["spent"])
+
+
+# kept for callers/tests that still use the old name
+sync_spend = sync_stats
+
+
+def exclude_zone(deps: Deps, campaign_id: int, zone: str, reason: str = "manual") -> str | None:
+    """Stop showing a campaign in one zone. Returns an error message or None."""
+    c = deps.store.get_campaign(campaign_id)
+    if c is None:
+        return "campaign not found"
+    if c["status"] == ACTIVE and c["external_id"]:
+        if deps.push is None:
+            return "PropellerAds is not configured"
+        try:
+            deps.push.exclude_zones(c["external_id"], [zone])
+        except PropellerError as exc:
+            return str(exc)
+    deps.store.blacklist_zone(campaign_id, zone)
+    deps.say(f"campaign #{campaign_id}: zone {zone} excluded ({reason})")
+    return None
+
+
+def include_zone(deps: Deps, campaign_id: int, zone: str) -> str | None:
+    """Undo exclude_zone: re-send the exclude list without this zone."""
+    c = deps.store.get_campaign(campaign_id)
+    if c is None:
+        return "campaign not found"
+    remaining = sorted(deps.store.blacklisted_zones(campaign_id) - {zone})
+    if c["status"] == ACTIVE and c["external_id"]:
+        if deps.push is None:
+            return "PropellerAds is not configured"
+        try:
+            deps.push.set_excluded_zones(c["external_id"], remaining)
+        except PropellerError as exc:
+            return str(exc)
+    deps.store.unblacklist_zone(campaign_id, zone)
+    deps.say(f"campaign #{campaign_id}: zone {zone} re-enabled")
+    return None
 
 
 def apply_kill_rules(deps: Deps) -> None:
@@ -294,17 +343,12 @@ def apply_kill_rules(deps: Deps) -> None:
 
 
 def blacklist_bad_zones(deps: Deps) -> None:
+    """Exclude zones that spent zone_min_spend without a single click
+    through to Amazon (reads the zone stats sync_stats stored)."""
     if deps.push is None:
         return
     s, store = deps.settings, deps.store
     active = [c for c in store.list_campaigns(statuses=(ACTIVE,)) if c["external_id"]]
-    if not active:
-        return
-    try:
-        rows = deps.push.spend([c["external_id"] for c in active], days=30, by_zone=True)
-    except PropellerError as exc:
-        deps.say(f"zone stats failed: {exc}")
-        return
     # Only judge zones where our own visit log carries zone ids: if the
     # zone macro in the target URL isn't substituted, every zone would look
     # like it had zero clicks and all of them would get blacklisted.
@@ -312,27 +356,17 @@ def blacklist_bad_zones(deps: Deps) -> None:
     if len(tracked) < len(active):
         deps.say(f"zone blacklist: skipping {len(active) - len(tracked)} campaign(s) "
                  "without zone ids in their visits yet")
-    by_external = {c["external_id"]: c for c in tracked}
-    if not by_external:
-        return
-    bad: dict[int, list[str]] = {}
-    for row in rows:
-        c = by_external.get(row["campaign_id"])
-        if not c or not row["zone_id"] or row["spent"] < s.zone_min_spend:
-            continue
-        no_clicks = store.events_by_zone(c["id"], "click").get(row["zone_id"], 0) == 0
-        if no_clicks and row["zone_id"] not in store.blacklisted_zones(c["id"]):
-            bad.setdefault(c["id"], []).append(row["zone_id"])
-    for campaign_id, zones in bad.items():
-        c = store.get_campaign(campaign_id)
-        try:
-            deps.push.exclude_zones(c["external_id"], zones)
-        except PropellerError as exc:
-            deps.say(f"campaign #{campaign_id}: zone blacklist failed: {exc}")
-            continue
-        for z in zones:
-            store.blacklist_zone(campaign_id, z)
-        deps.say(f"campaign #{campaign_id}: blacklisted {len(zones)} zones with spend and no clicks")
+    for c in tracked:
+        clicks = store.events_by_zone(c["id"], "click")
+        excluded = store.blacklisted_zones(c["id"])
+        for z in store.zone_stats(c["id"]):
+            if z["spent"] < s.zone_min_spend or z["zone"] in excluded:
+                continue
+            if clicks.get(z["zone"], 0) == 0:
+                error = exclude_zone(deps, c["id"], z["zone"],
+                                     f"spent ${z['spent']:.2f}, no Amazon clicks")
+                if error:
+                    deps.say(f"campaign #{c['id']}: zone blacklist failed: {error}")
 
 
 def launch_campaigns(deps: Deps) -> None:
@@ -476,7 +510,7 @@ def manage_campaigns(deps: Deps) -> None:
             deps.store.update_campaign(c["id"], status=STOPPED, note="dry run (never sent)")
     enforce_budget_cap(deps)
     sync_moderation(deps)
-    sync_spend(deps)
+    sync_stats(deps)
     apply_kill_rules(deps)
     blacklist_bad_zones(deps)
     launch_campaigns(deps)

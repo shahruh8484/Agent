@@ -41,10 +41,14 @@ from amzagent.agent.runner import (
     apply_daily_budget,
     build_deps,
     enforce_budget_cap,
+    exclude_zone,
+    include_zone,
     redraw_campaign,
     run_cycle,
     stop_all,
     stop_campaign,
+    sync_moderation,
+    sync_stats,
 )
 from amzagent.amazon.creator_connections import parse_opportunities, parse_opportunity_details
 from amzagent.config import Settings, get_settings
@@ -64,7 +68,8 @@ SITE_TEMPLATES.env.filters["hue"] = lambda text: int(
 PRICE_MAX_AGE = timedelta(hours=24)
 # "Last updated" on the legal pages: change it when their text changes.
 LEGAL_PAGES_UPDATED = "September 26, 2026"
-CONTACT_HOURLY_LIMIT = 20  # site-wide, keeps a spam bot from flooding the inbox
+CONTACT_HOURLY_LIMIT = 20
+STATS_INTERVAL_SECONDS = 30 * 60  # site-wide, keeps a spam bot from flooding the inbox
 SAFE_PARAM = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
 
 
@@ -81,6 +86,70 @@ def price_is_fresh(product: Product) -> bool:
 
 def _clean(value: str | None) -> str | None:
     return value if value and SAFE_PARAM.match(value) else None
+
+
+STATUS_ORDER = {"active": 0, "dry_run": 1, "creating": 2, "error": 3, "killed": 4, "stopped": 5}
+
+
+def _ratio(num: float, den: float) -> float | None:
+    return num / den if den else None
+
+
+def _campaign_rows(store: Store) -> list[dict]:
+    """Campaigns with ad-network and on-site stats, and their zones, for the
+    dashboard: running first, then by spend."""
+    slugs = {n.id: n.slug for n in store.list_niches()}
+    rows = []
+    for c in store.list_campaigns()[:300]:
+        found = store.get_product(c["niche_id"], c["asin"])
+        visits = store.count_events(c["id"], "visit")
+        amazon = store.count_events(c["id"], "click")
+        c.update(
+            slug=slugs.get(c["niche_id"], "?"),
+            title=found[0].title if found else c["asin"],
+            visits=visits,
+            clicks=amazon,
+            ctr=_ratio(c["ad_clicks"], c["impressions"]),
+            cpc=_ratio(c["spend"], c["ad_clicks"]),
+            to_amazon=_ratio(amazon, visits),
+            cost_per_click=_ratio(c["spend"], amazon),
+            images=_payload_images(c["payload"]),
+            zones=_zone_rows(store, c["id"]),
+        )
+        rows.append(c)
+    rows.sort(key=lambda c: (STATUS_ORDER.get(c["status"], 9), -c["spend"], -c["id"]))
+    return rows
+
+
+def _zone_rows(store: Store, campaign_id: int) -> list[dict]:
+    visits = store.events_by_zone(campaign_id, "visit")
+    clicks = store.events_by_zone(campaign_id, "click")
+    excluded = store.blacklisted_zones(campaign_id)
+    zones = {z["zone"]: z for z in store.zone_stats(campaign_id)}
+    for zone in set(visits) | excluded:
+        zones.setdefault(zone, {"zone": zone, "impressions": 0, "clicks": 0, "spent": 0.0})
+    out = []
+    for z in zones.values():
+        amazon = clicks.get(z["zone"], 0)
+        out.append({
+            **z,
+            "ctr": _ratio(z["clicks"], z["impressions"]),
+            "visits": visits.get(z["zone"], 0),
+            "amazon": amazon,
+            "cost_per_amazon": _ratio(z["spent"], amazon),
+            "excluded": z["zone"] in excluded,
+        })
+    out.sort(key=lambda z: (z["excluded"], -z["spent"], -z["impressions"]))
+    return out
+
+
+def _campaign_totals(rows: list[dict]) -> dict:
+    t = {k: sum(r[k] for r in rows) for k in
+         ("impressions", "ad_clicks", "spend", "visits", "clicks")}
+    t["ctr"] = _ratio(t["ad_clicks"], t["impressions"])
+    t["cpc"] = _ratio(t["spend"], t["ad_clicks"])
+    t["cost_per_click"] = _ratio(t["spend"], t["clicks"])
+    return t
 
 
 def _payload_images(payload: str | None) -> list[str]:
@@ -127,6 +196,21 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 time.sleep(max(effective(settings, store).agent_interval_hours, 1) * 3600)
 
         threading.Thread(target=loop, daemon=True).start()
+
+    if start_loop:
+        def stats_loop():
+            # Fresher numbers than the full cycle: stats + moderation only.
+            while True:
+                time.sleep(STATS_INTERVAL_SECONDS)
+                try:
+                    deps = build_deps(settings, store)
+                    if deps.push is not None:
+                        sync_moderation(deps)
+                        sync_stats(deps)
+                except Exception:
+                    logger.exception("stats sync crashed")
+
+        threading.Thread(target=stats_loop, daemon=True).start()
 
     # --- public sites -----------------------------------------------------
 
@@ -363,18 +447,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "products": len(store.list_products(n.id)),
                 "stats": store.niche_stats(n.id),
             })
-        campaigns = []
-        slugs = {n.id: n.slug for n in store.list_niches()}
-        for c in store.list_campaigns()[:200]:
-            clicks = store.count_events(c["id"], "click")
-            c.update(
-                slug=slugs.get(c["niche_id"], "?"),
-                visits=store.count_events(c["id"], "visit"),
-                clicks=clicks,
-                cost_per_click=(c["spend"] / clicks) if clicks else None,
-                images=_payload_images(c["payload"]),
-            )
-            campaigns.append(c)
+        campaigns = _campaign_rows(store)
+        totals = _campaign_totals(campaigns)
         return TEMPLATES.TemplateResponse(
             request, "dashboard.html",
             {
@@ -387,6 +461,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "paused": store.get_flag(PAUSE_FLAG) == "1",
                 "flash": request.session.pop("flash", None),
                 "running": store.run_in_progress(),
+                "totals": totals,
                 "messages": store.list_messages(20),
                 "running_budget": store.running_daily_budget(),
                 "active_count": len(store.list_campaigns(statuses=(ACTIVE,))),
@@ -527,6 +602,38 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                      "остановить их можно кнопкой «Стоп всё».")
         request.session["flash"] = note
         return RedirectResponse("/admin#settings", status_code=303)
+
+    ZONE_RE = re.compile(r"^\d{1,12}$")
+
+    @app.post("/campaigns/{campaign_id}/zones/{zone}/{action}")
+    def zone_action(request: Request, campaign_id: int, zone: str, action: str):
+        if not logged_in(request):
+            return to_login()
+        if not ZONE_RE.match(zone) or action not in ("exclude", "include"):
+            raise HTTPException(400)
+        deps = build_deps(settings, store)
+        error = (exclude_zone(deps, campaign_id, zone) if action == "exclude"
+                 else include_zone(deps, campaign_id, zone))
+        verb = "отключена" if action == "exclude" else "снова включена"
+        request.session["flash"] = (
+            f"Кампания #{campaign_id}: не удалось изменить зону {zone} — {error}" if error
+            else f"Кампания #{campaign_id}: зона {zone} {verb}."
+        )
+        return RedirectResponse(f"/admin#c{campaign_id}", status_code=303)
+
+    @app.post("/stats/refresh")
+    def refresh_stats(request: Request):
+        if not logged_in(request):
+            return to_login()
+
+        def target():
+            deps = build_deps(settings, store)
+            sync_moderation(deps)
+            sync_stats(deps)
+
+        threading.Thread(target=target, daemon=True).start()
+        request.session["flash"] = "Статистика обновляется из PropellerAds — обновите страницу через полминуты."
+        return RedirectResponse("/admin#campaigns", status_code=303)
 
     @app.post("/killswitch")
     def killswitch(request: Request, on: str = Form(...)):

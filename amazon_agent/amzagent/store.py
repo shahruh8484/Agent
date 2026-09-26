@@ -53,6 +53,15 @@ CREATE TABLE IF NOT EXISTS campaigns (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS campaign_zones (
+    campaign_id INTEGER NOT NULL,
+    zone TEXT NOT NULL,
+    impressions INTEGER NOT NULL DEFAULT 0,
+    clicks INTEGER NOT NULL DEFAULT 0,
+    spent REAL NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (campaign_id, zone)
+);
 CREATE TABLE IF NOT EXISTS zone_blacklist (
     campaign_id INTEGER NOT NULL,
     zone TEXT NOT NULL,
@@ -123,6 +132,13 @@ class Store:
             for col in ("asins", "asin_meta"):
                 if col not in cols:
                     self._db.execute(f"ALTER TABLE niches ADD COLUMN {col} TEXT")
+            # Ad network stats on campaigns (added later).
+            cols = {r[1] for r in self._db.execute("PRAGMA table_info(campaigns)")}
+            for col, decl in (("impressions", "INTEGER NOT NULL DEFAULT 0"),
+                              ("ad_clicks", "INTEGER NOT NULL DEFAULT 0"),
+                              ("stats_at", "TEXT")):
+                if col not in cols:
+                    self._db.execute(f"ALTER TABLE campaigns ADD COLUMN {col} {decl}")
             self._db.commit()
 
     def _exec(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
@@ -330,6 +346,25 @@ class Store:
         r = self._one("SELECT COALESCE(SUM(daily_budget), 0) AS s FROM campaigns WHERE status = ?",
                       (ACTIVE,))
         return float(r["s"])
+
+    def upsert_zone_stats(self, campaign_id: int, zone: str, impressions: int, clicks: int,
+                          spent: float) -> None:
+        self._exec(
+            "INSERT INTO campaign_zones (campaign_id, zone, impressions, clicks, spent,"
+            " updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (campaign_id, zone) DO UPDATE"
+            " SET impressions = excluded.impressions, clicks = excluded.clicks,"
+            " spent = excluded.spent, updated_at = excluded.updated_at",
+            (campaign_id, zone, impressions, clicks, spent, now_iso()),
+        )
+
+    def zone_stats(self, campaign_id: int) -> list[dict]:
+        rows = self._all("SELECT * FROM campaign_zones WHERE campaign_id = ?"
+                         " ORDER BY spent DESC, impressions DESC", (campaign_id,))
+        return [dict(r) for r in rows]
+
+    def unblacklist_zone(self, campaign_id: int, zone: str) -> None:
+        self._exec("DELETE FROM zone_blacklist WHERE campaign_id = ? AND zone = ?",
+                   (campaign_id, zone))
 
     def blacklist_zone(self, campaign_id: int, zone: str) -> bool:
         cur = self._exec(

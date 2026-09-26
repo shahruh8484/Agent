@@ -370,6 +370,35 @@ def probe_statistics(client: PropellerClient, spec: dict | None) -> None:
         print(f"GET as the agent calls it: FAILED — {exc}")
 
 
+def print_zone_and_stats_formats(spec: dict | None) -> None:
+    """Body of targeting/exclude/zone and fields of statistics rows — what
+    the zone buttons and the stats table rely on."""
+    section("8. Zone exclude body and statistics response")
+    if not spec:
+        print("no spec")
+        return
+    paths = spec.get("paths", {})
+    item = resolve(spec, paths.get("/adv/campaigns/{campaignId}/targeting/exclude/zone", {}))
+    for method in ("patch", "put"):
+        op = item.get(method) or {}
+        body = op.get("requestBody", {}).get("content", {})
+        schema = next(iter(body.values()), {}).get("schema") if body else None
+        print(f"{method.upper()} exclude/zone body:")
+        for line in flatten(schema or {}) or [json.dumps(schema, ensure_ascii=False)[:800]]:
+            print("   ", line)
+    stats = resolve(spec, paths.get(propeller.STATISTICS_PATH, {})).get("get") or {}
+    ok = (stats.get("responses") or {}).get("200") or {}
+    content = ok.get("content", {})
+    schema = next(iter(content.values()), {}).get("schema") if content else ok.get("schema")
+    print("statistics 200 response:")
+    lines = flatten(schema or {})
+    items = (schema or {}).get("items")
+    if not lines and isinstance(items, dict):
+        lines = flatten(items)
+    for line in lines[:60] or [json.dumps(schema, ensure_ascii=False)[:1500]]:
+        print("   ", line)
+
+
 def docs_references() -> None:
     section("5. Docs page references")
     try:
@@ -402,6 +431,7 @@ def main() -> int:
         probe_validation(client)
         probe_stop_body(client)
         probe_statistics(client, spec)
+    print_zone_and_stats_formats(spec)
     section("Result")
     print("token works" if token_ok else "token check FAILED (see above)")
     return 0 if token_ok else 1
