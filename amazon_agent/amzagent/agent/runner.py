@@ -18,6 +18,7 @@ import json
 import logging
 import threading
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from amzagent.amazon.catalog import Catalog, CatalogError, CreatorsApiCatalog
@@ -37,7 +38,9 @@ from amzagent.store import ACTIVE, DRY_RUN, ERROR, STOPPED, Store, now_iso
 
 logger = logging.getLogger(__name__)
 
-KILLED = "killed"  # stopped by the kill rule — never relaunched for that product
+KILLED = "killed"
+CREATING = "creating"  # row exists, creatives/API call still in progress
+STUCK_CREATING_MINUTES = 30  # stopped by the kill rule — never relaunched for that product
 PAUSE_FLAG = "paused_all"
 SEARCH_PAGES = 2  # 10 items per page
 CURATED_SITE_SIZE = 30
@@ -389,6 +392,22 @@ def blacklist_bad_zones(deps: Deps) -> None:
                     deps.say(f"campaign #{c['id']}: zone blacklist failed: {error}")
 
 
+def expire_stuck_creations(deps: Deps) -> None:
+    """A launch interrupted mid-way (e.g. a restart while images were being
+    drawn) leaves a row in "creating" forever; after STUCK_CREATING_MINUTES
+    mark it as an error so its slot and product are free again."""
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=STUCK_CREATING_MINUTES)
+    for c in deps.store.list_campaigns(statuses=(CREATING,)):
+        try:
+            started = datetime.fromisoformat(c["created_at"])
+        except ValueError:
+            continue
+        if started < cutoff:
+            deps.store.update_campaign(c["id"], status=ERROR,
+                                       note="creation interrupted (e.g. server restart)")
+            deps.say(f"campaign #{c['id']}: creation was interrupted, slot freed")
+
+
 def launch_campaigns(deps: Deps) -> None:
     s, store = deps.settings, deps.store
     live = s.push_live
@@ -404,8 +423,10 @@ def launch_campaigns(deps: Deps) -> None:
         if site_copy is None:
             continue
         campaigns = store.list_campaigns(niche_id=niche.id)
-        running = [c for c in campaigns if c["status"] == running_status]
-        taken = {c["asin"] for c in campaigns if c["status"] in (running_status, KILLED)}
+        # A campaign still being created holds its slot and its product.
+        running = [c for c in campaigns if c["status"] in (running_status, CREATING)]
+        taken = {c["asin"] for c in campaigns
+                 if c["status"] in (running_status, KILLED, CREATING)}
         slots = s.campaigns_per_site - len(running)
 
         for product, copy in store.list_products(niche.id):
@@ -420,7 +441,7 @@ def launch_campaigns(deps: Deps) -> None:
                 )
                 return
 
-            cid = store.add_campaign(niche.id, product.asin, "creating", s.campaign_daily_budget)
+            cid = store.add_campaign(niche.id, product.asin, CREATING, s.campaign_daily_budget)
             payload = build_payload(deps, niche, site_copy, product, copy, cid)
 
             if not live:
@@ -529,6 +550,7 @@ def manage_campaigns(deps: Deps) -> None:
         for c in deps.store.list_campaigns(statuses=(DRY_RUN,)):
             deps.store.update_campaign(c["id"], status=STOPPED, note="dry run (never sent)")
     enforce_budget_cap(deps)
+    expire_stuck_creations(deps)
     fix_tracking_urls(deps)
     sync_moderation(deps)
     sync_stats(deps)

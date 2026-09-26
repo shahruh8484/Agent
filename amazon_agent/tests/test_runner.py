@@ -216,3 +216,24 @@ def test_old_zone_macro_is_replaced_on_live_campaigns(settings, store):
     n = len(push.url_updates)
     run_cycle(_deps(settings, store, push))
     assert len(push.url_updates) == n  # done once
+
+
+def test_stuck_creating_row_holds_slot_then_expires(settings, store):
+    from datetime import datetime, timedelta, timezone
+
+    settings.push_live = True
+    settings.campaigns_per_site = 1
+    niche = store.add_niche("earbuds")
+    run_cycle(_deps(settings, store, FakePush()))  # builds the site, launches 1
+    active = store.list_campaigns(statuses=(ACTIVE,))[0]
+    store.update_campaign(active["id"], status="stopped")
+    # A launch that died half-way:
+    stuck = store.add_campaign(niche.id, "A2", "creating", 10)
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    assert push.created == []  # the stuck row still holds the only slot
+    old = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(timespec="seconds")
+    store._exec("UPDATE campaigns SET created_at = ? WHERE id = ?", (old, stuck))
+    run_cycle(_deps(settings, store, push))
+    assert store.get_campaign(stuck)["status"] == "error"
+    assert len(push.created) == 1  # slot reused
