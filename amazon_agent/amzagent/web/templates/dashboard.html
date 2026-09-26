@@ -25,7 +25,15 @@
   <div class="card kpi"><b>{{ settings.agent_interval_hours or "выкл" }}{% if settings.agent_interval_hours %} ч{% endif %}</b><span>автозапуск цикла</span></div>
 </div>
 
-<h2>Новый сайт</h2>
+<h2>Автоподбор ниш</h2>
+<form class="card row" method="post" action="/discover">
+  <span style="flex:1;min-width:240px">Агент сам придумает ниши, проверит каждую по реальным товарам Amazon (сколько хороших товаров, рейтинги, цены) и соберёт сайты по лучшим.
+  {% if settings.auto_niches %}<br><span class="muted">Автоматически держит не меньше {{ settings.auto_niches }} сайтов (AUTO_NICHES).</span>{% endif %}</span>
+  <select name="count">{% for n in [1,2,3,5] %}<option value="{{ n }}"{% if n == 3 %} selected{% endif %}>{{ n }} {{ "ниша" if n == 1 else "ниши" if n < 5 else "ниш" }}</option>{% endfor %}</select>
+  <button class="primary">Подобрать сам</button>
+</form>
+
+<h2>Новый сайт вручную</h2>
 <form class="card row" method="post" action="/niches">
   <input name="keywords" placeholder="Ниша, напр. wireless earbuds" required style="flex:2;min-width:220px">
   <select name="search_index">

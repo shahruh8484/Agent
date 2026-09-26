@@ -89,6 +89,7 @@ def settings(tmp_path):
         min_rating=4.0,
         min_reviews=100,
         products_per_site=5,
+        auto_niches=0,
         campaigns_per_site=2,
         campaign_daily_budget=10,
         max_daily_spend=30,

@@ -71,3 +71,11 @@ def test_dashboard_requires_login(site):
     client.post("/login", data={"username": "admin", "password": "pw"})
     dash = client.get("/")
     assert dash.status_code == 200 and "Sound Picks" in dash.text and "Тестовый режим" in dash.text
+
+
+def test_discover_requires_login(site):
+    client, _ = site
+    assert client.post("/discover", data={"count": "2"}, follow_redirects=False) \
+        .headers["location"] == "/login"
+    client.post("/login", data={"username": "admin", "password": "pw"})
+    assert "Подобрать сам" in client.get("/").text

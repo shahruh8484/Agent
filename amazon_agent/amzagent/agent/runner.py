@@ -27,6 +27,7 @@ from amzagent.models import Niche
 from amzagent.push import propeller
 from amzagent.push.creatives import render_creatives
 from amzagent.push.propeller import PropellerClient, PropellerError
+from amzagent.selection.niches import discover_niches
 from amzagent.selection.selector import score, select_products
 from amzagent.store import ACTIVE, DRY_RUN, ERROR, STOPPED, Store
 
@@ -307,12 +308,50 @@ def manage_campaigns(deps: Deps) -> None:
 _run_lock = threading.Lock()
 
 
-def run_cycle(deps: Deps, niche_id: int | None = None) -> bool:
-    """One full cycle. Returns False if another cycle is already running."""
+def add_discovered_niches(deps: Deps, count: int) -> int:
+    """Let the agent pick `count` new niches itself. Returns how many it added."""
+    if count <= 0:
+        return 0
+    if deps.llm is None or deps.catalog is None:
+        deps.say("niche discovery skipped: needs both the Amazon API and an LLM")
+        return 0
+    s = deps.settings
+    existing = [n.keywords for n in deps.store.list_niches()]
+    try:
+        winners = discover_niches(
+            deps.llm, deps.catalog, count, existing, s.amazon_country,
+            s.min_rating, s.min_reviews, deps.say,
+        )
+    except LLMError as exc:
+        deps.say(f"niche discovery failed: {exc}")
+        return 0
+    for c in winners:
+        deps.store.add_niche(c.keywords, c.search_index)
+        deps.say(f"niche discovery: added {c.keywords!r} ({c.search_index})")
+    if not winners:
+        deps.say("niche discovery: no idea passed the Amazon checks this time")
+    return len(winners)
+
+
+def run_cycle(deps: Deps, niche_id: int | None = None, discover: int = 0) -> bool:
+    """One full cycle. Returns False if another cycle is already running.
+
+    `discover` asks the agent to find that many new niches first. Without
+    it, the agent still tops the site count up to AUTO_NICHES by itself.
+    """
     if not _run_lock.acquire(blocking=False):
         return False
     ok = True
     try:
+        if niche_id is None:
+            enabled = sum(1 for n in deps.store.list_niches() if n.enabled)
+            missing = max(discover, deps.settings.auto_niches - enabled)
+            try:
+                add_discovered_niches(deps, missing)
+            except Exception as exc:
+                ok = False
+                logger.exception("niche discovery failed")
+                deps.say(f"niche discovery: unexpected error: {exc}")
         niches = deps.store.list_niches()
         if niche_id is not None:
             niches = [n for n in niches if n.id == niche_id]

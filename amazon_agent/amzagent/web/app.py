@@ -77,9 +77,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
     app.state.settings = settings
     app.state.store = store
 
-    def run_in_background(niche_id: int | None = None) -> None:
+    def run_in_background(niche_id: int | None = None, discover: int = 0) -> None:
         def target():
-            run_cycle(build_deps(settings, store), niche_id)
+            run_cycle(build_deps(settings, store), niche_id, discover)
 
         threading.Thread(target=target, daemon=True).start()
 
@@ -280,6 +280,13 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         for c in store.list_campaigns(niche_id=niche_id, statuses=(ACTIVE,)):
             stop_campaign(deps, c, STOPPED, "site deleted")
         store.delete_niche(niche_id)
+        return RedirectResponse("/", status_code=303)
+
+    @app.post("/discover")
+    def discover(request: Request, count: int = Form(1)):
+        if not logged_in(request):
+            return to_login()
+        run_in_background(discover=max(1, min(count, 5)))
         return RedirectResponse("/", status_code=303)
 
     @app.post("/run")

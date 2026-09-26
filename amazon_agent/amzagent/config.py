@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     min_rating: float = 4.0
     min_reviews: int = 100
     products_per_site: int = 12
+    # The agent keeps at least this many sites running, picking the niches
+    # itself (LLM ideas, checked against the live Amazon catalog). 0 = only
+    # the niches you add by hand.
+    auto_niches: int = 3
 
     # --- LLM (site copy + push ad copy) ---
     llm_provider: str = "anthropic"  # anthropic | openai
