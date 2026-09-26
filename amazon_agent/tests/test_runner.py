@@ -175,3 +175,24 @@ def test_moderation_rejection_frees_slot_and_is_not_retried(settings, store):
     assert store.get_campaign(approved["id"])["note"] == "PropellerAds: working"
     active_asins = {c["asin"] for c in store.list_campaigns(statuses=(ACTIVE,))}
     assert rejected["asin"] not in active_asins and len(active_asins) == 2
+
+
+def test_quick_check_kills_after_test_budget_and_refills(settings, store):
+    from amzagent.agent.runner import quick_check
+
+    settings.push_live = True
+    settings.kill_min_spend = 1.0
+    niche = store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    first = store.list_campaigns(statuses=(ACTIVE,))[-1]
+    push.spend_rows = [{"campaign_id": first["external_id"], "spent": 1.1}]  # $1 spent, no clicks
+    deps = _deps(settings, store, push)
+    assert quick_check(deps)
+    assert store.get_campaign(first["id"])["status"] == KILLED
+    assert len(store.list_campaigns(statuses=(ACTIVE,))) == 2  # slot refilled right away
+    assert store.list_runs()[0]["log"]  # something happened -> journal entry
+    before = len(store.list_runs())
+    quick_check(_deps(settings, store, push))  # nothing new happens
+    assert len(store.list_runs()) == before
+    assert niche

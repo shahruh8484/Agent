@@ -353,9 +353,6 @@ def blacklist_bad_zones(deps: Deps) -> None:
     # zone macro in the target URL isn't substituted, every zone would look
     # like it had zero clicks and all of them would get blacklisted.
     tracked = [c for c in active if store.events_by_zone(c["id"], "visit")]
-    if len(tracked) < len(active):
-        deps.say(f"zone blacklist: skipping {len(active) - len(tracked)} campaign(s) "
-                 "without zone ids in their visits yet")
     for c in tracked:
         clicks = store.events_by_zone(c["id"], "click")
         excluded = store.blacklisted_zones(c["id"])
@@ -551,6 +548,28 @@ def add_discovered_niches(deps: Deps, count: int) -> int:
     if not winners:
         deps.say("niche discovery: no idea passed the Amazon checks this time")
     return len(winners)
+
+
+def quick_check(deps: Deps) -> bool:
+    """Campaign management only (stats, kill rules, zones, refill freed
+    slots) — run every few minutes so a campaign is judged soon after it
+    reaches KILL_MIN_SPEND instead of at the next full cycle. Skipped while
+    a full cycle runs. The journal only gets an entry if something happened."""
+    if not _run_lock.acquire(blocking=False):
+        return False
+    try:
+        manage_campaigns(deps)
+    except Exception as exc:
+        logger.exception("quick check failed")
+        deps.say(f"quick check: unexpected error: {exc}")
+    finally:
+        _run_lock.release()
+    if deps.log:
+        run_id = deps.store.start_run(None)
+        for line in deps.log:
+            deps.store.append_run_log(run_id, line)
+        deps.store.finish_run(run_id, True)
+    return True
 
 
 def run_cycle(

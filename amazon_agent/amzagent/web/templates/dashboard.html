@@ -39,13 +39,13 @@
       Реклама включена (кампании реально создаются в PropellerAds). Выключено = тестовый режим.
     </label>
     <div class="set-grid">
-      <label>Бюджет одной кампании, $/день<input name="campaign_daily_budget" type="number" step="0.01" min="10" value="{{ '%.2f'|format(settings.campaign_daily_budget) }}"><span class="muted">минимум PropellerAds — $10</span></label>
+      <label>Бюджет одной кампании, $/день<input name="campaign_daily_budget" type="number" step="0.01" min="10" title="PropellerAds не принимает меньше $10" value="{{ '%.2f'|format(settings.campaign_daily_budget) }}"><span class="muted">минимум PropellerAds — $10</span></label>
       <label>Общий лимит, $/день<input name="max_daily_spend" type="number" step="0.01" min="0" value="{{ '%.2f'|format(settings.max_daily_spend) }}"><span class="muted">сумма бюджетов всех кампаний не больше этого</span></label>
       <label>Кампаний на сайт<input name="campaigns_per_site" type="number" min="0" max="50" value="{{ settings.campaigns_per_site }}"></label>
       <label>Ставка за клик (CPC), $<input name="push_bid_cpc" type="number" step="0.001" min="0.001" value="{{ settings.push_bid_cpc }}"></label>
       <label>Страны<input name="push_countries" value="{{ settings.push_countries }}"><span class="muted">коды через запятую: us,ca,gb</span></label>
       <label>Картинки пушей<select name="push_creatives"><option value="ai"{% if settings.push_creatives == "ai" %} selected{% endif %}>AI (OpenAI)</option><option value="simple"{% if settings.push_creatives == "simple" %} selected{% endif %}>Простые (бесплатно)</option></select></label>
-      <label>Отключать после расхода, $<input name="kill_min_spend" type="number" step="0.01" min="0" value="{{ settings.kill_min_spend }}"><span class="muted">сколько кампания должна потратить до оценки</span></label>
+      <label>Отключать после расхода, $<input name="kill_min_spend" type="number" step="0.01" min="0" value="{{ settings.kill_min_spend }}"><span class="muted">тест товара: после этой суммы агент решает, оставить кампанию или отключить (проверка каждые 10 мин)</span></label>
       <label>Макс. цена клика на Amazon, $<input name="max_cost_per_amazon_click" type="number" step="0.01" min="0.01" value="{{ settings.max_cost_per_amazon_click }}"><span class="muted">дороже — кампания отключается</span></label>
       <label>Площадка без кликов, $<input name="zone_min_spend" type="number" step="0.01" min="0" value="{{ settings.zone_min_spend }}"><span class="muted">потратила столько без кликов — в чёрный список</span></label>
       <label>Держать сайтов (автоподбор)<input name="auto_niches" type="number" min="0" max="50" value="{{ settings.auto_niches }}"></label>
@@ -109,7 +109,7 @@
   <h2 style="margin:0">Пуш-кампании — по одной на товар</h2>
   <form class="inline" method="post" action="/stats/refresh"><button>&#8635; Обновить статистику</button></form>
 </div>
-<p class="muted" style="margin:0 0 10px">Показы, клики и расход — из PropellerAds (обновляются каждые 30 минут). Визиты и клики на Amazon — с вашего сайта. Нажмите «Зоны», чтобы увидеть площадки кампании и отключить плохие.</p>
+<p class="muted" style="margin:0 0 10px">Показы, клики и расход — из PropellerAds (обновляются каждые 10 минут). Визиты и клики на Amazon — с вашего сайта. Нажмите «Зоны», чтобы увидеть площадки кампании и отключить плохие.</p>
 {% macro money(v) %}{{ "$%.2f"|format(v) if v is not none else "—" }}{% endmacro %}
 {% macro pct(v) %}{{ "%.2f%%"|format(v * 100) if v is not none else "—" }}{% endmacro %}
 <div class="scroll"><table class="camp">

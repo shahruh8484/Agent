@@ -43,6 +43,7 @@ from amzagent.agent.runner import (
     enforce_budget_cap,
     exclude_zone,
     include_zone,
+    quick_check,
     redraw_campaign,
     run_cycle,
     stop_all,
@@ -69,7 +70,7 @@ PRICE_MAX_AGE = timedelta(hours=24)
 # "Last updated" on the legal pages: change it when their text changes.
 LEGAL_PAGES_UPDATED = "September 26, 2026"
 CONTACT_HOURLY_LIMIT = 20
-STATS_INTERVAL_SECONDS = 30 * 60  # site-wide, keeps a spam bot from flooding the inbox
+STATS_INTERVAL_SECONDS = 10 * 60  # site-wide, keeps a spam bot from flooding the inbox
 SAFE_PARAM = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
 
 
@@ -199,16 +200,16 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
 
     if start_loop:
         def stats_loop():
-            # Fresher numbers than the full cycle: stats + moderation only.
+            # Between full cycles: fresh stats, kill/zone rules and refilling
+            # freed slots, so a $1 test budget is enforced within minutes.
             while True:
                 time.sleep(STATS_INTERVAL_SECONDS)
                 try:
                     deps = build_deps(settings, store)
                     if deps.push is not None:
-                        sync_moderation(deps)
-                        sync_stats(deps)
+                        quick_check(deps)
                 except Exception:
-                    logger.exception("stats sync crashed")
+                    logger.exception("quick check crashed")
 
         threading.Thread(target=stats_loop, daemon=True).start()
 
