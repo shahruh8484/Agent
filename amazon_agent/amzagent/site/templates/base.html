@@ -1,53 +1,21 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}{{ site.site_title }}{% endblock %}</title>
+{% include "_head.html" %}
+<title>{% block title %}{{ site.site_title }} — {{ site.tagline }}{% endblock %}</title>
 <meta name="description" content="{{ site.tagline }}">
-<style>
-:root { --bg:#fafaf7; --fg:#1d1d1b; --muted:#6b6b66; --card:#fff; --line:#e6e4dd; --accent:#c2410c; --accent-fg:#fff; }
-@media (prefers-color-scheme: dark) { :root { --bg:#161614; --fg:#ecebe6; --muted:#a3a29b; --card:#1f1f1c; --line:#33322e; --accent:#f97316; --accent-fg:#1b1b19; } }
-* { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; }
-a { color:inherit; }
-.wrap { max-width:1040px; margin:0 auto; padding:0 16px; }
-header { border-bottom:1px solid var(--line); }
-header .top { display:flex; align-items:baseline; gap:12px; padding-top:18px; padding-bottom:14px; flex-wrap:wrap; }
-header a.brand { font-weight:700; font-size:1.25rem; text-decoration:none; }
-header .tag { color:var(--muted); font-size:.95rem; }
-.disclosure { font-size:.8rem; color:var(--muted); padding:8px 0; }
-main { padding:24px 0 48px; }
-.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:16px; }
-.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:8px; text-decoration:none; }
-.card img { width:100%; height:190px; object-fit:contain; background:#fff; border-radius:6px; }
-.card h3 { font-size:1rem; margin:0; line-height:1.35; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-.meta { color:var(--muted); font-size:.88rem; }
-.rank { font-size:.75rem; font-weight:600; color:var(--accent); letter-spacing:.03em; }
-.btn { display:inline-block; background:var(--accent); color:var(--accent-fg); padding:12px 20px; border-radius:8px; font-weight:600; text-decoration:none; text-align:center; }
-.product { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:32px; }
-.product img.hero { width:100%; max-height:420px; object-fit:contain; background:#fff; border-radius:10px; border:1px solid var(--line); }
-.product h1 { font-size:1.5rem; line-height:1.3; margin:0 0 8px; }
-.proscons { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:16px 0; }
-.proscons h4 { margin:0 0 6px; }
-.proscons ul { margin:0; padding-left:18px; }
-.price { font-size:1.4rem; font-weight:700; }
-.price small { display:block; font-size:.75rem; font-weight:400; color:var(--muted); }
-footer { border-top:1px solid var(--line); color:var(--muted); font-size:.85rem; padding:20px 0 32px; }
-@media (max-width:720px) { .product, .proscons { grid-template-columns:1fr; } }
-.ph { display:flex; align-items:center; justify-content:center; text-align:center; padding:12px; background:linear-gradient(135deg,#fde7d8,#f7c9a8); color:#7a3410; font-weight:700; border-radius:6px; }
-</style>
+{% block extra_head %}{% endblock %}
 </head>
 <body>
-<header>
-  <div class="wrap top">
-    <a class="brand" href="/s/{{ niche.slug }}/">{{ site.site_title }}</a>
-    <span class="tag">{{ site.tagline }}</span>
-  </div>
-  <div class="wrap disclosure">As an Amazon Associate we earn from qualifying purchases. <a href="/s/{{ niche.slug }}/about">Learn more</a>.</div>
-</header>
+<header class="topbar"><div class="wrap">
+  <a class="logo" href="/s/{{ niche.slug }}/"><span class="logo-mark">{{ site.site_title[:1] }}</span>{{ site.site_title }}</a>
+  <nav class="nav"><a href="/">All guides</a><a href="/s/{{ niche.slug }}/about">About</a></nav>
+</div></header>
+<div class="disclosure-bar">As an Amazon Associate we earn from qualifying purchases. <a href="/s/{{ niche.slug }}/about">Learn more</a></div>
+{% block hero %}{% endblock %}
 <main><div class="wrap">{% block content %}{% endblock %}</div></main>
 <footer><div class="wrap">
+  <div class="brandline">{{ site.site_title }}</div>
   &copy; {{ year }} {{ site.site_title }} &middot; <a href="/s/{{ niche.slug }}/about">Disclosure &amp; privacy</a><br>
   Amazon and the Amazon logo are trademarks of Amazon.com, Inc. or its affiliates. This site is not affiliated with or endorsed by Amazon.
 </div></footer>

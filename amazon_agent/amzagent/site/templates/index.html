@@ -1,17 +1,24 @@
 {% extends "base.html" %}
+{% block hero %}
+<section class="hero"><div class="wrap">
+  <h1>{{ site.site_title }}</h1>
+  <p>{{ site.intro }}</p>
+  <div class="chips"><span class="chip">&#10003; Ranked by ratings &amp; reviews</span><span class="chip">&#10003; Refreshed daily</span><span class="chip">&#10003; Independent picks</span></div>
+</div></section>
+{% endblock %}
 {% block content %}
-<p style="max-width:720px">{{ site.intro }}</p>
+<div class="section-head"><h2>Our top picks</h2><span class="meta">{{ products|length }} products</span></div>
 <div class="grid">
 {% for p, c in products %}
-  <a class="card" href="/s/{{ niche.slug }}/p/{{ p.asin }}">
-    <span class="rank">#{{ loop.index }}</span>
-    {% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% else %}<div class="ph" style="height:190px">{{ p.brand or p.title|truncate(30) }}</div>{% endif %}
-    <h3>{{ p.title }}</h3>
-    {% if p.rating %}<span class="meta">{{ "%.1f"|format(p.rating) }} / 5 &middot; {{ "{:,}".format(p.review_count) }} ratings</span>{% endif %}
-    <span class="meta">{{ c.summary|truncate(110) }}</span>
-  </a>
+  {% set rank = loop.index %}{% set niche_slug = niche.slug %}
+  {% include "_card.html" %}
 {% else %}
   <p>Products are being selected, check back soon.</p>
 {% endfor %}
+</div>
+<div class="how">
+  <div><b>How we pick</b><span>Products are ranked by customer ratings, number of reviews and how well they sell.</span></div>
+  <div><b>Always up to date</b><span>The list is refreshed regularly, so sold-out or poorly rated items drop off.</span></div>
+  <div><b>Buy with confidence</b><span>Every purchase happens on Amazon, with Amazon's shipping and returns.</span></div>
 </div>
 {% endblock %}

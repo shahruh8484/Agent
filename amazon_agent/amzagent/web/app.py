@@ -11,6 +11,7 @@ Admin (login): /, /login, /logout and the POST actions below.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import threading
@@ -43,6 +44,9 @@ TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 SITE_TEMPLATES = Jinja2Templates(
     directory=str(Path(__file__).resolve().parent.parent / "site" / "templates")
 )
+SITE_TEMPLATES.env.filters["hue"] = lambda text: int(
+    hashlib.md5((text or "").encode()).hexdigest(), 16
+) % 360  # stable per-brand color for image placeholders
 PRICE_MAX_AGE = timedelta(hours=24)
 SAFE_PARAM = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
 
@@ -145,11 +149,13 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         go = f"/go/{slug}/{asin}"
         if campaign_id:
             go += f"?c={campaign_id}" + (f"&z={zone}" if zone else "")
+        listed = [p.asin for p, pc in store.list_products(niche.id) if pc]
+        rank = listed.index(asin) + 1 if asin in listed else None
         others = [(p, pc) for p, pc in store.list_products(niche.id) if pc and p.asin != asin][:4]
         return SITE_TEMPLATES.TemplateResponse(
             request, "product.html",
             site_ctx(request, niche, copy, product=product, copy=product_copy,
-                     go_url=go, others=others),
+                     go_url=go, others=others, rank=rank),
         )
 
     @app.get("/s/{slug}/about", response_class=HTMLResponse)

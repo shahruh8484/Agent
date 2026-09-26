@@ -1,61 +1,36 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+{% include "_head.html" %}
 <title>{{ title }} — top rated product picks</title>
 <meta name="description" content="Hand-picked, top rated products across categories, chosen by customer ratings and reviews.">
-<style>
-:root { --bg:#fafaf7; --fg:#1d1d1b; --muted:#6b6b66; --card:#fff; --line:#e6e4dd; --accent:#c2410c; }
-@media (prefers-color-scheme: dark) { :root { --bg:#161614; --fg:#ecebe6; --muted:#a3a29b; --card:#1f1f1c; --line:#33322e; --accent:#f97316; } }
-* { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; }
-a { color:inherit; }
-.wrap { max-width:1040px; margin:0 auto; padding:0 16px; }
-header { border-bottom:1px solid var(--line); padding:22px 0 16px; }
-header h1 { margin:0; font-size:1.5rem; }
-header p { margin:4px 0 0; color:var(--muted); }
-.disclosure { font-size:.8rem; color:var(--muted); margin-top:8px; }
-main { padding:28px 0 48px; }
-section { margin-bottom:36px; }
-section h2 { margin:0; font-size:1.2rem; }
-section h2 a { text-decoration:none; }
-section .tag { color:var(--muted); margin:2px 0 12px; }
-.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; }
-.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; text-decoration:none; display:flex; flex-direction:column; gap:8px; }
-.card img { width:100%; height:160px; object-fit:contain; background:#fff; border-radius:6px; }
-.card span { font-size:.92rem; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.more { display:inline-block; margin-top:10px; color:var(--accent); font-weight:600; text-decoration:none; }
-footer { border-top:1px solid var(--line); color:var(--muted); font-size:.85rem; padding:20px 0 32px; }
-.ph { display:flex; align-items:center; justify-content:center; text-align:center; padding:12px; background:linear-gradient(135deg,#fde7d8,#f7c9a8); color:#7a3410; font-weight:700; border-radius:6px; }
-</style>
 </head>
 <body>
-<header><div class="wrap">
-  <h1>{{ title }}</h1>
-  <p>Top rated products, picked by customer ratings and reviews.</p>
-  <div class="disclosure">As an Amazon Associate we earn from qualifying purchases.</div>
+<header class="topbar"><div class="wrap">
+  <a class="logo" href="/"><span class="logo-mark">{{ title[:1] }}</span>{{ title }}</a>
+  <nav class="nav">{% for s in sites[:3] %}<a href="/s/{{ s.niche.slug }}/">{{ s.site.site_title }}</a>{% endfor %}</nav>
 </div></header>
+<div class="disclosure-bar">As an Amazon Associate we earn from qualifying purchases.</div>
+<section class="hero"><div class="wrap">
+  <h1>The best-rated products, picked for you</h1>
+  <p>We rank products by what real customers say — ratings, review counts and sales — so you can skip the endless scrolling.</p>
+  <div class="chips"><span class="chip">&#10003; Ranked by ratings &amp; reviews</span><span class="chip">&#10003; Refreshed daily</span><span class="chip">&#10003; Independent picks</span></div>
+</div></section>
 <main><div class="wrap">
 {% for s in sites %}
-  <section>
-    <h2><a href="/s/{{ s.niche.slug }}/">{{ s.site.site_title }}</a></h2>
-    <p class="tag">{{ s.site.tagline }}</p>
+  <section style="margin-bottom:44px">
+    <div class="section-head"><h2><a href="/s/{{ s.niche.slug }}/" style="text-decoration:none">{{ s.site.site_title }}</a></h2><a href="/s/{{ s.niche.slug }}/">See all picks &rarr;</a></div>
+    <p class="meta" style="margin:-8px 0 16px">{{ s.site.tagline }}</p>
     <div class="grid">
-    {% for p in s.products %}
-      <a class="card" href="/s/{{ s.niche.slug }}/p/{{ p.asin }}">
-        {% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% else %}<div class="ph" style="height:160px">{{ p.brand or p.title|truncate(30) }}</div>{% endif %}
-        <span>{{ p.title }}</span>
-      </a>
-    {% endfor %}
+    {% for p in s.products %}{% set c = none %}{% set rank = loop.index %}{% set niche_slug = s.niche.slug %}{% include "_card.html" %}{% endfor %}
     </div>
-    <a class="more" href="/s/{{ s.niche.slug }}/">See all picks &rarr;</a>
   </section>
 {% else %}
   <p>New product guides are being prepared. Check back soon.</p>
 {% endfor %}
 </div></main>
 <footer><div class="wrap">
+  <div class="brandline">{{ title }}</div>
   &copy; {{ year }} {{ title }}{% if sites %} &middot; <a href="/s/{{ sites[0].niche.slug }}/about">Disclosure &amp; privacy</a>{% endif %}<br>
   {{ title }} is a participant in the Amazon Services LLC Associates Program, an affiliate advertising program designed to provide a means for sites to earn advertising fees by advertising and linking to Amazon.com.
   Amazon and the Amazon logo are trademarks of Amazon.com, Inc. or its affiliates.

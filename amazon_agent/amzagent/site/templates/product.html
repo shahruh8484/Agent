@@ -1,35 +1,82 @@
 {% extends "base.html" %}
 {% block title %}{{ product.title|truncate(60) }} — {{ site.site_title }}{% endblock %}
+{% block extra_head %}
+<style>
+.crumbs { font-size:.85rem; color:var(--muted); margin-bottom:18px; }
+.crumbs a { text-decoration:none; } .crumbs a:hover { color:var(--ink); }
+.product { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:36px; align-items:start; }
+.shot { background:var(--surface); border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow); padding:18px; position:sticky; top:84px; }
+.shot .media { height:420px; display:grid; place-items:center; background:#fff; border-radius:12px; overflow:hidden; }
+.shot img { max-height:100%; object-fit:contain; }
+.shot .ph-initial { font-size:6rem; } .shot .ph-brand { font-size:1.1rem; }
+.pill { display:inline-block; font-size:.75rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:5px 12px; border-radius:99px; background:var(--accent-soft); color:var(--accent-dark); }
+.pill.gold { background:linear-gradient(135deg,#f59f00,var(--accent)); color:#fff; }
+h1.title { font-size:clamp(1.4rem,3vw,1.9rem); line-height:1.25; margin:12px 0 8px; letter-spacing:-.015em; }
+.lead { font-size:1.05rem; color:var(--ink); margin:16px 0; }
+.buybox { background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:20px; margin:20px 0; }
+.price { font-size:1.7rem; font-weight:800; margin-bottom:4px; }
+.price small { display:block; font-size:.72rem; font-weight:400; color:var(--muted); line-height:1.45; margin-top:6px; }
+.buynote { font-size:.85rem; color:var(--muted); margin:10px 0 0; text-align:center; }
+.pc { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:8px 0 20px; }
+.pc div { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px; }
+.pc h4 { margin:0 0 8px; font-size:.95rem; }
+.pc ul { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+.pc li { display:flex; gap:8px; font-size:.94rem; }
+.pc .good li::before { content:"✓"; color:var(--ok); font-weight:800; }
+.pc .bad li::before { content:"!"; color:var(--warn); font-weight:800; width:10px; text-align:center; }
+.features { margin:0; padding-left:20px; color:var(--muted); }
+.features li { margin-bottom:6px; }
+.more { margin-top:56px; }
+.sticky-buy { display:none; }
+@media (max-width:820px) {
+  .product { grid-template-columns:1fr; gap:20px; }
+  .shot { position:static; } .shot .media { height:300px; }
+  .pc { grid-template-columns:1fr; }
+  .sticky-buy { display:block; position:fixed; left:0; right:0; bottom:0; z-index:30; padding:10px 16px calc(10px + env(safe-area-inset-bottom)); background:color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter:blur(8px); border-top:1px solid var(--line); }
+  main { padding-bottom:96px; }
+}
+</style>
+{% endblock %}
 {% block content %}
+<div class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/s/{{ niche.slug }}/">{{ site.site_title }}</a> &rsaquo; {{ product.brand or "Product" }}</div>
 <div class="product">
-  <div>{% if product.image_url %}<img class="hero" src="{{ product.image_url }}" alt="{{ product.title }}">{% else %}<div class="ph" style="height:320px;font-size:1.4rem">{{ product.brand or product.title }}</div>{% endif %}</div>
+  <div class="shot"><div class="media">
+    {% if product.image_url %}<img src="{{ product.image_url }}" alt="{{ product.title }}">
+    {% else %}<div class="ph" style="--h:{{ (product.brand or product.title)|hue }}"><span class="ph-initial">{{ (product.brand or product.title)[:1] }}</span><span class="ph-brand">{{ product.brand or product.title|truncate(30) }}</span></div>{% endif %}
+  </div></div>
   <div>
-    <h1>{{ product.title }}</h1>
-    <div class="meta">{{ product.brand }}{% if product.brand and product.rating %} &middot; {% endif %}{% if product.rating %}{{ "%.1f"|format(product.rating) }} / 5 from {{ "{:,}".format(product.review_count) }} ratings on Amazon{% endif %}</div>
-    <p>{{ copy.summary }}</p>
-    <div class="proscons">
-      <div><h4>Pros</h4><ul>{% for x in copy.pros %}<li>{{ x }}</li>{% endfor %}</ul></div>
-      <div><h4>Keep in mind</h4><ul>{% for x in copy.cons %}<li>{{ x }}</li>{% endfor %}</ul></div>
-    </div>
-    {% if product.features %}<h4>Key features</h4><ul>{% for f in product.features %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
-    {% if price_is_fresh(product) %}
-      <p class="price">{{ product.price_display }}
+    {% if rank == 1 %}<span class="pill gold">&#9733; Top pick in {{ site.site_title }}</span>
+    {% elif rank %}<span class="pill">#{{ rank }} in {{ site.site_title }}</span>{% endif %}
+    <h1 class="title">{{ product.title }}</h1>
+    <div class="meta">{{ product.brand }}{% if product.brand and product.rating %} &middot; {% endif %}{% if product.rating %}&#9733; {{ "%.1f"|format(product.rating) }} / 5 from {{ "{:,}".format(product.review_count) }} ratings on Amazon{% endif %}</div>
+    <p class="lead">{{ copy.summary }}</p>
+
+    <div class="buybox">
+      {% if price_is_fresh(product) %}
+      <div class="price">{{ product.price_display }}
         <small>Price as of {{ product.fetched_at[:16].replace("T", " ") }} UTC. Product prices and availability are accurate as of the date/time indicated and are subject to change. Any price and availability information displayed on Amazon at the time of purchase will apply to the purchase of this product.</small>
-      </p>
-    {% endif %}
-    {% if product.offline %}<p class="meta">See current price, photos and customer reviews on Amazon.</p>{% endif %}
-    <p><a class="btn" href="{{ go_url }}" rel="nofollow sponsored noopener" target="_blank">Check price on Amazon</a></p>
+      </div>
+      {% endif %}
+      <a class="btn block" href="{{ go_url }}" rel="nofollow sponsored noopener" target="_blank">Check price on Amazon &rarr;</a>
+      {% if product.offline %}<p class="buynote">See current price, photos and customer reviews on Amazon.</p>
+      {% else %}<p class="buynote">Secure checkout, shipping and returns handled by Amazon.</p>{% endif %}
+    </div>
+
+    <div class="pc">
+      <div class="good"><h4>What we like</h4><ul>{% for x in copy.pros %}<li>{{ x }}</li>{% endfor %}</ul></div>
+      <div class="bad"><h4>Keep in mind</h4><ul>{% for x in copy.cons %}<li>{{ x }}</li>{% endfor %}</ul></div>
+    </div>
+    {% if product.features %}<h4>Key features</h4><ul class="features">{% for f in product.features %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
   </div>
 </div>
+
 {% if others %}
-<h2 style="margin-top:40px">More picks</h2>
-<div class="grid">
-{% for p, c in others %}
-  <a class="card" href="/s/{{ niche.slug }}/p/{{ p.asin }}">
-    {% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% else %}<div class="ph" style="height:190px">{{ p.brand or p.title|truncate(30) }}</div>{% endif %}
-    <h3>{{ p.title }}</h3>
-  </a>
-{% endfor %}
-</div>
+<section class="more">
+  <div class="section-head"><h2>More top picks</h2><a href="/s/{{ niche.slug }}/">See all &rarr;</a></div>
+  <div class="grid">
+  {% for p, c in others %}{% set rank = none %}{% set niche_slug = niche.slug %}{% include "_card.html" %}{% endfor %}
+  </div>
+</section>
 {% endif %}
+<div class="sticky-buy"><a class="btn block" href="{{ go_url }}" rel="nofollow sponsored noopener" target="_blank">Check price on Amazon &rarr;</a></div>
 {% endblock %}
