@@ -98,3 +98,28 @@ def test_statistics_reads_every_page(monkeypatch):
     assert [r["zone_id"] for r in rows] == ["101", "102", "103"]
     assert rows[0] == {"campaign_id": "7", "zone_id": "101", "impressions": 10, "clicks": 1,
                        "spent": 0.5}
+
+
+def test_statistics_rate_limit_pauses_further_stats_calls(monkeypatch):
+    import amzagent.push.propeller as propeller
+
+    monkeypatch.setattr(propeller, "_stats_blocked_until", None)
+    client = PropellerClient("tok")
+    calls = []
+
+    def fake_request(method, url, timeout, **kw):
+        calls.append(url)
+        if "statistics" in url:
+            return Resp(429, {"message": "You exceeded the rate limit"})
+        return Resp(200, {})
+
+    monkeypatch.setattr(client._session, "request", fake_request)
+    with pytest.raises(PropellerError, match="429"):
+        client.spend(["1"])
+    assert propeller.stats_rate_limited()
+    with pytest.raises(PropellerError, match="rate limit"):
+        client.spend(["1"])
+    assert len(calls) == 1  # the second call never reached the API
+    client.stop(["1"])  # campaign control is never held back
+    assert len(calls) == 2
+    monkeypatch.setattr(propeller, "_stats_blocked_until", None)

@@ -31,6 +31,10 @@ BALANCE_PATH = "/adv/balance"
 
 STATUS_MODERATION = 2
 MAX_STATS_PAGES = 20  # x 1000 rows per page
+# After HTTP 429 on statistics, don't call it again for this long (or the
+# Retry-After the API sent), so the agent and the dashboard stop piling on.
+RATE_LIMIT_COOLDOWN_SECONDS = 120
+_stats_blocked_until: datetime | None = None
 # Body key for targeting/exclude/zone (see propeller_check section 8).
 ZONE_LIST_KEY = "zone"
 # Campaign statuses the API reports (GET /adv/campaigns/{id})
@@ -109,7 +113,21 @@ def _first(row: dict, *keys: str):
 
 
 class PropellerError(RuntimeError):
-    pass
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status
+
+
+def _retry_after(resp: requests.Response) -> int:
+    try:
+        return min(max(int(getattr(resp, "headers", {}).get("Retry-After", "")), 1), 900)
+    except ValueError:
+        return RATE_LIMIT_COOLDOWN_SECONDS
+
+
+def stats_rate_limited() -> bool:
+    """True while statistics calls are held back after an HTTP 429."""
+    return _stats_blocked_until is not None and datetime.now(timezone.utc) < _stats_blocked_until
 
 
 def build_campaign_payload(
@@ -177,14 +195,23 @@ class PropellerClient:
         )
 
     def _request(self, method: str, path: str, **kwargs) -> Any:
+        global _stats_blocked_until
+        if path == STATISTICS_PATH and stats_rate_limited():
+            raise PropellerError(
+                "PropellerAds rate limit: statistics paused until "
+                f"{_stats_blocked_until:%H:%M:%S} UTC", status=429)
         try:
             resp = self._session.request(
                 method, self._base + path, timeout=self._timeout, **kwargs
             )
         except requests.RequestException as exc:
             raise PropellerError(f"{method} {path} failed: {exc}") from exc
+        if resp.status_code == 429 and path == STATISTICS_PATH:
+            _stats_blocked_until = datetime.now(timezone.utc) + timedelta(
+                seconds=_retry_after(resp))
         if resp.status_code >= 400:
-            raise PropellerError(f"{method} {path} -> HTTP {resp.status_code}: {resp.text[:500]}")
+            raise PropellerError(f"{method} {path} -> HTTP {resp.status_code}: {resp.text[:500]}",
+                                 status=resp.status_code)
         if not resp.content:
             return {}
         try:

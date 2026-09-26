@@ -174,21 +174,39 @@ def _zone_rows(store: Store, campaign_id: int, since: str | None = None,
     return out
 
 
-def _network_stats(settings: Settings, store: Store, period: Period) -> tuple[dict, dict, str]:
+# Period stats shown on the dashboard, reused for a few minutes so that
+# reloading the page doesn't hit PropellerAds' rate limit.
+NETWORK_STATS_TTL = timedelta(minutes=5)
+
+
+def _network_stats(settings: Settings, store: Store, period: Period,
+                   cache: dict | None = None) -> tuple[dict, dict, str]:
     """PropellerAds numbers for a period: ({ext_id: row}, {ext_id: [zone rows]}, error)."""
     ids = [c["external_id"] for c in store.list_campaigns() if c["external_id"]]
     if not ids:
         return {}, {}, ""
+    key = (period.start, period.end, tuple(sorted(ids)))
+    now = datetime.now(timezone.utc)
+    cache = {} if cache is None else cache
+    cached = cache.get(key)
+    if cached and now - cached[0] < NETWORK_STATS_TTL:
+        return cached[1], cached[2], ""
     try:
         client = PropellerClient(settings.propeller_api_token)
         totals = client.stats_between(ids, period.start, period.end)
         zones = client.stats_between(ids, period.start, period.end, by_zone=True)
     except PropellerError as exc:
+        if cached:  # stale numbers beat none
+            age = int((now - cached[0]).total_seconds() // 60)
+            return cached[1], cached[2], f"показаны данные {age} мин назад: {str(exc)[:200]}"
         return {}, {}, str(exc)[:300]
     by_zone: dict[str, list] = {}
     for r in zones:
         by_zone.setdefault(r["campaign_id"], []).append(r)
-    return {r["campaign_id"]: r for r in totals}, by_zone, ""
+    by_campaign = {r["campaign_id"]: r for r in totals}
+    cache.clear()  # one period at a time is plenty
+    cache[key] = (now, by_campaign, by_zone)
+    return by_campaign, by_zone, ""
 
 
 def _campaign_totals(rows: list[dict]) -> dict:
@@ -236,6 +254,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
     TEMPLATES.env.filters["localtime"] = make_localtime(settings.panel_timezone)
     store = store or Store(settings.data_dir)
     media_root = (Path(settings.data_dir) / "media").resolve()
+    network_cache: dict = {}
 
     app = FastAPI(title="Amazon affiliate agent")
     app.add_middleware(
@@ -514,7 +533,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         chosen = parse_period(period, date_from, date_to, eff.panel_timezone)
         net, net_zones, period_error = ({}, {}, "")
         if not chosen.is_all:
-            net, net_zones, period_error = _network_stats(eff, store, chosen)
+            net, net_zones, period_error = _network_stats(eff, store, chosen, network_cache)
         niches = []
         for n in store.list_niches():
             niches.append({

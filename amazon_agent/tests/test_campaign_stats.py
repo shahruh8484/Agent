@@ -82,3 +82,41 @@ def test_dashboard_shows_realtime_spend_estimate(settings, store):
         store.log_event("visit", niche.id, c["asin"], c["id"])
     page = _client(settings, store).get("/admin").text
     assert "$0.63" in page and "≈ $1.59 сейчас" in page
+
+
+def test_zone_stats_are_pulled_every_15_minutes_not_every_check(settings, store):
+    from amzagent.agent.runner import ZONE_STATS_FLAG, sync_stats
+
+    niche, push = _live(settings, store)
+    calls = []
+    spend = push.spend
+
+    def counting(ids, days=30, by_zone=False):
+        calls.append(by_zone)
+        return spend(ids, days, by_zone)
+
+    push.spend = counting
+    deps = Deps(settings=settings, store=store, push=push)
+    store.set_flag(ZONE_STATS_FLAG, "")
+    assert sync_stats(deps) and sync_stats(deps)
+    assert calls == [False, True, False]  # zones only on the first check
+
+
+def test_dashboard_reuses_period_stats_for_a_few_minutes(settings, store, monkeypatch):
+    niche, push = _live(settings, store)
+    calls = []
+
+    class FakeClient:
+        def __init__(self, token):
+            pass
+
+        def stats_between(self, ids, start, end, by_zone=False):
+            calls.append(by_zone)
+            return []
+
+    import amzagent.web.app as web
+    monkeypatch.setattr(web, "PropellerClient", FakeClient)
+    client = _client(settings, store)
+    client.get("/admin?period=today")
+    client.get("/admin?period=today")
+    assert len(calls) == 2  # one load's worth: the reload was served from cache

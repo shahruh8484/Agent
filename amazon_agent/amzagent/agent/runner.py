@@ -55,6 +55,10 @@ STATS_BLIND_MINUTES = 30
 VISITS_PER_PAID_CLICK = 0.85
 STATS_OK_FLAG = "stats_ok_at"
 STATS_ERROR_FLAG = "stats_error"
+ZONE_STATS_FLAG = "zone_stats_at"
+# Per-zone stats are the heaviest statistics call; totals are enough for
+# the 3-minute kill/limit checks, so zones are pulled less often.
+ZONE_STATS_EVERY_MINUTES = 15
 TODAY_SPEND_FLAG = "spent_24h"
 TODAY_SPEND_MAX_AGE_MINUTES = 20  # stopped by the kill rule — never relaunched for that product
 PAUSE_FLAG = "paused_all"
@@ -387,7 +391,6 @@ def sync_stats(deps: Deps) -> bool:
     by_external = {c["external_id"]: c for c in active}
     try:
         totals = deps.push.spend(list(by_external), days=365)
-        zones = deps.push.spend(list(by_external), days=365, by_zone=True)
     except PropellerError as exc:
         deps.say(f"stats sync failed: {exc}")
         deps.store.set_flag(STATS_ERROR_FLAG, str(exc)[:300])
@@ -399,12 +402,28 @@ def sync_stats(deps: Deps) -> bool:
         if c:
             deps.store.update_campaign(c["id"], spend=row["spent"], impressions=row["impressions"],
                                        ad_clicks=row["clicks"], stats_at=now_iso())
+    if not zone_stats_due(deps.store):
+        return True
+    try:
+        zones = deps.push.spend(list(by_external), days=365, by_zone=True)
+    except PropellerError as exc:
+        deps.say(f"zone stats sync failed: {exc}")
+        return True  # totals are in; zones are retried next check
+    deps.store.set_flag(ZONE_STATS_FLAG, now_iso())
     for row in zones:
         c = by_external.get(row["campaign_id"])
         if c and row["zone_id"]:
             deps.store.upsert_zone_stats(c["id"], row["zone_id"], row["impressions"],
                                          row["clicks"], row["spent"])
     return True
+
+
+def zone_stats_due(store: Store) -> bool:
+    try:
+        last = datetime.fromisoformat(store.get_flag(ZONE_STATS_FLAG, ""))
+    except ValueError:
+        return True
+    return datetime.now(timezone.utc) - last >= timedelta(minutes=ZONE_STATS_EVERY_MINUTES)
 
 
 def sync_today_spend(deps: Deps) -> None:
