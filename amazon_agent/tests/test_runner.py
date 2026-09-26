@@ -137,3 +137,23 @@ def test_busy_cycle_without_wait_is_skipped(settings, store):
         assert run_cycle(_deps(settings, store)) is False
     finally:
         runner._run_lock.release()
+
+
+def test_old_copy_is_upgraded_once_with_buying_tips(settings, store):
+    from amzagent.models import ProductCopy
+
+    niche = store.add_niche("earbuds")
+    run_cycle(_deps(settings, store))
+    # Simulate copy written by an older version (no tips, version 0).
+    for p, _ in store.list_products(niche.id):
+        store.set_product_copy(niche.id, p.asin,
+                               ProductCopy(summary="old", push_title="t", push_text="b"))
+    deps = _deps(settings, store)
+    run_cycle(deps)
+    copies = [c for _, c in store.list_products(niche.id)]
+    assert all(c.buying_tips == ["Check fit", "Check battery life"] for c in copies)
+    assert all(c.version == 1 for c in copies)
+
+    llm_calls_before = len(deps.llm.prompts)
+    run_cycle(deps)  # already current: nothing rewritten
+    assert len(deps.llm.prompts) == llm_calls_before

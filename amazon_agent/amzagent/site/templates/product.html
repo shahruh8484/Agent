@@ -24,6 +24,10 @@ h1.title { font-size:clamp(1.4rem,3vw,1.9rem); line-height:1.25; margin:12px 0 8
 .pc li { display:flex; gap:8px; font-size:.94rem; }
 .pc .good li::before { content:"✓"; color:var(--ok); font-weight:800; }
 .pc .bad li::before { content:"!"; color:var(--warn); font-weight:800; width:10px; text-align:center; }
+.guide { background:var(--accent-soft); border-radius:14px; padding:18px 20px; margin:0 0 20px; }
+.guide h4 { margin:0 0 10px; font-size:1rem; }
+.guide h4::first-letter { text-transform:uppercase; }
+.guide ol { margin:0; padding-left:20px; display:grid; gap:8px; font-size:.94rem; }
 .features { margin:0; padding-left:20px; color:var(--muted); }
 .features li { margin-bottom:6px; }
 .more { margin-top:56px; }
@@ -66,6 +70,12 @@ h1.title { font-size:clamp(1.4rem,3vw,1.9rem); line-height:1.25; margin:12px 0 8
       <div class="good"><h4>What we like</h4><ul>{% for x in copy.pros %}<li>{{ x }}</li>{% endfor %}</ul></div>
       <div class="bad"><h4>Keep in mind</h4><ul>{% for x in copy.cons %}<li>{{ x }}</li>{% endfor %}</ul></div>
     </div>
+    {% if copy.buying_tips %}
+    <div class="guide">
+      <h4>{% if copy.product_type %}Choosing the right {{ copy.product_type }}{% else %}What to look for{% endif %}</h4>
+      <ol>{% for t in copy.buying_tips %}<li>{{ t }}</li>{% endfor %}</ol>
+    </div>
+    {% endif %}
     {% if product.features %}<h4>Key features</h4><ul class="features">{% for f in product.features %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
   </div>
 </div>

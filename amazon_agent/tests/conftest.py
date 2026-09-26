@@ -52,7 +52,8 @@ class FakeLLM:
         return "```json\n" + json.dumps([
             {"asin": a, "summary": f"Good {a}.", "pros": ["Long battery"], "cons": ["Check size"],
              "push_title": "A title that is definitely longer than thirty chars",
-             "push_text": "Body"} for a in asins
+             "push_text": "Body", "product_type": "earbuds",
+             "buying_tips": ["Check fit", "Check battery life"]} for a in asins
         ]) + "\n```"
 
 

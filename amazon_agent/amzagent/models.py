@@ -40,6 +40,15 @@ class ProductCopy(BaseModel):
     cons: list[str] = Field(default_factory=list)
     push_title: str
     push_text: str
+    # "What to look for" advice about the product *type* (e.g. juicers in
+    # general), never claims about this particular model.
+    product_type: str = ""
+    buying_tips: list[str] = Field(default_factory=list)
+    # Bumped when the copy format gains fields; older copy is rewritten.
+    version: int = 0
+
+
+COPY_VERSION = 1
 
 
 class SiteCopy(BaseModel):

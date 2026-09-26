@@ -10,7 +10,7 @@ from __future__ import annotations
 from pydantic import ValidationError
 
 from amzagent.content.llm import LLM, LLMError, parse_json
-from amzagent.models import Product, ProductCopy, SiteCopy
+from amzagent.models import COPY_VERSION, Product, ProductCopy, SiteCopy
 
 RULES = (
     "Hard rules: use only facts present in the input. Never invent specs, "
@@ -87,7 +87,14 @@ def _write_copy_batch(llm: LLM, products: list[Product], language: str) -> dict[
         'ones like "check size before buying"),\n'
         '  "push_title": push notification title, max 30 characters,\n'
         '  "push_text": push notification body, max 60 characters, curiosity '
-        "about the product type, no price, no fake urgency."
+        "about the product type, no price, no fake urgency,\n"
+        '  "product_type": short generic name of the product category, e.g. '
+        '"juicer", "gaming headset", "smart dimmer switch",\n'
+        '  "buying_tips": 3-5 practical tips on what to look for when choosing '
+        "ANY product of that type (e.g. for a juicer: feed chute size, how easy "
+        "it is to clean, noise). General buying advice only: do not state or "
+        "imply anything about this specific model, and no numbers or specs "
+        "attributed to it."
     )
     data = parse_json(llm.generate(PRODUCT_SYSTEM, prompt, max_tokens=4000))
     if not isinstance(data, list):
@@ -103,5 +110,7 @@ def _write_copy_batch(llm: LLM, products: list[Product], language: str) -> dict[
             continue
         copy.push_title = copy.push_title[:30]
         copy.push_text = copy.push_text[:60]
+        copy.buying_tips = [t for t in copy.buying_tips if isinstance(t, str)][:5]
+        copy.version = COPY_VERSION
         result[entry["asin"]] = copy
     return result

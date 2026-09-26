@@ -24,7 +24,7 @@ from amzagent.amazon.creator_connections import offline_products
 from amzagent.config import Settings
 from amzagent.content.llm import LLM, LLMError, get_llm
 from amzagent.content.writer import write_product_copy, write_site_copy
-from amzagent.models import Niche
+from amzagent.models import COPY_VERSION, Niche
 from amzagent.push import propeller
 from amzagent.push.creatives import render_creatives
 from amzagent.push.propeller import PropellerClient, PropellerError
@@ -166,7 +166,10 @@ def refresh_niche(deps: Deps, niche: Niche) -> bool:
     try:
         if store.get_site_copy(niche.id) is None:
             store.set_site_copy(niche.id, write_site_copy(deps.llm, niche.keywords, niche.language))
-        missing = [p for p, copy in store.list_products(niche.id) if copy is None]
+        # New products, plus copy written before the current format
+        # (e.g. without buying tips) — rewritten once.
+        missing = [p for p, copy in store.list_products(niche.id)
+                   if copy is None or copy.version < COPY_VERSION]
         if missing:
             copies = write_product_copy(deps.llm, missing, niche.language)
             for asin, copy in copies.items():

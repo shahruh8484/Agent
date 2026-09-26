@@ -30,6 +30,7 @@ def test_site_pages_and_tracking(site, store):
     page = client.get("/s/earbuds/p/NEW?c=1&z=555")
     assert page.status_code == 200
     assert "$19.99" in page.text and "Price as of" in page.text
+    assert "Choosing the right earbuds" in page.text and "Check battery life" in page.text
     assert 'href="/go/earbuds/NEW?c=1&amp;z=555"' in page.text
 
     go = client.get("/go/earbuds/NEW?c=1&z=555", follow_redirects=False)
