@@ -141,7 +141,7 @@
       <span class="sub">#{{ c.id }} · {{ c.asin }}{% if c.external_id %} · PA {{ c.external_id }}{% endif %}{% if c.images|length > 1 %} · {{ c.images|length }} картинки{% endif %}</span>
     </div>
   </div></td>
-  <td class="st" title="{{ c.note or '' }}"><span class="dot d-{{ c.status }}"></span>{{ status_names.get(c.status, c.status) }}{% if c.note %}<span class="sub">{{ c.note|replace("PropellerAds: ", "PA: ")|truncate(34) }}</span>{% endif %}</td>
+  <td class="st" title="{{ c.note or '' }}"><span class="dot d-{{ c.status }}"></span>{{ status_names.get(c.status, c.status) }}{% if c.manual_keep and c.status == "active" %} · <b title="Возвращена вручную: агент не отключает её по результатам">вручную</b>{% endif %}{% if c.note %}<span class="sub">{{ c.note|replace("PropellerAds: ", "PA: ")|truncate(34) }}</span>{% endif %}</td>
   <td class="num">{{ "%.0f"|format(c.daily_budget) }}</td>
   <td class="num">{{ "{:,}".format(c.impressions) }}</td>
   <td class="num">{{ "{:,}".format(c.ad_clicks) }}</td>
@@ -154,6 +154,7 @@
   <td class="acts">
     <button class="sm" type="button" onclick="toggleZones({{ c.id }})">Зоны {{ c.zones|length }} ▾</button>
     {% if c.status == "dry_run" %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/redraw"><button class="sm" title="Нарисовать новые картинки">&#10227;</button></form>{% endif %}
+    {% if c.status in ("killed","stopped") and c.external_id %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/resume" onsubmit="return confirm('Вернуть кампанию #{{ c.id }}? Агент не будет отключать её по результатам — только вы кнопкой «Стоп».')"><button class="sm" title="Снова запустить в PropellerAds">Вернуть</button></form>{% endif %}
     {% if c.status in ("active","dry_run","capped") %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/stop"><button class="sm danger" title="Остановить кампанию">Стоп</button></form>{% endif %}
   </td>
 </tr>

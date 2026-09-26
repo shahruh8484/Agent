@@ -248,6 +248,7 @@ def illustrate_products(deps: Deps, niche: Niche) -> int:
 
 
 def stop_campaign(deps: Deps, campaign: dict, status: str, reason: str) -> None:
+    """Stop at PropellerAds and record why. Clears the manual-keep mark."""
     if campaign["status"] == ACTIVE and deps.push and campaign["external_id"]:
         try:
             deps.push.stop([campaign["external_id"]])
@@ -261,7 +262,7 @@ def stop_campaign(deps: Deps, campaign: dict, status: str, reason: str) -> None:
             if api_status not in propeller.API_STATUSES_NOT_RUNNING:
                 deps.say(f"campaign #{campaign['id']}: stop failed, will retry: {exc}")
                 return
-    deps.store.update_campaign(campaign["id"], status=status, note=reason)
+    deps.store.update_campaign(campaign["id"], status=status, note=reason, manual_keep=0)
     deps.say(f"campaign #{campaign['id']} ({campaign['asin']}) stopped: {reason}")
 
 
@@ -516,9 +517,41 @@ def estimated_spend(deps: Deps, campaign: dict) -> float:
     return max(campaign["spend"], from_visits)
 
 
+def resume_campaign(deps: Deps, campaign_id: int) -> str | None:
+    """Bring a stopped/killed campaign back by hand. It's marked manual_keep
+    so the kill rules don't stop it again (limits and safety stops still
+    apply). Returns an error message or None."""
+    c = deps.store.get_campaign(campaign_id)
+    if c is None:
+        return "кампания не найдена"
+    if c["status"] not in (KILLED, STOPPED):
+        return "кампания не остановлена"
+    if not c["external_id"]:
+        return "эта кампания не была отправлена в PropellerAds (тестовый режим)"
+    if deps.push is None:
+        return "PropellerAds не подключён или реклама выключена в настройках"
+    # Same rule as launching: spent in 24h by stopped campaigns + running
+    # budgets + this one's budget must fit under the limit.
+    stopped_spend = spent_today(deps.store, only_stopped=True)
+    committed = (stopped_spend or 0.0) + deps.store.running_daily_budget()
+    if committed + c["daily_budget"] > deps.settings.max_daily_spend:
+        return (f"не хватает дневного лимита: занято ${committed:.2f} из "
+                f"${deps.settings.max_daily_spend:.2f} (поднимите лимит в настройках)")
+    try:
+        deps.push.start([c["external_id"]])
+    except PropellerError as exc:
+        return f"PropellerAds не запустил кампанию: {exc}"
+    deps.store.update_campaign(campaign_id, status=ACTIVE, manual_keep=1,
+                               note="resumed manually: agent won't kill it")
+    deps.say(f"campaign #{campaign_id} resumed manually")
+    return None
+
+
 def apply_kill_rules(deps: Deps) -> None:
     s, store = deps.settings, deps.store
     for c in store.list_campaigns(statuses=(ACTIVE,)):
+        if c.get("manual_keep"):
+            continue  # resumed by hand: the owner decides
         if store.get_product(c["niche_id"], c["asin"]) is None:
             stop_campaign(deps, c, STOPPED, "product removed")
             continue

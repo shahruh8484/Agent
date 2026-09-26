@@ -403,3 +403,51 @@ def test_24h_limit_pauses_running_and_resumes_later(settings, store):
     run_cycle(_deps(settings, store, push))
     assert {store.get_campaign(c["id"])["status"] for c in (a, b)} == {ACTIVE}
     assert set(push.started) == {a["external_id"], b["external_id"]}
+
+
+def test_manual_resume_is_not_killed_again(settings, store):
+    from amzagent.agent.runner import resume_campaign
+
+    settings.push_live = True
+    settings.max_daily_spend = 100
+    niche = store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    push.spend_rows = [{"campaign_id": c["external_id"], "spent": 3.0}]
+    for _ in range(100):
+        store.log_event("visit", niche.id, c["asin"], c["id"])
+    run_cycle(_deps(settings, store, push))
+    assert store.get_campaign(c["id"])["status"] == KILLED  # 0% -> killed
+
+    assert resume_campaign(_deps(settings, store, push), c["id"]) is None
+    assert c["external_id"] in push.started
+    run_cycle(_deps(settings, store, push))
+    kept = store.get_campaign(c["id"])
+    assert kept["status"] == ACTIVE and kept["manual_keep"] == 1  # rules leave it alone
+
+    from amzagent.agent.runner import stop_campaign
+    stop_campaign(_deps(settings, store, push), kept, KILLED, "stopped manually")
+    assert store.get_campaign(c["id"])["manual_keep"] == 0
+
+
+def test_resume_refused_without_budget_or_for_dry_runs(settings, store):
+    from amzagent.agent.runner import resume_campaign
+
+    store.add_niche("earbuds")
+    run_cycle(_deps(settings, store))  # dry run
+    dry = store.list_campaigns()[0]
+    store.update_campaign(dry["id"], status="stopped")
+    assert "тестовый режим" in resume_campaign(_deps(settings, store, FakePush()), dry["id"])
+
+    settings.push_live = True
+    settings.max_daily_spend = 20
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    a, b = store.list_campaigns(statuses=(ACTIVE,))
+    store.update_campaign(a["id"], status="killed")
+    push.spend_rows = [{"campaign_id": a["external_id"], "spent": 15.0}]
+    from amzagent.agent.runner import sync_today_spend
+    deps = _deps(settings, store, push)
+    sync_today_spend(deps)
+    assert "не хватает дневного лимита" in resume_campaign(deps, a["id"])

@@ -47,6 +47,7 @@ from amzagent.agent.runner import (
     include_zone,
     quick_check,
     redraw_campaign,
+    resume_campaign,
     run_cycle,
     spent_today,
     stop_all,
@@ -643,6 +644,18 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             # Manual stop counts as a verdict on the product: don't relaunch.
             stop_campaign(build_deps(settings, store), c, KILLED, "stopped manually")
         return RedirectResponse("/admin", status_code=303)
+
+    @app.post("/campaigns/{campaign_id}/resume")
+    def resume_campaign_route(request: Request, campaign_id: int):
+        if not logged_in(request):
+            return to_login()
+        error = resume_campaign(build_deps(settings, store), campaign_id)
+        request.session["flash"] = (
+            f"Кампания #{campaign_id} не возвращена: {error}" if error else
+            f"Кампания #{campaign_id} снова работает. Агент не будет отключать её по "
+            "результатам — остановить можно кнопкой «Стоп»."
+        )
+        return RedirectResponse(f"/admin#c{campaign_id}", status_code=303)
 
     @app.post("/campaigns/{campaign_id}/redraw")
     def redraw(request: Request, campaign_id: int):
