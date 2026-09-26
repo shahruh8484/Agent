@@ -14,6 +14,7 @@ cycle moves on, since this runs unattended.
 """
 from __future__ import annotations
 
+import json
 import logging
 import threading
 from dataclasses import dataclass, field
@@ -228,6 +229,28 @@ def apply_daily_budget(deps: Deps, budget: float) -> int:
         deps.store.update_campaign(c["id"], daily_budget=budget)
         updated += 1
     return updated
+
+
+def fix_tracking_urls(deps: Deps) -> None:
+    """Campaigns launched with a zone macro PropellerAds doesn't substitute
+    get their target URL switched to the working one (once)."""
+    if deps.push is None:
+        return
+    for c in deps.store.list_campaigns(statuses=(ACTIVE,)):
+        payload = json.loads(c["payload"] or "{}")
+        url = payload.get("target_url", "")
+        if not c["external_id"] or not any(m in url for m in propeller.OLD_ZONE_MACROS):
+            continue
+        new_url = url
+        for old in propeller.OLD_ZONE_MACROS:
+            new_url = new_url.replace(old, propeller.ZONE_MACRO)
+        try:
+            deps.push.update_target_url(c["external_id"], new_url)
+        except PropellerError as exc:
+            deps.say(f"campaign #{c['id']}: tracking URL update failed: {exc}")
+            continue
+        deps.store.update_campaign(c["id"], payload={**payload, "target_url": new_url})
+        deps.say(f"campaign #{c['id']}: tracking URL updated to report zone ids")
 
 
 def sync_moderation(deps: Deps) -> None:
@@ -506,6 +529,7 @@ def manage_campaigns(deps: Deps) -> None:
         for c in deps.store.list_campaigns(statuses=(DRY_RUN,)):
             deps.store.update_campaign(c["id"], status=STOPPED, note="dry run (never sent)")
     enforce_budget_cap(deps)
+    fix_tracking_urls(deps)
     sync_moderation(deps)
     sync_stats(deps)
     apply_kill_rules(deps)

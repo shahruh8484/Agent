@@ -196,3 +196,23 @@ def test_quick_check_kills_after_test_budget_and_refills(settings, store):
     quick_check(_deps(settings, store, push))  # nothing new happens
     assert len(store.list_runs()) == before
     assert niche
+
+
+def test_old_zone_macro_is_replaced_on_live_campaigns(settings, store):
+    import json
+
+    settings.push_live = True
+    store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    assert "z={zoneid}" in json.loads(c["payload"])["target_url"]  # new campaigns: new macro
+    payload = json.loads(c["payload"])
+    payload["target_url"] = payload["target_url"].replace("{zoneid}", "${ZONEID}")
+    store.update_campaign(c["id"], payload=payload)  # simulate an old campaign
+    run_cycle(_deps(settings, store, push))
+    assert push.url_updates and push.url_updates[0][1].count("{zoneid}") == 1
+    assert "${ZONEID}" not in json.loads(store.get_campaign(c["id"])["payload"])["target_url"]
+    n = len(push.url_updates)
+    run_cycle(_deps(settings, store, push))
+    assert len(push.url_updates) == n  # done once

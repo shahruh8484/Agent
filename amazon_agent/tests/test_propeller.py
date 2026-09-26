@@ -86,6 +86,7 @@ def test_statistics_reads_every_page(monkeypatch):
     pages = []
 
     def fake_request(method, url, timeout, **kw):
+        assert "tz" not in kw["params"]  # only allowed for <= 1 week ranges
         page = kw["params"]["page"]
         pages.append(page)
         return Resp(200, {"items": [{"campaign_id": 7, "zone_id": 100 + page, "impressions": 10,

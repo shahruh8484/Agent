@@ -48,8 +48,12 @@ RATE_MODEL = "cpc"
 
 # Macros PropellerAds substitutes in the target URL on every click: the
 # zone (publisher placement) and the click id. Used for per-zone stats.
-ZONE_MACRO = "${ZONEID}"
+# ${SUBID} is substituted (seen in live traffic); ${ZONEID} arrived
+# literally, so the zone uses PropellerAds' {zoneid} token instead.
+ZONE_MACRO = "{zoneid}"
 CLICK_MACRO = "${SUBID}"
+OLD_ZONE_MACROS = ("${ZONEID}",)
+URL_PATH = "/adv/campaigns/{id}/url/"
 
 
 def _today() -> date:
@@ -204,6 +208,9 @@ class PropellerClient:
             json={ZONE_LIST_KEY: [int(z) for z in zones]},
         )
 
+    def update_target_url(self, campaign_id: str, url: str) -> None:
+        self._request("PUT", URL_PATH.format(id=campaign_id), json={"target_url": url})
+
     def update_campaign(self, campaign_id: str, fields: dict[str, Any]) -> None:
         self._request("PATCH", f"{CAMPAIGNS_PATH}/{campaign_id}", json=fields)
 
@@ -232,7 +239,8 @@ class PropellerClient:
         params = {
             "day_from": f"{_today() - timedelta(days=days)} 00:00:00",
             "day_to": f"{_today()} 23:59:59",
-            "tz": "+0000",
+            # No "tz": the API only accepts it for ranges of up to a week;
+            # without it dates are in the network's EST.
             "group_by[]": group_by,
             "campaign_id[]": [int(i) for i in campaign_ids],
             "per_page": 1000,

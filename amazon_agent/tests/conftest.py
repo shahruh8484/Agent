@@ -63,6 +63,7 @@ class FakePush:
         self.spend_rows, self.zone_rows = [], []
         self.statuses: dict[str, int] = {}
         self.replaced = []
+        self.url_updates = []
         self._next = 1000
 
     def create_campaign(self, payload):
@@ -83,6 +84,9 @@ class FakePush:
 
     def campaign_status(self, campaign_id):
         return self.statuses.get(campaign_id, 2)
+
+    def update_target_url(self, campaign_id, url):
+        self.url_updates.append((campaign_id, url))
 
     def set_excluded_zones(self, campaign_id, zones):
         self.replaced.append((campaign_id, list(zones)))
