@@ -152,7 +152,7 @@ def resolve(spec: dict, node, depth: int = 0, base: str | None = None):
     """Inline $refs, including ones into other files of a multi-file spec,
     and drop prose keys."""
     base = base or spec.get("__url__", "")
-    if depth > 8 or not isinstance(node, dict):
+    if depth > 40 or not isinstance(node, dict):
         return node
     if "$ref" in node:
         ref = node["$ref"]
@@ -241,10 +241,16 @@ def print_spec(spec: dict) -> None:
         # Nested structures the flat list can't show (oneOf, free-form
         # objects, arrays of refs): print them raw.
         props = (schema or {}).get("properties") or {}
-        for name in ("targeting", "rates", "creatives", "audience"):
+        for name in ("direction", "rate_model", "frequency", "capping",
+                     "targeting", "rates", "creatives"):
             if name in props:
                 print(f"\n  {name} (raw):")
-                print("   ", json.dumps(props[name], ensure_ascii=False)[:2500])
+                node = props[name]
+                sub = flatten(node.get("items", node)) if isinstance(node, dict) else []
+                for line in sub:
+                    print("   ", line)
+                if not sub:
+                    print("   ", json.dumps(node, ensure_ascii=False)[:2500])
         if not lines:  # unexpected layout: show it raw rather than nothing
             print(json.dumps(op, ensure_ascii=False)[:6000])
     if not found:

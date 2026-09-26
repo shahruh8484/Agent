@@ -315,14 +315,14 @@ def launch_campaigns(deps: Deps) -> None:
                 deps.say(f"[{niche.slug}] dry-run campaign #{cid} for {product.asin}")
             else:
                 try:
+                    # Created straight into moderation; it starts once approved.
                     external_id = deps.push.create_campaign(payload)
-                    deps.push.start([external_id])
                 except PropellerError as exc:
                     store.update_campaign(cid, status=ERROR, payload=payload, note=str(exc)[:500])
                     deps.say(f"[{niche.slug}] campaign #{cid} failed: {exc}")
                     continue
                 store.update_campaign(cid, status=ACTIVE, external_id=external_id,
-                                      payload=payload, note="")
+                                      payload=payload, note="sent to PropellerAds moderation")
                 deps.say(
                     f"[{niche.slug}] launched campaign #{cid} (PropellerAds {external_id}) "
                     f"for {product.asin}, ${s.campaign_daily_budget:.2f}/day"

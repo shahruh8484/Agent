@@ -29,6 +29,9 @@ STATISTICS_PATH = "/adv/statistics"
 EXCLUDE_ZONES_PATH = "/adv/campaigns/{id}/targeting/exclude/zone"
 BALANCE_PATH = "/adv/balance"
 
+STATUS_MODERATION = 2
+MIN_DAILY_AMOUNT = 10.0
+
 # "nativeads" is the SSP direction for classic (web) push notifications.
 PUSH_DIRECTION = "nativeads"
 RATE_MODEL = "cpc"
@@ -62,12 +65,13 @@ def build_campaign_payload(
         "direction": PUSH_DIRECTION,
         "rate_model": RATE_MODEL,
         "target_url": target_url,
-        "status": 1,
+        # 1 = draft, 2 = submit for moderation; approved campaigns start on
+        # their own, so no separate "play" call is needed.
+        "status": STATUS_MODERATION,
         "started_at": _today().strftime("%d/%m/%Y"),
         "expired_at": (_today() + timedelta(days=365)).strftime("%d/%m/%Y"),
-        "daily_amount": round(daily_budget, 2),
-        # Spec: integer 0/1 (not a boolean); spread the daily budget evenly.
-        "evenly_limits_usage": 1,
+        # Required for push CPC; the API's minimum is $10.
+        "daily_amount": round(max(daily_budget, MIN_DAILY_AMOUNT), 2),
         "frequency": 1,
         "capping": 86400,
         "timezone": 0,
@@ -122,7 +126,9 @@ class PropellerClient:
 
     def create_campaign(self, payload: dict[str, Any]) -> str:
         data = self._request("POST", CAMPAIGNS_PATH, json=payload)
-        campaign_id = data.get("id") or (data.get("data") or {}).get("id")
+        # Responses wrap objects in "result" (seen on GET /adv/campaigns).
+        inner = data.get("result") or data.get("data") or {}
+        campaign_id = data.get("id") or (inner.get("id") if isinstance(inner, dict) else None)
         if not campaign_id:
             raise PropellerError(f"No campaign id in response: {data}")
         return str(campaign_id)

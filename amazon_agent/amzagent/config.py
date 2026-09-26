@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     push_live: bool = False
     push_countries: str = "US"
     push_bid_cpc: float = 0.03
-    campaign_daily_budget: float = 10.0
+    campaign_daily_budget: float = 10.0  # PropellerAds minimum for push CPC is $10
     # Hard cap on the sum of daily budgets of every running campaign. The
     # agent never launches a campaign that would push the total above it.
     max_daily_spend: float = 30.0

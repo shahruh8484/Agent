@@ -10,8 +10,11 @@ def test_payload_shape():
     assert p["direction"] == "nativeads" and p["rate_model"] == "cpc"
     assert p["target_url"] == "https://x/p"
     assert p["daily_amount"] == 10
-    assert p["evenly_limits_usage"] == 1 and "total_amount" not in p
-    assert p["status"] in (1, 2) and -12 <= p["timezone"] <= 12
+    assert "evenly_limits_usage" not in p and "total_amount" not in p  # onclick-only / optional
+    assert p["status"] == 2  # straight to moderation, not a draft
+    assert -12 <= p["timezone"] <= 12
+    low = build_campaign_payload("n", "u", "t", "b", [("i", "m")], ["us"], 0.03, 5)
+    assert low["daily_amount"] == 10  # API minimum for push CPC
     assert p["targeting"]["country"]["list"] == ["us"]
     assert len(p["creatives"][0]["title"]) == 30
     assert len(p["creatives"][0]["description"]) == 60
@@ -34,7 +37,7 @@ def test_client_sends_bearer_and_parses_id(monkeypatch):
 
     def fake_request(method, url, timeout, **kw):
         calls.append((method, url, kw))
-        return Resp(200, {"id": 77})
+        return Resp(200, {"result": {"id": 77}})
 
     monkeypatch.setattr(client._session, "request", fake_request)
     assert client.create_campaign({"name": "x"}) == "77"

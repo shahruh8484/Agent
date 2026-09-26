@@ -38,7 +38,7 @@ def test_live_mode_launches_within_budget_cap(settings, store):
 
     active = store.list_campaigns(statuses=(ACTIVE,))
     assert len(active) == 2 and len(push.created) == 2
-    assert set(push.started) == {c["external_id"] for c in active}
+    assert push.started == []  # created into moderation; starts on approval
     assert store.running_daily_budget() == 20
 
 
