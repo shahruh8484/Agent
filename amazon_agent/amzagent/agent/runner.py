@@ -316,7 +316,9 @@ def launch_campaigns(deps: Deps) -> None:
             else:
                 try:
                     # Created straight into moderation; it starts once approved.
-                    external_id = deps.push.create_campaign(payload)
+                    external_id = deps.push.create_campaign(
+                        propeller.inline_images(payload, lambda url: media_file(deps, url))
+                    )
                 except PropellerError as exc:
                     store.update_campaign(cid, status=ERROR, payload=payload, note=str(exc)[:500])
                     deps.say(f"[{niche.slug}] campaign #{cid} failed: {exc}")
@@ -349,6 +351,16 @@ def push_images(deps: Deps, niche: Niche, site_title: str, product, copy, cid: i
             return [(f"{base}/{icon}", f"{base}/{image}") for icon, image in files]
     render_creatives(out_dir, name, site_title, copy.push_title)
     return [(f"{base}/{name}-icon.png", f"{base}/{name}-image.png")]
+
+
+def media_file(deps: Deps, url: str) -> Path | None:
+    """Local file behind one of our public /media/ URLs."""
+    prefix = f"{deps.settings.public_base_url()}/media/"
+    if not url.startswith(prefix):
+        return None
+    root = (Path(deps.settings.data_dir) / "media").resolve()
+    path = (root / url[len(prefix):]).resolve()
+    return path if root in path.parents and path.is_file() else None
 
 
 def build_payload(deps: Deps, niche: Niche, site_copy, product, copy, cid: int) -> dict:

@@ -16,7 +16,11 @@ def test_payload_shape():
     low = build_campaign_payload("n", "u", "t", "b", [("i", "m")], ["us"], 0.03, 5)
     assert low["daily_amount"] == 10  # API minimum for push CPC
     assert p["targeting"]["country"]["list"] == ["us"]
-    assert p["targeting"]["time_table"] == {"list": [], "is_excluded": True}
+    assert p["targeting"]["time_table"]["is_excluded"] is False
+    assert len(p["targeting"]["time_table"]["list"]) == 168
+    assert p["targeting"]["time_table"]["list"][:2] == ["Mon00", "Mon01"]
+    assert p["targeting"]["user_activity"] == {"list": [1, 2, 3], "is_excluded": False}
+    assert all(c["status"] == 1 for c in p["creatives"])
     assert p["targeting"]["traffic_categories"] == ["propeller"]
     assert "frequency" not in p and "capping" not in p  # unsupported for push CPC
     assert len(p["creatives"][0]["title"]) == 30
@@ -58,3 +62,20 @@ def test_client_raises_on_http_error(monkeypatch):
 def test_requires_token():
     with pytest.raises(PropellerError):
         PropellerClient("")
+
+
+def test_inline_images_sends_data_uris(tmp_path):
+    from PIL import Image
+
+    from amzagent.push.propeller import inline_images
+
+    Image.new("RGB", (492, 328), "red").save(tmp_path / "m.png")
+    Image.new("RGB", (192, 192), "blue").save(tmp_path / "i.png")
+    files = {"https://s/media/i.png": tmp_path / "i.png", "https://s/media/m.png": tmp_path / "m.png"}
+    payload = build_campaign_payload("n", "u", "t", "b", [("https://s/media/i.png",
+                                     "https://s/media/m.png")], ["us"], 0.03, 10)
+    sent = inline_images(payload, files.get)
+    assert sent["creatives"][0]["image"].startswith("data:image/jpeg;base64,")
+    assert payload["creatives"][0]["image"] == "https://s/media/m.png"  # stored copy untouched
+    with pytest.raises(PropellerError):
+        inline_images(payload, lambda url: None)

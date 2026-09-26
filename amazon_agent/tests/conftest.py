@@ -64,6 +64,8 @@ class FakePush:
         self._next = 1000
 
     def create_campaign(self, payload):
+        for c in payload["creatives"]:  # images must arrive inline, not as URLs
+            assert c["image"].startswith("data:image/jpeg;base64,")
         self._next += 1
         self.created.append(payload)
         return str(self._next)

@@ -31,6 +31,8 @@ BALANCE_PATH = "/adv/balance"
 
 STATUS_MODERATION = 2
 TRAFFIC_CATEGORIES = ["propeller"]
+ALL_HOURS = [f"{d}{h:02d}" for d in ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+             for h in range(24)]
 MIN_DAILY_AMOUNT = 10.0
 
 # "nativeads" is the SSP direction for classic (web) push notifications.
@@ -45,6 +47,34 @@ CLICK_MACRO = "${SUBID}"
 
 def _today() -> date:
     return datetime.now(timezone.utc).date()
+
+
+def inline_images(payload: dict[str, Any], resolve_file) -> dict[str, Any]:
+    """The API doesn't fetch creative images by URL: it wants the image
+    data inline as a data URI. Stored payloads keep URLs (small, and the
+    dashboard previews them); this returns the copy to send, with every
+    icon/image URL that `resolve_file` maps to a local file replaced by a
+    JPEG data URI."""
+    import base64
+    import io
+
+    from PIL import Image
+
+    def encode(url: str) -> str:
+        path = resolve_file(url)
+        if path is None:
+            raise PropellerError(f"creative image not found locally: {url}")
+        img = Image.open(path).convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+    out = dict(payload)
+    out["creatives"] = [
+        {**c, "icon": encode(c["icon"]), "image": encode(c["image"])}
+        for c in payload.get("creatives", [])
+    ]
+    return out
 
 
 class PropellerError(RuntimeError):
@@ -76,8 +106,8 @@ def build_campaign_payload(
         "timezone": 0,
         "targeting": {
             "country": {"list": countries, "is_excluded": False},
-            # Required. Excluding no hours = run around the clock.
-            "time_table": {"list": [], "is_excluded": True},
+            # Required, as included hours "Mon00".."Sun23": all 168 = 24/7.
+            "time_table": {"list": ALL_HOURS, "is_excluded": False},
             # Required in practice (the API rejects a body without it);
             # "propeller" = the network's own publisher traffic.
             "traffic_categories": TRAFFIC_CATEGORIES,

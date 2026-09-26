@@ -347,6 +347,29 @@ def probe_stop_body(client: PropellerClient) -> None:
         print(f"{json.dumps(body)} -> HTTP {resp.status_code} {resp.text[:600]}")
 
 
+def probe_statistics(client: PropellerClient, spec: dict | None) -> None:
+    """Statistics is read-only, so it's safe to call for real."""
+    section("7. Statistics (read-only)")
+    if spec:
+        item = resolve(spec, spec.get("paths", {}).get(propeller.STATISTICS_PATH, {}))
+        for method in ("get", "post"):
+            op = item.get(method)
+            if not op:
+                continue
+            params = [p for p in op.get("parameters", []) if isinstance(p, dict)]
+            print(f"{method.upper()} params:", ", ".join(
+                f"{p.get('name')}{'*' if p.get('required') else ''}" for p in params) or "-")
+            body = op.get("requestBody", {}).get("content", {})
+            schema = next(iter(body.values()), {}).get("schema") if body else None
+            for line in flatten(schema or {})[:40]:
+                print("   ", line)
+    try:
+        rows = client.spend(["0"], days=7, by_zone=True)
+        print(f"GET as the agent calls it: OK — {short(rows)}")
+    except PropellerError as exc:
+        print(f"GET as the agent calls it: FAILED — {exc}")
+
+
 def docs_references() -> None:
     section("5. Docs page references")
     try:
@@ -378,6 +401,7 @@ def main() -> int:
     if token_ok:
         probe_validation(client)
         probe_stop_body(client)
+        probe_statistics(client, spec)
     section("Result")
     print("token works" if token_ok else "token check FAILED (see above)")
     return 0 if token_ok else 1
