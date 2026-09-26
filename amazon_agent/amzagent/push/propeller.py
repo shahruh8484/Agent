@@ -30,6 +30,7 @@ EXCLUDE_ZONES_PATH = "/adv/campaigns/{id}/targeting/exclude/zone"
 BALANCE_PATH = "/adv/balance"
 
 STATUS_MODERATION = 2
+TRAFFIC_CATEGORIES = ["propeller"]
 MIN_DAILY_AMOUNT = 10.0
 
 # "nativeads" is the SSP direction for classic (web) push notifications.
@@ -77,6 +78,9 @@ def build_campaign_payload(
             "country": {"list": countries, "is_excluded": False},
             # Required. Excluding no hours = run around the clock.
             "time_table": {"list": [], "is_excluded": True},
+            # Required in practice (the API rejects a body without it);
+            # "propeller" = the network's own publisher traffic.
+            "traffic_categories": TRAFFIC_CATEGORIES,
         },
         "rates": [{"countries": countries, "amount": round(bid_cpc, 4)}],
         # One creative per image variant (same copy): the network rotates

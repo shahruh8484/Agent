@@ -267,11 +267,16 @@ def probe_validation(client: PropellerClient) -> None:
     section("4. Validation probe (creates nothing)")
     creative = {"title": "Test title", "description": "Test text",
                 "icon": "https://example.com/icon.png", "image": "https://example.com/image.png"}
-    base = {"direction": propeller.PUSH_DIRECTION, "rate_model": propeller.RATE_MODEL}
+    base = {"direction": propeller.PUSH_DIRECTION, "rate_model": propeller.RATE_MODEL,
+            # status 1 = draft: even if everything else passed it wouldn't run.
+            "status": 1, "timezone": 0,
+            "targeting": {"country": {"list": ["us"], "is_excluded": False},
+                          "time_table": {"list": [], "is_excluded": True},
+                          "traffic_categories": propeller.TRAFFIC_CATEGORIES}}
     rate = {"amount": 0.03, "countries": ["us"]}
-    # None of these has target_url / status / started_at / targeting /
-    # timezone, so the API must reject every one: they only reveal which
-    # other fields it complains about.
+    # None of these has target_url or started_at (both required), so the
+    # API must reject every one: they only reveal which other fields it
+    # complains about.
     for label, body in (
         ("empty body", {}),
         ("push direction only", {"direction": propeller.PUSH_DIRECTION}),
