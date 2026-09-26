@@ -46,6 +46,8 @@ a { color:var(--accent); }
 .camp td.acts { white-space:nowrap; text-align:right; }
 .camp tr:hover > td { background:color-mix(in srgb, var(--accent) 4%, transparent); }
 .camp tr.zones-row > td { background:var(--bg); padding:8px 12px 12px; }
+.camp tr.group td { cursor:pointer; background:var(--bg); color:var(--muted); font-size:.82rem; font-weight:600; border-top:2px solid var(--line); }
+.camp tr.group:hover td { color:var(--fg); }
 .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:1px; background:var(--muted); }
 .d-active { background:var(--ok); } .d-dry_run { background:var(--accent); } .d-killed, .d-error { background:var(--bad); } .d-creating { background:var(--warn); }
 button.sm { padding:3px 8px; font-size:.78rem; border-radius:6px; }

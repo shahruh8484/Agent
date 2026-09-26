@@ -168,7 +168,8 @@
 {% endmacro %}
 
 <div class="scroll card" style="padding:0"><table class="camp">
-{{ head() }}
+<thead>{{ head() }}</thead>
+<tbody>
 {% if campaigns %}
 <tr class="totals"><td>Итого по всем кампаниям</td><td></td><td></td>
   <td class="num">{{ "{:,}".format(totals.impressions) }}</td><td class="num">{{ "{:,}".format(totals.ad_clicks) }}</td><td class="num">{{ pct(totals.ctr) }}</td>
@@ -176,18 +177,25 @@
 {% endif %}
 {{ camp_rows(live) }}
 {% if not live %}<tr><td colspan="12" class="muted">Работающих кампаний нет.</td></tr>{% endif %}
-</table></div>
-
+</tbody>
 {% if done %}
-<details style="margin-top:10px">
-  <summary class="muted" style="cursor:pointer">Остановленные и отключённые ({{ done|length }})</summary>
-  <div class="scroll card" style="padding:0;margin-top:8px"><table class="camp">{{ head() }}{{ camp_rows(done) }}</table></div>
-</details>
+<tbody>
+<tr class="group" onclick="toggleDone()"><td colspan="12"><span id="done-arrow">▸</span> Остановленные и отключённые ({{ done|length }})</td></tr>
+</tbody>
+<tbody id="done" hidden>
+{{ camp_rows(done) }}
+</tbody>
 {% endif %}
+</table></div>
 <script>
 function toggleZones(id) {
   var r = document.getElementById("z" + id);
   if (r) r.hidden = !r.hidden;
+}
+function toggleDone() {
+  var b = document.getElementById("done");
+  b.hidden = !b.hidden;
+  document.getElementById("done-arrow").textContent = b.hidden ? "▸" : "▾";
 }
 </script>
 
