@@ -140,3 +140,5 @@ def test_robots_and_sitemap(site):
     assert "https://example.com/s/earbuds/p/NEW" in sitemap.text
     assert "https://example.com/privacy" in sitemap.text
     assert client.get("/favicon.svg").headers["content-type"].startswith("image/svg")
+    assert client.get("/admin-favicon.svg").headers["content-type"].startswith("image/svg")
+    assert 'href="/admin-favicon.svg"' in client.get("/login").text

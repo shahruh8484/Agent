@@ -256,6 +256,20 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             media_type="image/svg+xml",
         )
 
+    @app.get("/admin-favicon.svg")
+    def admin_favicon():
+        # Blue, with an "A" for agent, so the dashboard tab is easy to tell
+        # apart from the public site's orange one.
+        return Response(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+            '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+            '<stop offset="0" stop-color="#1f5fbf"/><stop offset="1" stop-color="#4c8dff"/>'
+            '</linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#g)"/>'
+            '<text x="32" y="44" font-family="Arial,sans-serif" font-size="36" '
+            'font-weight="700" fill="#fff" text-anchor="middle">A</text></svg>',
+            media_type="image/svg+xml",
+        )
+
     @app.get("/favicon.ico")
     def favicon_ico():
         return RedirectResponse("/favicon.svg", status_code=301)
