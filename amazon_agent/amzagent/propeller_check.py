@@ -165,6 +165,43 @@ def print_spec(spec: dict) -> None:
             print(" ", line)
 
 
+def probe_validation(client: PropellerClient) -> None:
+    """POST deliberately incomplete bodies: the API rejects them and its
+    validation errors name the required fields and allowed values. Nothing
+    can be created because the bodies are invalid."""
+    section("4. Validation probe (creates nothing)")
+    for label, body in (
+        ("empty body", {}),
+        ("push direction only", {"direction": propeller.PUSH_DIRECTION}),
+    ):
+        try:
+            resp = client._session.request(
+                "POST", client._base + propeller.CAMPAIGNS_PATH, json=body, timeout=30
+            )
+        except requests.RequestException as exc:
+            print(f"{label}: request failed — {exc}")
+            continue
+        if resp.status_code < 400:
+            # Should never happen with these bodies; say so loudly.
+            print(f"{label}: UNEXPECTED HTTP {resp.status_code} — {resp.text[:800]}")
+            continue
+        print(f"{label}: HTTP {resp.status_code}")
+        print(resp.text[:4000])
+
+
+def docs_references() -> None:
+    section("5. Docs page references")
+    try:
+        page = requests.get(DOCS_PAGE, timeout=20)
+    except requests.RequestException as exc:
+        print(f"docs page: {exc}")
+        return
+    print(f"HTTP {page.status_code}, {len(page.text)} bytes")
+    refs = re.findall(r"""(?:src|href|url)\s*[=:]\s*["']([^"']+)["']""", page.text)
+    for ref in dict.fromkeys(refs):
+        print(" ", ref)
+
+
 def main() -> int:
     settings = get_settings()
     try:
@@ -179,6 +216,9 @@ def main() -> int:
     else:
         section("2. Spec")
         print("Could not download the OpenAPI spec automatically.")
+        docs_references()
+    if token_ok:
+        probe_validation(client)
     section("Result")
     print("token works" if token_ok else "token check FAILED (see above)")
     return 0 if token_ok else 1
