@@ -16,6 +16,8 @@ def test_payload_shape():
     low = build_campaign_payload("n", "u", "t", "b", [("i", "m")], ["us"], 0.03, 5)
     assert low["daily_amount"] == 10  # API minimum for push CPC
     assert p["targeting"]["country"]["list"] == ["us"]
+    assert p["targeting"]["time_table"] == {"list": [], "is_excluded": True}
+    assert "frequency" not in p and "capping" not in p  # unsupported for push CPC
     assert len(p["creatives"][0]["title"]) == 30
     assert len(p["creatives"][0]["description"]) == 60
     assert [c["image"] for c in p["creatives"]] == ["https://m1", "https://m2"]

@@ -265,9 +265,19 @@ def probe_validation(client: PropellerClient) -> None:
     validation errors name the required fields and allowed values. Nothing
     can be created because the bodies are invalid."""
     section("4. Validation probe (creates nothing)")
+    creative = {"title": "Test title", "description": "Test text",
+                "icon": "https://example.com/icon.png", "image": "https://example.com/image.png"}
+    base = {"direction": propeller.PUSH_DIRECTION, "rate_model": propeller.RATE_MODEL}
+    rate = {"amount": 0.03, "countries": ["us"]}
+    # None of these has target_url / status / started_at / targeting /
+    # timezone, so the API must reject every one: they only reveal which
+    # other fields it complains about.
     for label, body in (
         ("empty body", {}),
         ("push direction only", {"direction": propeller.PUSH_DIRECTION}),
+        ("rates as list of objects", {**base, "rates": [rate]}),
+        ("rates as list of lists", {**base, "rates": [[rate]]}),
+        ("creative with title", {**base, "rates": [rate], "creatives": [creative]}),
     ):
         try:
             resp = client._session.request(
@@ -282,6 +292,20 @@ def probe_validation(client: PropellerClient) -> None:
             continue
         print(f"{label}: HTTP {resp.status_code}")
         print(resp.text[:4000])
+
+
+def probe_stop_body(client: PropellerClient) -> None:
+    """PUT /adv/campaigns/stop with a campaign id that can't exist (0): the
+    error reveals the expected body shape. Nothing can be stopped."""
+    section("6. Stop endpoint probe (id 0, changes nothing)")
+    for body in ({"campaign_ids": [0]}, {"ids": [0]}, {}):
+        try:
+            resp = client._session.request(
+                "PUT", client._base + propeller.STOP_PATH, json=body, timeout=30)
+        except requests.RequestException as exc:
+            print(f"{body}: request failed — {exc}")
+            continue
+        print(f"{json.dumps(body)} -> HTTP {resp.status_code} {resp.text[:600]}")
 
 
 def docs_references() -> None:
@@ -314,6 +338,7 @@ def main() -> int:
         docs_references()
     if token_ok:
         probe_validation(client)
+        probe_stop_body(client)
     section("Result")
     print("token works" if token_ok else "token check FAILED (see above)")
     return 0 if token_ok else 1

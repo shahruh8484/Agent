@@ -72,11 +72,11 @@ def build_campaign_payload(
         "expired_at": (_today() + timedelta(days=365)).strftime("%d/%m/%Y"),
         # Required for push CPC; the API's minimum is $10.
         "daily_amount": round(max(daily_budget, MIN_DAILY_AMOUNT), 2),
-        "frequency": 1,
-        "capping": 86400,
         "timezone": 0,
         "targeting": {
             "country": {"list": countries, "is_excluded": False},
+            # Required. Excluding no hours = run around the clock.
+            "time_table": {"list": [], "is_excluded": True},
         },
         "rates": [{"countries": countries, "amount": round(bid_cpc, 4)}],
         # One creative per image variant (same copy): the network rotates
