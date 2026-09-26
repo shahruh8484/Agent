@@ -66,8 +66,8 @@ def build_campaign_payload(
         "started_at": _today().strftime("%d/%m/%Y"),
         "expired_at": (_today() + timedelta(days=365)).strftime("%d/%m/%Y"),
         "daily_amount": round(daily_budget, 2),
-        "total_amount": None,
-        "evenly_limits_usage": True,
+        # Spec: integer 0/1 (not a boolean); spread the daily budget evenly.
+        "evenly_limits_usage": 1,
         "frequency": 1,
         "capping": 86400,
         "timezone": 0,

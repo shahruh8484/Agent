@@ -10,6 +10,8 @@ def test_payload_shape():
     assert p["direction"] == "nativeads" and p["rate_model"] == "cpc"
     assert p["target_url"] == "https://x/p"
     assert p["daily_amount"] == 10
+    assert p["evenly_limits_usage"] == 1 and "total_amount" not in p
+    assert p["status"] in (1, 2) and -12 <= p["timezone"] <= 12
     assert p["targeting"]["country"]["list"] == ["us"]
     assert len(p["creatives"][0]["title"]) == 30
     assert len(p["creatives"][0]["description"]) == 60

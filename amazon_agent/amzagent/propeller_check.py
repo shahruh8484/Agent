@@ -164,7 +164,7 @@ def resolve(spec: dict, node, depth: int = 0, base: str | None = None):
         return resolve(spec, _pointer(spec, pointer), depth + 1, base)
     out = {}
     for key, value in node.items():
-        if key in ("description", "example", "examples", "title", "__url__"):
+        if key in ("title", "__url__"):
             continue
         if isinstance(value, dict):
             out[key] = resolve(spec, value, depth + 1, base)
@@ -191,9 +191,12 @@ def flatten(schema: dict, prefix: str = "", depth: int = 0) -> list[str]:
             extra.append("REQUIRED")
         if "enum" in prop:
             extra.append("enum=" + ",".join(map(str, prop["enum"]))[:160])
-        for key in ("format", "minimum", "maximum", "maxLength", "pattern"):
+        for key in ("format", "minimum", "maximum", "maxLength", "pattern", "default",
+                    "example"):
             if key in prop:
                 extra.append(f"{key}={prop[key]}")
+        if prop.get("description"):
+            extra.append("— " + " ".join(str(prop["description"]).split())[:140])
         lines.append(f"{full}: {kind} {' '.join(extra)}".rstrip())
         if kind == "object":
             lines += flatten(prop, full + ".", depth + 1)
@@ -235,6 +238,13 @@ def print_spec(spec: dict) -> None:
         lines = flatten(schema or {})
         for line in lines:
             print(" ", line)
+        # Nested structures the flat list can't show (oneOf, free-form
+        # objects, arrays of refs): print them raw.
+        props = (schema or {}).get("properties") or {}
+        for name in ("targeting", "rates", "creatives", "audience"):
+            if name in props:
+                print(f"\n  {name} (raw):")
+                print("   ", json.dumps(props[name], ensure_ascii=False)[:2500])
         if not lines:  # unexpected layout: show it raw rather than nothing
             print(json.dumps(op, ensure_ascii=False)[:6000])
     if not found:
