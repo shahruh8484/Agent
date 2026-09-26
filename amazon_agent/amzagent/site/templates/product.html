@@ -6,7 +6,7 @@
 .crumbs a { text-decoration:none; } .crumbs a:hover { color:var(--ink); }
 .product { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:36px; align-items:start; }
 .shot { background:var(--surface); border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow); padding:18px; position:sticky; top:84px; }
-.shot .media { height:420px; display:grid; place-items:center; background:#fff; border-radius:12px; overflow:hidden; }
+.shot .media { position:relative; height:420px; display:grid; place-items:center; background:#fff; border-radius:12px; overflow:hidden; }
 .shot img { max-height:100%; object-fit:contain; }
 .shot .ph-initial { font-size:6rem; } .shot .ph-brand { font-size:1.1rem; }
 .pill { display:inline-block; font-size:.75rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:5px 12px; border-radius:99px; background:var(--accent-soft); color:var(--accent-dark); }
@@ -46,6 +46,7 @@ h1.title { font-size:clamp(1.4rem,3vw,1.9rem); line-height:1.25; margin:12px 0 8
 <div class="product">
   <div class="shot"><div class="media">
     {% if product.image_url %}<img src="{{ product.image_url }}" alt="{{ product.title }}">
+    {% elif product.illustration_url %}<img class="illu" src="{{ product.illustration_url }}" alt="Illustration"><span class="illu-tag">Illustration — not the actual product photo</span>
     {% else %}<div class="ph" style="--h:{{ (product.brand or product.title)|hue }}"><span class="ph-initial">{{ (product.brand or product.title)[:1] }}</span><span class="ph-brand">{{ product.brand or product.title|truncate(30) }}</span></div>{% endif %}
   </div></div>
   <div>

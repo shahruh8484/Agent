@@ -29,7 +29,14 @@ from amzagent.content.writer import write_product_copy, write_site_copy
 from amzagent.models import COPY_VERSION, Niche
 from amzagent.panel_settings import effective
 from amzagent.push import propeller
-from amzagent.push.ai_creatives import CreativeError, OpenAIImages, make_ai_creatives
+from amzagent.push.ai_creatives import (
+    IMAGE_RULES,
+    CreativeError,
+    OpenAIImages,
+    describe_scenes,
+    make_ai_creatives,
+    save_site_illustration,
+)
 from amzagent.push.creatives import render_creatives
 from amzagent.push.propeller import PropellerClient, PropellerError
 from amzagent.selection.niches import discover_niches
@@ -181,6 +188,12 @@ def refresh_niche(deps: Deps, niche: Niche) -> bool:
         # Never downgrade a site that already has full API pages.
         deps.say(f"[{niche.slug}] keeping the existing full pages from the last API fetch")
         return True
+    # Keep illustrations already drawn for these products.
+    drawn = {p.asin: p.illustration_url
+             for p, _ in store.list_products(niche.id, active_only=False) if p.illustration_url}
+    for p in selected:
+        if not p.image_url and not p.illustration_url:
+            p.illustration_url = drawn.get(p.asin, "")
     store.replace_products(niche.id, [(p, score(p)) for p in selected])
 
     if deps.llm is None:
@@ -200,7 +213,35 @@ def refresh_niche(deps: Deps, niche: Niche) -> bool:
             deps.say(f"[{niche.slug}] wrote copy for {len(copies)}/{len(missing)} products")
     except LLMError as exc:
         deps.say(f"[{niche.slug}] copy generation failed: {exc}")
+    illustrate_products(deps, niche)
     return True
+
+
+def illustrate_products(deps: Deps, niche: Niche) -> int:
+    """Draw a labelled illustration for products without an Amazon photo."""
+    s = deps.settings
+    if not s.site_illustrations or deps.painter is None or deps.llm is None:
+        return 0
+    todo = [(p, c) for p, c in deps.store.list_products(niche.id)
+            if c is not None and not p.image_url and not p.illustration_url]
+    out_dir = Path(s.data_dir) / "media" / niche.slug
+    base = f"{s.public_base_url()}/media/{niche.slug}"
+    done = 0
+    for product, copy in todo[: max(0, s.illustrations_per_run)]:
+        try:
+            scene = describe_scenes(deps.llm, product, copy, 1)[0]
+            path = save_site_illustration(deps.painter.draw(scene + IMAGE_RULES), out_dir,
+                                          f"site-{product.asin}")
+        except (CreativeError, LLMError, OSError, ValueError) as exc:
+            deps.say(f"[{niche.slug}] illustration for {product.asin} failed: {exc}")
+            continue
+        product.illustration_url = f"{base}/{path.name}"
+        deps.store.update_product_data(niche.id, product)
+        done += 1
+    if done:
+        deps.say(f"[{niche.slug}] drew {done} product illustration(s)"
+                 + (f", {len(todo) - done} left for later" if len(todo) > done else ""))
+    return done
 
 
 # --- 2. campaigns ---------------------------------------------------------

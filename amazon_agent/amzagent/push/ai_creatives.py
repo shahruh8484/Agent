@@ -142,3 +142,16 @@ def make_ai_creatives(
     if not made:
         raise CreativeError("; ".join(errors) or "no variants rendered")
     return made
+
+
+SITE_IMAGE_SIZE = (960, 640)
+
+
+def save_site_illustration(png: bytes, out_dir: Path, name: str) -> Path:
+    """Site-page illustration: 3:2 JPEG, kept small for mobile."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    img = Image.open(io.BytesIO(png)).convert("RGB")
+    img.thumbnail(SITE_IMAGE_SIZE, Image.LANCZOS)
+    path = out_dir / f"{name}.jpg"
+    img.save(path, format="JPEG", quality=85, optimize=True)
+    return path

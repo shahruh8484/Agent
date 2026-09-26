@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     push_creative_variants: int = 2
     openai_image_model: str = "gpt-image-1"
     openai_image_quality: str = "medium"  # low | medium | high
+    # Draw a labelled illustration for site products that have no Amazon
+    # photo (fallback mode); at most this many new ones per cycle.
+    site_illustrations: bool = True
+    illustrations_per_run: int = 12
 
     # --- PropellerAds (push notification campaigns) ---
     propeller_api_token: str = ""

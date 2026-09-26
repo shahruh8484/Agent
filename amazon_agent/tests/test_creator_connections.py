@@ -195,3 +195,33 @@ def test_fallback_rejects_weak_cards(settings, store):
     niche = _import(store)
     run_cycle(Deps(settings=settings, store=store, catalog=DeniedCatalog(), llm=FakeLLM()))
     assert "B0DZ7RZ14S" not in [p.asin for p, _ in store.list_products(niche.id)]
+
+
+def test_fallback_products_get_labelled_illustrations(settings, store):
+    from tests.test_ai_creatives import FakePainter, SceneLLM
+
+    settings.amazon_partner_tag = "t-20"
+    settings.illustrations_per_run = 2
+    settings.campaigns_per_site = 0  # no push creatives drawn in this test
+    niche = _import(store)
+    painter = FakePainter()
+    deps = Deps(settings=settings, store=store, catalog=DeniedCatalog(), llm=SceneLLM(),
+                painter=painter)
+    run_cycle(deps)
+    products = [p for p, _ in store.list_products(niche.id)]
+    drawn = [p for p in products if p.illustration_url]
+    assert len(drawn) == 2  # capped per run
+    assert drawn[0].illustration_url.endswith(f"/media/top-deals/site-{drawn[0].asin}.jpg")
+    assert any("1 left for later" in line for line in deps.log)
+
+    # Next cycle rebuilds the fallback products: drawings are kept, the rest drawn.
+    run_cycle(Deps(settings=settings, store=store, catalog=DeniedCatalog(), llm=SceneLLM(),
+                   painter=painter))
+    assert all(p.illustration_url for p, _ in store.list_products(niche.id))
+    assert len(painter.prompts) == 3  # nothing redrawn
+
+    settings.admin_password_hash = bcrypt.hashpw(b"pw", bcrypt.gensalt()).decode()
+    client = TestClient(create_app(settings, store, start_loop=False))
+    page = client.get(f"/s/top-deals/p/{drawn[0].asin}").text
+    assert 'class="illu"' in page and "Illustration — not the actual product photo" in page
+    assert "Illustration</span>" in client.get("/s/top-deals/").text

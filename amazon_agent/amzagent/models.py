@@ -27,6 +27,9 @@ class Product(BaseModel):
     # Built from pasted Creator Connections text because the Creators API
     # was unavailable: no image, price or rating may be shown for it.
     offline: bool = False
+    # AI-drawn illustration of the product *type*, shown (labelled as an
+    # illustration) only while no real Amazon photo is available.
+    illustration_url: str = ""
     # ISO timestamp of the API call the price came from. Amazon only lets
     # you show a price fetched within the last 24h.
     fetched_at: str = ""

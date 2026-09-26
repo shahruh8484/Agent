@@ -2,6 +2,7 @@
   {% if rank %}<span class="rank{% if rank == 1 %} top{% endif %}">{% if rank == 1 %}Top pick{% else %}#{{ rank }}{% endif %}</span>{% endif %}
   <div class="media">
     {% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">
+    {% elif p.illustration_url %}<img class="illu" src="{{ p.illustration_url }}" alt="Illustration" loading="lazy"><span class="illu-tag">Illustration</span>
     {% else %}<div class="ph" style="--h:{{ (p.brand or p.title)|hue }}"><span class="ph-initial">{{ (p.brand or p.title)[:1] }}</span><span class="ph-brand">{{ (p.brand or p.title)|truncate(24) }}</span></div>{% endif %}
   </div>
   {% if p.brand %}<span class="brand">{{ p.brand }}</span>{% endif %}
