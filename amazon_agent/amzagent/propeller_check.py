@@ -61,33 +61,62 @@ def check_token(client: PropellerClient) -> bool:
     return ok
 
 
-def find_spec() -> dict | None:
-    urls = list(SPEC_CANDIDATES)
+INITIALIZER = "https://ssp-api.propellerads.com/v5/docs/adv/swagger-initializer.js"
+SPEC_REF_RE = re.compile(r"""["'`]([^"'`\s]+\.(?:json|ya?ml)(?:\?[^"'`\s]*)?)["'`]""")
+
+
+def yaml_error() -> type[Exception]:
     try:
-        page = requests.get(DOCS_PAGE, timeout=20).text
-        # Swagger UI pages name their spec file in a `url:` option or init script.
-        for found in re.findall(r"""url["']?\s*[:=]\s*["']([^"']+\.(?:json|ya?ml)[^"']*)""", page):
-            urls.insert(0, requests.compat.urljoin(DOCS_PAGE, found))
-        for script in re.findall(r'<script[^>]+src="([^"]+)"', page):
-            js_url = requests.compat.urljoin(DOCS_PAGE, script)
-            if "init" in js_url or "initializer" in js_url:
-                js = requests.get(js_url, timeout=20).text
-                for found in re.findall(r"""["']([^"']+\.json[^"']*)["']""", js):
-                    urls.insert(0, requests.compat.urljoin(js_url, found))
-                m = re.search(r'"swaggerDoc"\s*:\s*(\{.*\})\s*,\s*"customOptions"', js, re.DOTALL)
-                if m:
-                    return json.loads(m.group(1))
-    except (requests.RequestException, ValueError) as exc:
-        print(f"docs page: {exc}")
-    for url in urls:
+        import yaml
+
+        return yaml.YAMLError
+    except ImportError:
+        return ValueError
+
+
+def _load_spec(url: str) -> dict | None:
+    try:
+        resp = requests.get(url, timeout=30)
+    except requests.RequestException:
+        return None
+    if resp.status_code != 200:
+        return None
+    text = resp.text
+    try:
+        spec = json.loads(text)
+    except ValueError:
         try:
-            resp = requests.get(url, timeout=20)
-            spec = resp.json()
-        except (requests.RequestException, ValueError):
-            continue
-        if isinstance(spec, dict) and "paths" in spec:
+            import yaml  # PyYAML ships with uvicorn[standard]
+
+            spec = yaml.safe_load(text)
+        except (ImportError, yaml_error()):
+            return None
+    return spec if isinstance(spec, dict) and "paths" in spec else None
+
+
+def find_spec() -> dict | None:
+    urls: list[str] = []
+    # The docs page loads adv/swagger-initializer.js, which names the spec.
+    try:
+        js = requests.get(INITIALIZER, timeout=20).text
+        print("initializer:", re.sub(r"\s+", " ", js)[:700])
+        urls += [requests.compat.urljoin(INITIALIZER, ref) for ref in SPEC_REF_RE.findall(js)]
+        for ref in SPEC_REF_RE.findall(js):
+            urls.append(requests.compat.urljoin(DOCS_PAGE, ref))
+    except requests.RequestException as exc:
+        print(f"initializer: {exc}")
+    urls += SPEC_CANDIDATES + [
+        "https://ssp-api.propellerads.com/v5/docs/adv/swagger.json",
+        "https://ssp-api.propellerads.com/v5/docs/adv/openapi.json",
+        "https://ssp-api.propellerads.com/v5/docs/adv/swagger.yaml",
+        "https://ssp-api.propellerads.com/v5/docs/adv/openapi.yaml",
+    ]
+    for url in dict.fromkeys(urls):
+        spec = _load_spec(url)
+        if spec:
             print(f"spec: {url}")
             return spec
+    print("tried:", *dict.fromkeys(urls), sep="\n  ")
     return None
 
 
