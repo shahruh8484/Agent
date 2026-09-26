@@ -39,6 +39,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from amzagent.agent.runner import (
     KILLED,
     PAUSE_FLAG,
+    VISITS_PER_PAID_CLICK,
     apply_daily_budget,
     build_deps,
     enforce_budget_cap,
@@ -97,9 +98,11 @@ def _ratio(num: float, den: float) -> float | None:
     return num / den if den else None
 
 
-def _campaign_rows(store: Store) -> list[dict]:
+def _campaign_rows(store: Store, bid: float = 0.0) -> list[dict]:
     """Campaigns with ad-network and on-site stats, and their zones, for the
-    dashboard: running first, then by spend."""
+    dashboard: running first, then by spend. `spend_est` is the real-time
+    estimate from site visits (x bid) the agent also judges on, since the
+    network's reported spend lags."""
     slugs = {n.id: n.slug for n in store.list_niches()}
     rows = []
     for c in store.list_campaigns()[:300]:
@@ -114,6 +117,8 @@ def _campaign_rows(store: Store) -> list[dict]:
             ctr=_ratio(c["ad_clicks"], c["impressions"]),
             cpc=_ratio(c["spend"], c["ad_clicks"]),
             to_amazon=_ratio(amazon, visits),
+            spend_est=(visits * bid / VISITS_PER_PAID_CLICK
+                       if c["status"] == ACTIVE and c["external_id"] else 0.0),
             cost_per_click=_ratio(c["spend"], amazon),
             images=_payload_images(c["payload"]),
             zones=_zone_rows(store, c["id"]),
@@ -471,7 +476,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "products": len(store.list_products(n.id)),
                 "stats": store.niche_stats(n.id),
             })
-        campaigns = _campaign_rows(store)
+        campaigns = _campaign_rows(store, effective(settings, store).push_bid_cpc)
         totals = _campaign_totals(campaigns)
         return TEMPLATES.TemplateResponse(
             request, "dashboard.html",

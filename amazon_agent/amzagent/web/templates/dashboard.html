@@ -133,7 +133,7 @@
   <td class="num">{{ "{:,}".format(c.impressions) }}</td>
   <td class="num">{{ "{:,}".format(c.ad_clicks) }}</td>
   <td class="num">{{ pct(c.ctr) }}</td>
-  <td class="num"><b>{{ money(c.spend) }}</b></td>
+  <td class="num" title="PropellerAds отдаёт расход с задержкой; ≈ — оценка агента по визитам на сайт (без задержки), по ней он и принимает решения"><b>{{ money(c.spend) }}</b>{% if c.spend_est > c.spend + 0.05 %}<span class="sub">≈ {{ money(c.spend_est) }} сейчас</span>{% endif %}</td>
   <td class="num">{{ money(c.cpc) }}</td>
   <td class="num">{{ c.visits }}</td>
   <td class="num">{{ c.clicks }}{% if c.to_amazon is not none %}<span class="sub">{{ pct(c.to_amazon) }}</span>{% endif %}</td>

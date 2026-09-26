@@ -72,3 +72,13 @@ def test_dashboard_lists_stats_and_zones_and_toggles_a_zone(settings, store, mon
 def _with_push(deps, push):
     deps.push = push
     return deps
+
+
+def test_dashboard_shows_realtime_spend_estimate(settings, store):
+    niche, push = _live(settings, store)
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    store.update_campaign(c["id"], spend=0.63)  # lagging network figure
+    for _ in range(45):  # 45 visits x $0.03 / 0.85 = $1.59
+        store.log_event("visit", niche.id, c["asin"], c["id"])
+    page = _client(settings, store).get("/admin").text
+    assert "$0.63" in page and "≈ $1.59 сейчас" in page
