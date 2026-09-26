@@ -264,6 +264,18 @@ class PropellerClient:
             by_zone=False,
         )
 
+    def stats_between(self, campaign_ids: list[str], start: datetime, end: datetime,
+                      by_zone: bool = False) -> list[dict]:
+        """Stats for [start, end) given as aware datetimes (converted to the
+        network's US Eastern time the API expects)."""
+        fmt = "%Y-%m-%d %H:%M:%S"
+        return self._stats(
+            campaign_ids,
+            start.astimezone(NETWORK_TZ).strftime(fmt),
+            (end.astimezone(NETWORK_TZ) - timedelta(seconds=1)).strftime(fmt),
+            by_zone,
+        )
+
     def _stats(self, campaign_ids: list[str], day_from: str, day_to: str,
                by_zone: bool) -> list[dict]:
         if not campaign_ids:

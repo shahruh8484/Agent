@@ -58,7 +58,9 @@ from amzagent.amazon.creator_connections import parse_opportunities, parse_oppor
 from amzagent.config import Settings, get_settings
 from amzagent.models import Product
 from amzagent.panel_settings import effective, load_overrides, parse_form, save_overrides
+from amzagent.push.propeller import PropellerClient, PropellerError
 from amzagent.store import ACTIVE, STOPPED, Store
+from amzagent.web.period import PRESETS, Period, parse_period
 
 logger = logging.getLogger(__name__)
 
@@ -100,17 +102,28 @@ def _ratio(num: float, den: float) -> float | None:
     return num / den if den else None
 
 
-def _campaign_rows(store: Store, bid: float = 0.0) -> list[dict]:
+def _campaign_rows(store: Store, bid: float = 0.0, period: Period | None = None,
+                   net: dict | None = None, net_zones: dict | None = None) -> list[dict]:
     """Campaigns with ad-network and on-site stats, and their zones, for the
     dashboard: running first, then by spend. `spend_est` is the real-time
     estimate from site visits (x bid) the agent also judges on, since the
-    network's reported spend lags."""
+    network's reported spend lags.
+
+    With a `period`, network numbers come from `net` / `net_zones` (fetched
+    for that window: {external_id: row} / {external_id: [rows]}) and site
+    numbers from events inside the window."""
     slugs = {n.id: n.slug for n in store.list_niches()}
+    since = period.since if period else None
+    until = period.until if period else None
     rows = []
     for c in store.list_campaigns()[:300]:
         found = store.get_product(c["niche_id"], c["asin"])
-        visits = store.count_events(c["id"], "visit")
-        amazon = store.count_events(c["id"], "click")
+        visits = store.count_events(c["id"], "visit", since, until)
+        amazon = store.count_events(c["id"], "click", since, until)
+        if since is not None:
+            n = (net or {}).get(c["external_id"] or "", {})
+            c.update(impressions=n.get("impressions", 0), ad_clicks=n.get("clicks", 0),
+                     spend=n.get("spent", 0.0))
         c.update(
             slug=slugs.get(c["niche_id"], "?"),
             title=found[0].title if found else c["asin"],
@@ -120,21 +133,29 @@ def _campaign_rows(store: Store, bid: float = 0.0) -> list[dict]:
             cpc=_ratio(c["spend"], c["ad_clicks"]),
             to_amazon=_ratio(amazon, visits),
             spend_est=(visits * bid / VISITS_PER_PAID_CLICK
-                       if c["status"] == ACTIVE and c["external_id"] else 0.0),
+                       if since is None and c["status"] == ACTIVE and c["external_id"] else 0.0),
             cost_per_click=_ratio(c["spend"], amazon),
             images=_payload_images(c["payload"]),
-            zones=_zone_rows(store, c["id"]),
+            zones=_zone_rows(store, c["id"], since, until,
+                             (net_zones or {}).get(c["external_id"] or "", [])
+                             if since is not None else None),
         )
         rows.append(c)
     rows.sort(key=lambda c: (STATUS_ORDER.get(c["status"], 9), -c["spend"], -c["id"]))
     return rows
 
 
-def _zone_rows(store: Store, campaign_id: int) -> list[dict]:
-    visits = store.events_by_zone(campaign_id, "visit")
-    clicks = store.events_by_zone(campaign_id, "click")
+def _zone_rows(store: Store, campaign_id: int, since: str | None = None,
+               until: str | None = None, net_rows: list | None = None) -> list[dict]:
+    visits = store.events_by_zone(campaign_id, "visit", since, until)
+    clicks = store.events_by_zone(campaign_id, "click", since, until)
     excluded = store.blacklisted_zones(campaign_id)
-    zones = {z["zone"]: z for z in store.zone_stats(campaign_id)}
+    if net_rows is None:
+        zones = {z["zone"]: z for z in store.zone_stats(campaign_id)}
+    else:
+        zones = {r["zone_id"]: {"zone": r["zone_id"], "impressions": r["impressions"],
+                                "clicks": r["clicks"], "spent": r["spent"]}
+                 for r in net_rows if r["zone_id"]}
     for zone in set(visits) | excluded:
         zones.setdefault(zone, {"zone": zone, "impressions": 0, "clicks": 0, "spent": 0.0})
     out = []
@@ -150,6 +171,23 @@ def _zone_rows(store: Store, campaign_id: int) -> list[dict]:
         })
     out.sort(key=lambda z: (z["excluded"], -z["spent"], -z["impressions"]))
     return out
+
+
+def _network_stats(settings: Settings, store: Store, period: Period) -> tuple[dict, dict, str]:
+    """PropellerAds numbers for a period: ({ext_id: row}, {ext_id: [zone rows]}, error)."""
+    ids = [c["external_id"] for c in store.list_campaigns() if c["external_id"]]
+    if not ids:
+        return {}, {}, ""
+    try:
+        client = PropellerClient(settings.propeller_api_token)
+        totals = client.stats_between(ids, period.start, period.end)
+        zones = client.stats_between(ids, period.start, period.end, by_zone=True)
+    except PropellerError as exc:
+        return {}, {}, str(exc)[:300]
+    by_zone: dict[str, list] = {}
+    for r in zones:
+        by_zone.setdefault(r["campaign_id"], []).append(r)
+    return {r["campaign_id"]: r for r in totals}, by_zone, ""
 
 
 def _campaign_totals(rows: list[dict]) -> dict:
@@ -467,9 +505,15 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             request, "hub.html", public_ctx(request, sites=sites))
 
     @app.get("/admin", response_class=HTMLResponse)
-    def dashboard(request: Request):
+    def dashboard(request: Request, period: str | None = None, date_from: str | None = None,
+                  date_to: str | None = None):
         if not logged_in(request):
             return to_login()
+        eff = effective(settings, store)
+        chosen = parse_period(period, date_from, date_to, eff.panel_timezone)
+        net, net_zones, period_error = ({}, {}, "")
+        if not chosen.is_all:
+            net, net_zones, period_error = _network_stats(eff, store, chosen)
         niches = []
         for n in store.list_niches():
             niches.append({
@@ -478,7 +522,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "products": len(store.list_products(n.id)),
                 "stats": store.niche_stats(n.id),
             })
-        campaigns = _campaign_rows(store, effective(settings, store).push_bid_cpc)
+        campaigns = _campaign_rows(store, eff.push_bid_cpc, chosen, net, net_zones)
         totals = _campaign_totals(campaigns)
         return TEMPLATES.TemplateResponse(
             request, "dashboard.html",
@@ -494,6 +538,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "running": store.run_in_progress(),
                 "stats_error": store.get_flag("stats_error"),
                 "totals": totals,
+                "period": chosen,
+                "presets": PRESETS,
+                "period_error": period_error,
                 "messages": store.list_messages(20),
                 "running_budget": store.running_daily_budget(),
                 "spent_today": spent_today(store),

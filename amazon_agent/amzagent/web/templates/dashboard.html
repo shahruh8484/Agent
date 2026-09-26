@@ -112,7 +112,19 @@
   <h2 style="margin:0">Пуш-кампании</h2>
   <form class="inline" method="post" action="/stats/refresh"><button class="sm">&#8635; Обновить статистику</button></form>
 </div>
-<p class="muted" style="margin:0 0 10px;font-size:.82rem">Показы, клики, расход — PropellerAds (с задержкой до часа; агент проверяет каждые 3 мин и считает расход ещё и по визитам — без задержки). Визиты и переходы на Amazon — ваш сайт. «$/Amazon» — сколько стоил один переход на Amazon.</p>
+<form class="period card" method="get" action="/admin#campaigns">
+  <div class="presets">
+    {% for key, name in presets.items() %}<a class="preset{% if period.key == key %} on{% endif %}" href="/admin?period={{ key }}#campaigns">{{ name }}</a>{% endfor %}
+  </div>
+  <div class="range">
+    <label>с <input type="date" name="date_from" value="{{ period.day_from.isoformat() if period.day_from else '' }}"></label>
+    <label>по <input type="date" name="date_to" value="{{ period.day_to.isoformat() if period.day_to else '' }}"></label>
+    <button class="sm primary">Показать</button>
+  </div>
+  <span class="muted">Период: <b>{{ period.label() }}</b> · время {{ settings.panel_timezone }}</span>
+</form>
+{% if period_error %}<div class="banner bad">Не удалось получить статистику PropellerAds за период: {{ period_error }}. Показаны только данные сайта.</div>{% endif %}
+<p class="muted" style="margin:8px 0 10px;font-size:.82rem">Показы, клики, расход — PropellerAds (с задержкой до часа). Визиты и переходы на Amazon — ваш сайт. «$/Amazon» — сколько стоил один переход на Amazon. Агент принимает решения по данным за всё время кампании, независимо от выбранного периода.</p>
 {% macro money(v) %}{{ "$%.2f"|format(v) if v is not none else "—" }}{% endmacro %}
 {% macro pct(v) %}{{ "%.2f%%"|format(v * 100) if v is not none else "—" }}{% endmacro %}
 {% set status_names = {"active":"активна","capped":"пауза: лимит","dry_run":"тест","killed":"отключена агентом","stopped":"остановлена","error":"ошибка","creating":"создаётся"} %}
@@ -173,7 +185,7 @@
 <thead>{{ head() }}</thead>
 <tbody>
 {% if campaigns %}
-<tr class="totals"><td>Итого за всё время (все кампании)</td><td></td><td></td>
+<tr class="totals"><td>Итого{% if period.is_all %} за всё время{% else %} за {{ period.label() }}{% endif %}</td><td></td><td></td>
   <td class="num">{{ "{:,}".format(totals.impressions) }}</td><td class="num">{{ "{:,}".format(totals.ad_clicks) }}</td><td class="num">{{ pct(totals.ctr) }}</td>
   <td class="num">{{ money(totals.spend) }}</td><td class="num">{{ money(totals.cpc) }}</td><td class="num">{{ totals.visits }}</td><td class="num">{{ totals.clicks }}</td><td class="num">{{ money(totals.cost_per_click) }}</td><td></td></tr>
 {% endif %}

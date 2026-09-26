@@ -393,18 +393,32 @@ class Store:
             (now_iso(), type_, niche_id, asin, campaign_id, zone),
         )
 
-    def count_events(self, campaign_id: int, type_: str) -> int:
+    @staticmethod
+    def _window(since: str | None, until: str | None) -> tuple[str, tuple]:
+        """SQL + params limiting events to [since, until) (UTC ISO strings)."""
+        sql, params = "", ()
+        if since:
+            sql, params = sql + " AND ts >= ?", params + (since,)
+        if until:
+            sql, params = sql + " AND ts < ?", params + (until,)
+        return sql, params
+
+    def count_events(self, campaign_id: int, type_: str, since: str | None = None,
+                     until: str | None = None) -> int:
+        window, extra = self._window(since, until)
         r = self._one(
-            "SELECT COUNT(*) AS n FROM events WHERE campaign_id = ? AND type = ?",
-            (campaign_id, type_),
+            "SELECT COUNT(*) AS n FROM events WHERE campaign_id = ? AND type = ?" + window,
+            (campaign_id, type_, *extra),
         )
         return int(r["n"])
 
-    def events_by_zone(self, campaign_id: int, type_: str) -> dict[str, int]:
+    def events_by_zone(self, campaign_id: int, type_: str, since: str | None = None,
+                       until: str | None = None) -> dict[str, int]:
+        window, extra = self._window(since, until)
         rows = self._all(
             "SELECT zone, COUNT(*) AS n FROM events WHERE campaign_id = ? AND type = ?"
-            " AND zone IS NOT NULL GROUP BY zone",
-            (campaign_id, type_),
+            " AND zone IS NOT NULL" + window + " GROUP BY zone",
+            (campaign_id, type_, *extra),
         )
         return {r["zone"]: int(r["n"]) for r in rows}
 
