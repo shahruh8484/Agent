@@ -203,16 +203,16 @@ function toggleDone() {
 <h2>Сообщения с сайта{% if messages %} ({{ messages|length }}){% endif %}</h2>
 {% for m in messages %}
 <details class="card" style="margin-bottom:8px">
-  <summary>{{ m.ts[:16].replace("T", " ") }} — {{ m.name }} &lt;{{ m.email }}&gt;</summary>
+  <summary>{{ m.ts|localtime }} — {{ m.name }} &lt;{{ m.email }}&gt;</summary>
   <pre>{{ m.body }}</pre>
   <a href="mailto:{{ m.email }}">Ответить</a>
 </details>
 {% else %}<p class="muted">Сообщений через форму «Contact» пока нет.</p>{% endfor %}
 
-<h2>Журнал агента</h2>
+<h2>Журнал агента <span class="muted" style="font-size:.8rem;font-weight:400">время: {{ settings.panel_timezone }}</span></h2>
 {% for r in runs %}
 <details class="card" style="margin-bottom:8px"{% if loop.first %} open{% endif %}>
-  <summary>{{ r.ts }} — {{ "идёт…" if r.ok == 2 else "ок" if r.ok else "с ошибками" }}</summary>
+  <summary>{{ r.ts|localtime }} — {{ "идёт…" if r.ok == 2 else "ок" if r.ok else "с ошибками" }}</summary>
   <pre>{{ r.log }}</pre>
 </details>
 {% else %}<p class="muted">Агент ещё не запускался.</p>{% endfor %}

@@ -142,3 +142,12 @@ def test_robots_and_sitemap(site):
     assert client.get("/favicon.svg").headers["content-type"].startswith("image/svg")
     assert client.get("/admin-favicon.svg").headers["content-type"].startswith("image/svg")
     assert 'href="/admin-favicon.svg"' in client.get("/login").text
+
+
+def test_panel_shows_tashkent_time():
+    from amzagent.web.app import make_localtime
+
+    local = make_localtime("Asia/Tashkent")
+    assert local("2026-09-26T16:06:00+00:00") == "26.09.2026 21:06"  # UTC+5
+    assert local("") == "" and local("garbage") == "garbage"
+    assert make_localtime("Not/AZone")("2026-09-26T16:06:00+00:00") == "26.09.2026 16:06"

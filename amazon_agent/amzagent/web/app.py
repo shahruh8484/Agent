@@ -22,6 +22,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import bcrypt
 from fastapi import FastAPI, Form, HTTPException, Request
@@ -162,9 +163,31 @@ def _payload_images(payload: str | None) -> list[str]:
         return []
 
 
+def make_localtime(tz_name: str):
+    """Jinja filter: stored UTC ISO timestamp -> "26.09.2026 21:04" local."""
+    try:
+        tz = ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        tz = timezone.utc
+
+    def localtime(value: str | None) -> str:
+        if not value:
+            return ""
+        try:
+            moment = datetime.fromisoformat(value)
+        except ValueError:
+            return value
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=timezone.utc)
+        return moment.astimezone(tz).strftime("%d.%m.%Y %H:%M")
+
+    return localtime
+
+
 def create_app(settings: Settings | None = None, store: Store | None = None,
                start_loop: bool = True) -> FastAPI:
     settings = settings or get_settings()
+    TEMPLATES.env.filters["localtime"] = make_localtime(settings.panel_timezone)
     store = store or Store(settings.data_dir)
     media_root = (Path(settings.data_dir) / "media").resolve()
 

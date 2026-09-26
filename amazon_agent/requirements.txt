@@ -6,6 +6,7 @@ python-amazon-paapi>=7.1  # ships the amazon_creatorsapi client
 anthropic>=0.34
 openai>=1.76  # gpt-image models
 Pillow>=10.1
+tzdata  # time zones for the dashboard clock inside slim Docker images
 
 fastapi>=0.115
 uvicorn[standard]>=0.30

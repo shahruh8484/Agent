@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     site_name: str = ""
     # Shown on the Contact and Privacy pages (the contact form works without it)
     contact_email: str = ""
+    # Time zone the dashboard shows times in (IANA name)
+    panel_timezone: str = "Asia/Tashkent"
     data_dir: str = "data"
     admin_username: str = "admin"
     admin_password_hash: str = ""
