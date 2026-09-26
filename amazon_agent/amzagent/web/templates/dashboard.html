@@ -106,59 +106,90 @@
 {% else %}<tr><td colspan="6" class="muted">Пока нет сайтов — добавьте нишу выше.</td></tr>{% endfor %}
 </table></div>
 
-<div class="row" id="campaigns" style="justify-content:space-between;margin:28px 0 10px">
-  <h2 style="margin:0">Пуш-кампании — по одной на товар</h2>
-  <form class="inline" method="post" action="/stats/refresh"><button>&#8635; Обновить статистику</button></form>
+<div class="row" id="campaigns" style="justify-content:space-between;margin:28px 0 8px">
+  <h2 style="margin:0">Пуш-кампании</h2>
+  <form class="inline" method="post" action="/stats/refresh"><button class="sm">&#8635; Обновить статистику</button></form>
 </div>
-<p class="muted" style="margin:0 0 10px">Показы, клики и расход — из PropellerAds (обновляются каждые 10 минут). Визиты и клики на Amazon — с вашего сайта. Нажмите «Зоны», чтобы увидеть площадки кампании и отключить плохие.</p>
+<p class="muted" style="margin:0 0 10px;font-size:.82rem">Показы, клики, расход — PropellerAds (каждые 10 мин). Визиты и переходы на Amazon — ваш сайт. «$/Amazon» — сколько стоил один переход на Amazon.</p>
 {% macro money(v) %}{{ "$%.2f"|format(v) if v is not none else "—" }}{% endmacro %}
 {% macro pct(v) %}{{ "%.2f%%"|format(v * 100) if v is not none else "—" }}{% endmacro %}
-<div class="scroll"><table class="camp">
-<tr><th>#</th><th>Товар</th><th>Картинки</th><th>Статус</th><th class="num">$/день</th><th class="num">Показы</th><th class="num">Клики</th><th class="num">CTR</th><th class="num">Потрачено</th><th class="num">CPC</th><th class="num">Визиты</th><th class="num">На Amazon</th><th class="num">$ за клик на Amazon</th><th></th></tr>
-{% if campaigns %}
-<tr class="totals"><td></td><td><b>Итого</b></td><td></td><td></td><td></td>
-  <td class="num">{{ "{:,}".format(totals.impressions) }}</td><td class="num">{{ "{:,}".format(totals.ad_clicks) }}</td><td class="num">{{ pct(totals.ctr) }}</td>
-  <td class="num">{{ money(totals.spend) }}</td><td class="num">{{ money(totals.cpc) }}</td><td class="num">{{ totals.visits }}</td><td class="num">{{ totals.clicks }}</td><td class="num">{{ money(totals.cost_per_click) }}</td><td></td></tr>
-{% endif %}
-{% for c in campaigns %}
+{% set status_names = {"active":"активна","dry_run":"тест","killed":"отключена агентом","stopped":"остановлена","error":"ошибка","creating":"создаётся"} %}
+{% set live = campaigns|selectattr("status", "in", ["active", "dry_run", "creating", "error"])|list %}
+{% set done = campaigns|rejectattr("status", "in", ["active", "dry_run", "creating", "error"])|list %}
+
+{% macro camp_rows(rows) %}
+{% for c in rows %}
 <tr id="c{{ c.id }}">
-  <td>{{ c.id }}{% if c.external_id %}<br><span class="muted">PA {{ c.external_id }}</span>{% endif %}</td>
-  <td style="min-width:200px"><a href="/s/{{ c.slug }}/p/{{ c.asin }}" target="_blank">{{ c.title|truncate(60) }}</a><br><span class="muted">{{ c.asin }}</span></td>
-  <td style="white-space:nowrap">{% for img in c.images %}<a href="{{ img }}" target="_blank"><img src="{{ img }}" alt="" style="width:66px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line);margin-right:3px"></a>{% endfor %}</td>
-  <td><span class="pill s-{{ c.status }}">{{ {"active":"активна","dry_run":"тест","killed":"отключена агентом","stopped":"остановлена","error":"ошибка","creating":"создаётся"}.get(c.status, c.status) }}</span>{% if c.note %}<br><span class="muted" style="font-size:.8rem">{{ c.note }}</span>{% endif %}</td>
-  <td class="num">{{ "%.2f"|format(c.daily_budget) }}</td>
+  <td class="prod"><div class="pwrap">
+    {% if c.images %}<a href="{{ c.images[0] }}" target="_blank"><img src="{{ c.images[0] }}" alt=""></a>{% else %}<span class="noimg"></span>{% endif %}
+    <div>
+      <a class="t" href="/s/{{ c.slug }}/p/{{ c.asin }}" target="_blank" title="{{ c.title }}">{{ c.title }}</a>
+      <span class="sub">#{{ c.id }} · {{ c.asin }}{% if c.external_id %} · PA {{ c.external_id }}{% endif %}{% if c.images|length > 1 %} · {{ c.images|length }} картинки{% endif %}</span>
+    </div>
+  </div></td>
+  <td class="st" title="{{ c.note or '' }}"><span class="dot d-{{ c.status }}"></span>{{ status_names.get(c.status, c.status) }}{% if c.note %}<span class="sub">{{ c.note|replace("PropellerAds: ", "PA: ")|truncate(34) }}</span>{% endif %}</td>
+  <td class="num">{{ "%.0f"|format(c.daily_budget) }}</td>
   <td class="num">{{ "{:,}".format(c.impressions) }}</td>
   <td class="num">{{ "{:,}".format(c.ad_clicks) }}</td>
   <td class="num">{{ pct(c.ctr) }}</td>
-  <td class="num">{{ money(c.spend) }}</td>
+  <td class="num"><b>{{ money(c.spend) }}</b></td>
   <td class="num">{{ money(c.cpc) }}</td>
   <td class="num">{{ c.visits }}</td>
-  <td class="num">{{ c.clicks }}{% if c.to_amazon is not none %}<br><span class="muted">{{ pct(c.to_amazon) }}</span>{% endif %}</td>
-  <td class="num">{{ money(c.cost_per_click) }}</td>
-  <td style="white-space:nowrap">{% if c.status == "dry_run" %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/redraw"><button title="Нарисовать новые картинки">Перерисовать</button></form> {% endif %}{% if c.status in ("active","dry_run") %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/stop"><button class="danger">Стоп</button></form>{% endif %}</td>
+  <td class="num">{{ c.clicks }}{% if c.to_amazon is not none %}<span class="sub">{{ pct(c.to_amazon) }}</span>{% endif %}</td>
+  <td class="num"><b>{{ money(c.cost_per_click) }}</b></td>
+  <td class="acts">
+    <button class="sm" type="button" onclick="toggleZones({{ c.id }})">Зоны {{ c.zones|length }} ▾</button>
+    {% if c.status == "dry_run" %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/redraw"><button class="sm" title="Нарисовать новые картинки">&#10227;</button></form>{% endif %}
+    {% if c.status in ("active","dry_run") %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/stop"><button class="sm danger" title="Остановить кампанию">Стоп</button></form>{% endif %}
+  </td>
 </tr>
-<tr class="zones-row"><td></td><td colspan="13">
-  <details>
-    <summary class="muted" style="cursor:pointer">Зоны ({{ c.zones|length }}){% set off = c.zones|selectattr("excluded")|list|length %}{% if off %} · отключено {{ off }}{% endif %}{% if c.payload %} · <span>payload</span>{% endif %}</summary>
-    {% if c.zones %}
-    <table class="zones">
-      <tr><th>Зона</th><th class="num">Показы</th><th class="num">Клики</th><th class="num">CTR</th><th class="num">Потрачено</th><th class="num">Визиты</th><th class="num">На Amazon</th><th class="num">$ за клик на Amazon</th><th></th></tr>
-      {% for z in c.zones %}
-      <tr{% if z.excluded %} class="excluded"{% endif %}>
-        <td>{{ z.zone }}</td>
-        <td class="num">{{ "{:,}".format(z.impressions) }}</td><td class="num">{{ "{:,}".format(z.clicks) }}</td><td class="num">{{ pct(z.ctr) }}</td>
-        <td class="num">{{ money(z.spent) }}</td><td class="num">{{ z.visits }}</td><td class="num">{{ z.amazon }}</td><td class="num">{{ money(z.cost_per_amazon) }}</td>
-        <td>{% if z.excluded %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/zones/{{ z.zone }}/include"><button>Включить</button></form>
-            {% else %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/zones/{{ z.zone }}/exclude"><button class="danger">Отключить</button></form>{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </table>
-    {% else %}<p class="muted">Данных по зонам пока нет — они появятся, когда кампания начнёт показываться.</p>{% endif %}
-    {% if c.payload %}<details><summary class="muted">payload (что отправлено в PropellerAds)</summary><pre>{{ c.payload }}</pre></details>{% endif %}
-  </details>
+<tr class="zones-row" id="z{{ c.id }}" hidden><td colspan="12">
+  {% if c.zones %}
+  <div class="zwrap"><table class="zones">
+    <tr><th>Зона</th><th class="num">Показы</th><th class="num">Клики</th><th class="num">CTR</th><th class="num">Потрачено</th><th class="num">Визиты</th><th class="num">На Amazon</th><th class="num">$/Amazon</th><th></th></tr>
+    {% for z in c.zones %}
+    <tr{% if z.excluded %} class="excluded"{% endif %}>
+      <td>{{ z.zone }}</td>
+      <td class="num">{{ "{:,}".format(z.impressions) }}</td><td class="num">{{ "{:,}".format(z.clicks) }}</td><td class="num">{{ pct(z.ctr) }}</td>
+      <td class="num">{{ money(z.spent) }}</td><td class="num">{{ z.visits }}</td><td class="num">{{ z.amazon }}</td><td class="num">{{ money(z.cost_per_amazon) }}</td>
+      <td class="acts">{% if z.excluded %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/zones/{{ z.zone }}/include"><button class="sm">Включить</button></form>
+          {% else %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/zones/{{ z.zone }}/exclude"><button class="sm danger">Отключить</button></form>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<p class="muted" style="margin:6px 0">Данных по зонам пока нет — появятся, когда кампания начнёт показываться.</p>{% endif %}
+  {% if c.payload %}<details style="margin-top:6px"><summary class="muted" style="font-size:.8rem">payload (что отправлено в PropellerAds)</summary><pre>{{ c.payload }}</pre></details>{% endif %}
 </td></tr>
-{% else %}<tr><td colspan="14" class="muted">Кампаний ещё нет.</td></tr>{% endfor %}
+{% endfor %}
+{% endmacro %}
+
+{% macro head() %}
+<tr><th>Товар</th><th>Статус</th><th class="num">$/день</th><th class="num">Показы</th><th class="num">Клики</th><th class="num">CTR</th><th class="num">Потрачено</th><th class="num">CPC</th><th class="num">Визиты</th><th class="num">На Amazon</th><th class="num">$/Amazon</th><th></th></tr>
+{% endmacro %}
+
+<div class="scroll card" style="padding:0"><table class="camp">
+{{ head() }}
+{% if campaigns %}
+<tr class="totals"><td>Итого по всем кампаниям</td><td></td><td></td>
+  <td class="num">{{ "{:,}".format(totals.impressions) }}</td><td class="num">{{ "{:,}".format(totals.ad_clicks) }}</td><td class="num">{{ pct(totals.ctr) }}</td>
+  <td class="num">{{ money(totals.spend) }}</td><td class="num">{{ money(totals.cpc) }}</td><td class="num">{{ totals.visits }}</td><td class="num">{{ totals.clicks }}</td><td class="num">{{ money(totals.cost_per_click) }}</td><td></td></tr>
+{% endif %}
+{{ camp_rows(live) }}
+{% if not live %}<tr><td colspan="12" class="muted">Работающих кампаний нет.</td></tr>{% endif %}
 </table></div>
+
+{% if done %}
+<details style="margin-top:10px">
+  <summary class="muted" style="cursor:pointer">Остановленные и отключённые ({{ done|length }})</summary>
+  <div class="scroll card" style="padding:0;margin-top:8px"><table class="camp">{{ head() }}{{ camp_rows(done) }}</table></div>
+</details>
+{% endif %}
+<script>
+function toggleZones(id) {
+  var r = document.getElementById("z" + id);
+  if (r) r.hidden = !r.hidden;
+}
+</script>
 
 <h2>Сообщения с сайта{% if messages %} ({{ messages|length }}){% endif %}</h2>
 {% for m in messages %}

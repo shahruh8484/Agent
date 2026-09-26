@@ -56,7 +56,7 @@ def test_dashboard_lists_stats_and_zones_and_toggles_a_zone(settings, store, mon
     client = _client(settings, store)
     page = client.get("/admin").text
     assert "5,000" in page and "0.80%" in page  # impressions and CTR
-    assert "Зоны (1)" in page and ">777<" in page
+    assert "Зоны 1 ▾" in page and ">777<" in page
     assert f"/campaigns/{c['id']}/zones/777/exclude" in page
 
     page = client.post(f"/campaigns/{c['id']}/zones/777/exclude").text
