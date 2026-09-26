@@ -30,6 +30,7 @@ EXCLUDE_ZONES_PATH = "/adv/campaigns/{id}/targeting/exclude/zone"
 BALANCE_PATH = "/adv/balance"
 
 STATUS_MODERATION = 2
+MAX_STATS_PAGES = 20  # x 1000 rows per page
 # Body key for targeting/exclude/zone (see propeller_check section 8).
 ZONE_LIST_KEY = "zone"
 # Campaign statuses the API reports (GET /adv/campaigns/{id})
@@ -236,13 +237,19 @@ class PropellerClient:
             "campaign_id[]": [int(i) for i in campaign_ids],
             "per_page": 1000,
         }
-        data = self._request("GET", STATISTICS_PATH, params=params)
-        if isinstance(data, dict):
-            rows = data.get("result", data.get("data", data.get("items", [])))
-        else:
-            rows = data
+        rows: list = []
+        for page in range(1, MAX_STATS_PAGES + 1):
+            data = self._request("GET", STATISTICS_PATH, params={**params, "page": page})
+            if isinstance(data, dict):
+                chunk = data.get("items", data.get("result", data.get("data", [])))
+                pages = int(data.get("total_pages") or 1)
+            else:
+                chunk, pages = data, 1
+            rows.extend(chunk if isinstance(chunk, list) else [])
+            if page >= pages:
+                break
         out = []
-        for row in rows if isinstance(rows, list) else []:
+        for row in rows:
             if not isinstance(row, dict):
                 continue
             spent = _first(row, "spent", "money", "cost")

@@ -79,3 +79,21 @@ def test_inline_images_sends_data_uris(tmp_path):
     assert payload["creatives"][0]["image"] == "https://s/media/m.png"  # stored copy untouched
     with pytest.raises(PropellerError):
         inline_images(payload, lambda url: None)
+
+
+def test_statistics_reads_every_page(monkeypatch):
+    client = PropellerClient("tok")
+    pages = []
+
+    def fake_request(method, url, timeout, **kw):
+        page = kw["params"]["page"]
+        pages.append(page)
+        return Resp(200, {"items": [{"campaign_id": 7, "zone_id": 100 + page, "impressions": 10,
+                                     "clicks": 1, "spent": 0.5}], "total_pages": 3})
+
+    monkeypatch.setattr(client._session, "request", fake_request)
+    rows = client.spend(["7"], by_zone=True)
+    assert pages == [1, 2, 3]
+    assert [r["zone_id"] for r in rows] == ["101", "102", "103"]
+    assert rows[0] == {"campaign_id": "7", "zone_id": "101", "impressions": 10, "clicks": 1,
+                       "spent": 0.5}
