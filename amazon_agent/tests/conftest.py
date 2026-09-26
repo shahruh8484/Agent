@@ -61,6 +61,7 @@ class FakePush:
     def __init__(self):
         self.created, self.started, self.stopped, self.excluded = [], [], [], []
         self.spend_rows, self.zone_rows = [], []
+        self.statuses: dict[str, int] = {}
         self._next = 1000
 
     def create_campaign(self, payload):
@@ -78,6 +79,9 @@ class FakePush:
 
     def exclude_zones(self, campaign_id, zones):
         self.excluded.append((campaign_id, zones))
+
+    def campaign_status(self, campaign_id):
+        return self.statuses.get(campaign_id, 2)
 
     def spend(self, campaign_ids, days=30, by_zone=False):
         return self.zone_rows if by_zone else self.spend_rows

@@ -85,6 +85,9 @@ def test_zone_blacklist(settings, store):
         {"campaign_id": c["external_id"], "zone_id": "222", "spent": 2.0},  # has a click
         {"campaign_id": c["external_id"], "zone_id": "333", "spent": 0.2},  # too little data
     ]
+    run_cycle(_deps(settings, store, push))
+    assert push.excluded == []  # no zone ids seen in visits yet: never blacklist blindly
+    store.log_event("visit", niche.id, c["asin"], c["id"], "222")
     store.log_event("click", niche.id, c["asin"], c["id"], "222")
     run_cycle(_deps(settings, store, push))
     assert push.excluded == [(c["external_id"], ["111"])]
@@ -157,3 +160,18 @@ def test_old_copy_is_upgraded_once_with_buying_tips(settings, store):
     llm_calls_before = len(deps.llm.prompts)
     run_cycle(deps)  # already current: nothing rewritten
     assert len(deps.llm.prompts) == llm_calls_before
+
+
+def test_moderation_rejection_frees_slot_and_is_not_retried(settings, store):
+    settings.push_live = True
+    store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    rejected, approved = store.list_campaigns(statuses=(ACTIVE,))
+    push.statuses = {rejected["external_id"]: 3, approved["external_id"]: 6}
+    run_cycle(_deps(settings, store, push))
+    assert store.get_campaign(rejected["id"])["status"] == KILLED
+    assert "rejected" in store.get_campaign(rejected["id"])["note"]
+    assert store.get_campaign(approved["id"])["note"] == "PropellerAds: working"
+    active_asins = {c["asin"] for c in store.list_campaigns(statuses=(ACTIVE,))}
+    assert rejected["asin"] not in active_asins and len(active_asins) == 2

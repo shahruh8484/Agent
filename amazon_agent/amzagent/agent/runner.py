@@ -201,6 +201,28 @@ def stop_campaign(deps: Deps, campaign: dict, status: str, reason: str) -> None:
     deps.say(f"campaign #{campaign['id']} ({campaign['asin']}) stopped: {reason}")
 
 
+def sync_moderation(deps: Deps) -> None:
+    """Mirror PropellerAds' own status: a campaign rejected by moderation
+    frees its slot and its product is not tried again."""
+    if deps.push is None:
+        return
+    for c in deps.store.list_campaigns(statuses=(ACTIVE,)):
+        if not c["external_id"]:
+            continue
+        try:
+            status = deps.push.campaign_status(c["external_id"])
+        except PropellerError as exc:
+            deps.say(f"campaign #{c['id']}: status check failed: {exc}")
+            continue
+        name = propeller.API_STATUS_NAMES.get(status, str(status))
+        if status == propeller.API_STATUS_REJECTED:
+            deps.store.update_campaign(c["id"], status=KILLED,
+                                       note="rejected by PropellerAds moderation")
+            deps.say(f"campaign #{c['id']} ({c['asin']}) was rejected by moderation")
+        elif status is not None and f"PropellerAds: {name}" != c["note"]:
+            deps.store.update_campaign(c["id"], note=f"PropellerAds: {name}")
+
+
 def sync_spend(deps: Deps) -> None:
     active = deps.store.list_campaigns(statuses=(ACTIVE,))
     if not active or deps.push is None:
@@ -254,7 +276,16 @@ def blacklist_bad_zones(deps: Deps) -> None:
     except PropellerError as exc:
         deps.say(f"zone stats failed: {exc}")
         return
-    by_external = {c["external_id"]: c for c in active}
+    # Only judge zones where our own visit log carries zone ids: if the
+    # zone macro in the target URL isn't substituted, every zone would look
+    # like it had zero clicks and all of them would get blacklisted.
+    tracked = [c for c in active if store.events_by_zone(c["id"], "visit")]
+    if len(tracked) < len(active):
+        deps.say(f"zone blacklist: skipping {len(active) - len(tracked)} campaign(s) "
+                 "without zone ids in their visits yet")
+    by_external = {c["external_id"]: c for c in tracked}
+    if not by_external:
+        return
     bad: dict[int, list[str]] = {}
     for row in rows:
         c = by_external.get(row["campaign_id"])
@@ -414,6 +445,7 @@ def manage_campaigns(deps: Deps) -> None:
         # products get real campaigns.
         for c in deps.store.list_campaigns(statuses=(DRY_RUN,)):
             deps.store.update_campaign(c["id"], status=STOPPED, note="dry run (never sent)")
+    sync_moderation(deps)
     sync_spend(deps)
     apply_kill_rules(deps)
     blacklist_bad_zones(deps)

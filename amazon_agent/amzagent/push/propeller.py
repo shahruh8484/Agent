@@ -30,6 +30,10 @@ EXCLUDE_ZONES_PATH = "/adv/campaigns/{id}/targeting/exclude/zone"
 BALANCE_PATH = "/adv/balance"
 
 STATUS_MODERATION = 2
+# Campaign statuses the API reports (GET /adv/campaigns/{id})
+API_STATUS_NAMES = {1: "draft", 2: "moderation", 3: "rejected", 6: "working", 7: "paused",
+                    8: "stopped"}
+API_STATUS_REJECTED = 3
 TRAFFIC_CATEGORIES = ["propeller"]
 ALL_HOURS = [f"{d}{h:02d}" for d in ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
              for h in range(24)]
@@ -180,6 +184,14 @@ class PropellerClient:
         self._request(
             "PATCH", EXCLUDE_ZONES_PATH.format(id=campaign_id), json={"zone": zones}
         )
+
+    def campaign_status(self, campaign_id: str) -> int | None:
+        data = self._request("GET", f"{CAMPAIGNS_PATH}/{campaign_id}")
+        inner = data.get("result", data) if isinstance(data, dict) else {}
+        try:
+            return int(inner.get("status"))
+        except (TypeError, ValueError, AttributeError):
+            return None
 
     def balance(self) -> float | None:
         data = self._request("GET", BALANCE_PATH)
