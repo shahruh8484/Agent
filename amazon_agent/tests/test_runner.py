@@ -93,26 +93,49 @@ def test_optional_cost_rule(settings, store):
     assert "cost per Amazon click $3.00 > $2.00" in store.get_campaign(c["id"])["note"]
 
 
-def test_zone_blacklist(settings, store):
+def test_zone_pruning_only_on_passing_campaigns(settings, store):
     settings.push_live = True
+    settings.zone_min_visits = 15
     niche = store.add_niche("earbuds")
     push = FakePush()
     run_cycle(_deps(settings, store, push))
     c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    push.spend_rows = [{"campaign_id": c["external_id"], "spent": 3.0}]
     push.zone_rows = [
-        {"campaign_id": c["external_id"], "zone_id": "111", "spent": 2.0},  # no clicks -> bad
-        {"campaign_id": c["external_id"], "zone_id": "222", "spent": 2.0},  # has a click
-        {"campaign_id": c["external_id"], "zone_id": "333", "spent": 0.2},  # too little data
+        {"campaign_id": c["external_id"], "zone_id": "111", "spent": 0.5},  # 20 visits, 0 Amazon
+        {"campaign_id": c["external_id"], "zone_id": "222", "spent": 0.5},  # gave a click
+        {"campaign_id": c["external_id"], "zone_id": "333", "spent": 0.2},  # 5 visits: too few
     ]
+
+    def visits(zone, n, amazon=0):
+        for _ in range(n):
+            store.log_event("visit", niche.id, c["asin"], c["id"], zone)
+        for _ in range(amazon):
+            store.log_event("click", niche.id, c["asin"], c["id"], zone)
+
+    visits("111", 20)
+    visits("222", 20, amazon=2)  # campaign: 2 of 45 visitors -> 4.4% >= 1%: passed
+    visits("333", 5)
     run_cycle(_deps(settings, store, push))
-    assert push.excluded == []  # no zone ids seen in visits yet: never blacklist blindly
-    store.log_event("visit", niche.id, c["asin"], c["id"], "222")
-    store.log_event("click", niche.id, c["asin"], c["id"], "222")
-    run_cycle(_deps(settings, store, push))
+    assert store.get_campaign(c["id"])["status"] == ACTIVE
     assert push.excluded == [(c["external_id"], ["111"])]
     run_cycle(_deps(settings, store, push))  # not re-sent
     assert len(push.excluded) == 1
 
+
+def test_no_zone_pruning_before_the_test_is_passed(settings, store):
+    settings.push_live = True
+    settings.kill_min_spend = 5.0  # still in its test at $3
+    niche = store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    push.spend_rows = [{"campaign_id": c["external_id"], "spent": 3.0}]
+    push.zone_rows = [{"campaign_id": c["external_id"], "zone_id": "111", "spent": 2.0}]
+    for _ in range(20):
+        store.log_event("visit", niche.id, c["asin"], c["id"], "111")
+    run_cycle(_deps(settings, store, push))
+    assert push.excluded == []
 
 def test_kill_switch_stops_everything(settings, store):
     settings.push_live = True

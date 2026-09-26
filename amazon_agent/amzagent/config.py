@@ -61,8 +61,9 @@ class Settings(BaseSettings):
     # Optionally also stop it if one click to Amazon costs more than this
     # (0 = rule off).
     max_cost_per_amazon_click: float = 0.0
-    # Zone rule: blacklist a zone after it spent this much with zero
-    # clicks through to Amazon.
+    # Zone rule (campaigns that passed the test): exclude a zone with zero
+    # clicks to Amazon once it had this many visits or this much spend.
+    zone_min_visits: int = 15
     zone_min_spend: float = 1.0
 
     # --- Agent loop ---

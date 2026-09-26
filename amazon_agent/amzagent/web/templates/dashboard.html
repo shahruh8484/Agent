@@ -49,7 +49,8 @@
       <label>Отключать после расхода, $<input name="kill_min_spend" type="number" step="0.01" min="0" value="{{ settings.kill_min_spend }}"><span class="muted">тест товара: после этой суммы агент решает, оставить кампанию или отключить (проверка каждые 3 мин, расход считается и по визитам на сайт)</span></label>
       <label>Мин. % переходов на Amazon<input name="min_amazon_rate" type="number" step="0.1" min="0" value="{{ settings.min_amazon_rate }}"><span class="muted">после теста: ниже — кампания отключается (0 = не проверять)</span></label>
       <label>Макс. цена перехода на Amazon, $<input name="max_cost_per_amazon_click" type="number" step="0.01" min="0" value="{{ settings.max_cost_per_amazon_click }}"><span class="muted">дороже — отключается (0 = не проверять)</span></label>
-      <label>Площадка без кликов, $<input name="zone_min_spend" type="number" step="0.01" min="0" value="{{ settings.zone_min_spend }}"><span class="muted">потратила столько без кликов — в чёрный список</span></label>
+      <label>Зона без переходов: визитов<input name="zone_min_visits" type="number" min="1" value="{{ settings.zone_min_visits }}"><span class="muted">у хороших кампаний (≥ мин. %) зона без переходов на Amazon отключается после стольких визитов…</span></label>
+      <label>…или расхода, $<input name="zone_min_spend" type="number" step="0.01" min="0" value="{{ settings.zone_min_spend }}"><span class="muted">зоны, давшие переход на Amazon, остаются</span></label>
       <label>Держать сайтов (автоподбор)<input name="auto_niches" type="number" min="0" max="50" value="{{ settings.auto_niches }}"></label>
     </div>
     <div class="row"><button class="primary">Сохранить</button><span class="muted">Применяется сразу. Новый бюджет кампании применяется и к уже запущенным.</span></div>
@@ -221,7 +222,7 @@ function toggleDone() {
 <div class="card muted">
   Отбор: рейтинг ≥ {{ settings.min_rating }}, отзывов ≥ {{ settings.min_reviews }}, до {{ settings.products_per_site }} товаров на сайт.<br>
   Запуск: до {{ settings.campaigns_per_site }} кампаний на сайт, ${{ "%.2f"|format(settings.campaign_daily_budget) }}/день каждая, ставка CPC ${{ settings.push_bid_cpc }}, гео {{ settings.push_countries }}; общий лимит ${{ "%.2f"|format(settings.max_daily_spend) }}/день.<br>
-  Отключение: после ${{ "%.2f"|format(settings.kill_min_spend) }} расхода{% if settings.min_amazon_rate %}, если на Amazon перешло меньше {{ settings.min_amazon_rate }}% посетителей{% endif %}{% if settings.max_cost_per_amazon_click %}{{ " или" if settings.min_amazon_rate else "," }} если переход на Amazon дороже ${{ "%.2f"|format(settings.max_cost_per_amazon_click) }}{% endif %}. Площадки (зоны) с расходом ≥ ${{ "%.2f"|format(settings.zone_min_spend) }} и без кликов — в чёрный список.
+  Отключение: после ${{ "%.2f"|format(settings.kill_min_spend) }} расхода{% if settings.min_amazon_rate %}, если на Amazon перешло меньше {{ settings.min_amazon_rate }}% посетителей{% endif %}{% if settings.max_cost_per_amazon_click %}{{ " или" if settings.min_amazon_rate else "," }} если переход на Amazon дороже ${{ "%.2f"|format(settings.max_cost_per_amazon_click) }}{% endif %}. У прошедших тест кампаний зоны без переходов на Amazon (после {{ settings.zone_min_visits }} визитов или ${{ "%.2f"|format(settings.zone_min_spend) }}) отключаются, зоны с переходами остаются.
 </div>
 
 </div></body></html>

@@ -550,27 +550,40 @@ def apply_kill_rules(deps: Deps) -> None:
 
 
 def blacklist_bad_zones(deps: Deps) -> None:
-    """Exclude zones that spent zone_min_spend without a single click
-    through to Amazon (reads the zone stats sync_stats stored)."""
+    """For campaigns that passed the product test (spent KILL_MIN_SPEND and
+    >= MIN_AMAZON_RATE % of visitors went to Amazon), exclude the zones that
+    sent no one to Amazon once they've had a fair sample (ZONE_MIN_VISITS
+    visits or ZONE_MIN_SPEND spent); zones with a click to Amazon stay."""
     if deps.push is None:
         return
     s, store = deps.settings, deps.store
-    active = [c for c in store.list_campaigns(statuses=(ACTIVE,)) if c["external_id"]]
-    # Only judge zones where our own visit log carries zone ids: if the
-    # zone macro in the target URL isn't substituted, every zone would look
-    # like it had zero clicks and all of them would get blacklisted.
-    tracked = [c for c in active if store.events_by_zone(c["id"], "visit")]
-    for c in tracked:
+    for c in store.list_campaigns(statuses=(ACTIVE,)):
+        if not c["external_id"]:
+            continue
+        visits_by_zone = store.events_by_zone(c["id"], "visit")
+        # Only judge zones where our own visit log carries zone ids: if the
+        # zone macro in the target URL isn't substituted, every zone would
+        # look like it had zero clicks and all would get excluded.
+        if not visits_by_zone:
+            continue
+        visits = store.count_events(c["id"], "visit")
+        rate = 100 * store.count_events(c["id"], "click") / visits if visits else 0.0
+        passed = estimated_spend(deps, c) >= s.kill_min_spend and rate >= s.min_amazon_rate
+        if not passed:
+            continue  # still in its test (or about to be killed): leave zones alone
         clicks = store.events_by_zone(c["id"], "click")
         excluded = store.blacklisted_zones(c["id"])
-        for z in store.zone_stats(c["id"]):
-            if z["spent"] < s.zone_min_spend or z["zone"] in excluded:
+        spent = {z["zone"]: z["spent"] for z in store.zone_stats(c["id"])}
+        for zone in set(visits_by_zone) | set(spent):
+            if zone in excluded or clicks.get(zone, 0) > 0:
                 continue
-            if clicks.get(z["zone"], 0) == 0:
-                error = exclude_zone(deps, c["id"], z["zone"],
-                                     f"spent ${z['spent']:.2f}, no Amazon clicks")
-                if error:
-                    deps.say(f"campaign #{c['id']}: zone blacklist failed: {error}")
+            zone_visits, zone_spent = visits_by_zone.get(zone, 0), spent.get(zone, 0.0)
+            if zone_visits < s.zone_min_visits and zone_spent < s.zone_min_spend:
+                continue  # not enough data on this zone yet
+            error = exclude_zone(deps, c["id"], zone,
+                                 f"{zone_visits} visits, ${zone_spent:.2f}, no Amazon clicks")
+            if error:
+                deps.say(f"campaign #{c['id']}: zone exclude failed: {error}")
 
 
 def expire_stuck_creations(deps: Deps) -> None:
