@@ -115,27 +115,61 @@ def find_spec() -> dict | None:
         spec = _load_spec(url)
         if spec:
             print(f"spec: {url}")
+            spec["__url__"] = url
             return spec
     print("tried:", *dict.fromkeys(urls), sep="\n  ")
     return None
 
 
-def resolve(spec: dict, node, depth: int = 0):
-    if depth > 6 or not isinstance(node, dict):
+_docs: dict[str, dict] = {}
+
+
+def _load_doc(url: str) -> dict:
+    """Another file of a multi-file spec (JSON or YAML), cached."""
+    if url not in _docs:
+        _docs[url] = {}
+        try:
+            text = requests.get(url, timeout=30).text
+            try:
+                _docs[url] = json.loads(text)
+            except ValueError:
+                import yaml
+
+                _docs[url] = yaml.safe_load(text) or {}
+        except (requests.RequestException, ImportError, yaml_error()) as exc:
+            print(f"ref {url}: {exc}")
+    return _docs[url]
+
+
+def _pointer(doc, pointer: str):
+    for part in [p for p in pointer.lstrip("/").split("/") if p]:
+        part = part.replace("~1", "/").replace("~0", "~")
+        doc = doc.get(part, {}) if isinstance(doc, dict) else {}
+    return doc
+
+
+def resolve(spec: dict, node, depth: int = 0, base: str | None = None):
+    """Inline $refs, including ones into other files of a multi-file spec,
+    and drop prose keys."""
+    base = base or spec.get("__url__", "")
+    if depth > 8 or not isinstance(node, dict):
         return node
     if "$ref" in node:
-        target = spec
-        for part in node["$ref"].lstrip("#/").split("/"):
-            target = target.get(part, {})
-        return resolve(spec, target, depth + 1)
+        ref = node["$ref"]
+        file_part, _, pointer = ref.partition("#")
+        if file_part:
+            url = requests.compat.urljoin(base, file_part)
+            doc = _load_doc(url)
+            return resolve(doc, _pointer(doc, pointer), depth + 1, url)
+        return resolve(spec, _pointer(spec, pointer), depth + 1, base)
     out = {}
     for key, value in node.items():
-        if key in ("description", "example", "examples", "title"):
+        if key in ("description", "example", "examples", "title", "__url__"):
             continue
         if isinstance(value, dict):
-            out[key] = resolve(spec, value, depth + 1)
+            out[key] = resolve(spec, value, depth + 1, base)
         elif isinstance(value, list):
-            out[key] = [resolve(spec, v, depth + 1) for v in value]
+            out[key] = [resolve(spec, v, depth + 1, base) for v in value]
         else:
             out[key] = value
     return out
@@ -172,26 +206,42 @@ def flatten(schema: dict, prefix: str = "", depth: int = 0) -> list[str]:
     return lines
 
 
+METHODS = ("get", "post", "put", "patch", "delete")
+
+
 def print_spec(spec: dict) -> None:
     section("2. Endpoints (adv)")
-    for path, ops in sorted(spec.get("paths", {}).items()):
+    items = {}
+    for path, item in spec.get("paths", {}).items():
         if "/adv" not in path and "campaign" not in path:
             continue
-        print(" ", ", ".join(m.upper() for m in ops if m in ("get", "post", "put", "patch",
-                                                             "delete")), path)
+        item = resolve(spec, item) if isinstance(item, dict) else {}
+        items[path] = item
+        print(" ", ",".join(m.upper() for m in item if m in METHODS) or "?", path)
+
     section("3. Create-campaign request schema")
-    for path, ops in spec.get("paths", {}).items():
-        if not path.rstrip("/").endswith("/campaigns") or "post" not in ops:
+    found = False
+    for path, item in items.items():
+        if not path.rstrip("/").endswith("/campaigns") or "post" not in item:
             continue
-        op = ops["post"]
+        found = True
+        op = item["post"]
         body = op.get("requestBody", {}).get("content", {})
         schema = next(iter(body.values()), {}).get("schema") if body else None
         if schema is None:  # swagger 2.0
             schema = next((p.get("schema") for p in op.get("parameters", [])
-                           if p.get("in") == "body"), None)
+                           if isinstance(p, dict) and p.get("in") == "body"), None)
         print(f"POST {path}")
-        for line in flatten(resolve(spec, schema or {})):
+        lines = flatten(schema or {})
+        for line in lines:
             print(" ", line)
+        if not lines:  # unexpected layout: show it raw rather than nothing
+            print(json.dumps(op, ensure_ascii=False)[:6000])
+    if not found:
+        path_item = spec.get("paths", {}).get("/adv/campaigns") or spec.get("paths", {}).get(
+            "/adv/campaigns/")
+        print("no POST /adv/campaigns found; raw path item:")
+        print(json.dumps(path_item, ensure_ascii=False)[:3000])
 
 
 def probe_validation(client: PropellerClient) -> None:
