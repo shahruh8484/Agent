@@ -342,3 +342,20 @@ def test_daily_cap_counts_money_already_spent_today(settings, store):
     assert store.get_campaign(first["id"])["status"] == KILLED
     assert len(push.created) == 2  # no third campaign today
     assert niche
+
+
+def test_unknown_24h_spend_blocks_launches(settings, store):
+    from amzagent.push.propeller import PropellerError
+
+    settings.push_live = True
+    store.add_niche("earbuds")
+    push = FakePush()
+
+    def broken(*a, **k):
+        raise PropellerError("stats down")
+
+    push.spend_last_hours = broken
+    deps = _deps(settings, store, push)
+    run_cycle(deps)
+    assert push.created == []
+    assert any("24h spend unknown" in line for line in deps.log)

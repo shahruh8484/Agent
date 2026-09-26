@@ -91,6 +91,9 @@ class FakePush:
     def set_excluded_zones(self, campaign_id, zones):
         self.replaced.append((campaign_id, list(zones)))
 
+    def spend_last_hours(self, campaign_ids, hours=24):
+        return self.spend(campaign_ids)
+
     def spend(self, campaign_ids, days=30, by_zone=False):
         rows = self.zone_rows if by_zone else self.spend_rows
         return [{"impressions": 0, "clicks": 0, "zone_id": "", **r} for r in rows]

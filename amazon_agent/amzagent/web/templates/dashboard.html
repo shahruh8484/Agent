@@ -27,7 +27,7 @@
 <div class="kpis">
   <div class="card kpi"><b>{{ niches|length }}</b><span>сайтов (ниш)</span></div>
   <div class="card kpi"><b>{{ active_count }}</b><span>активных кампаний</span></div>
-  <div class="card kpi" title="Занято = уже потрачено сегодня остановленными кампаниями + дневные бюджеты работающих. Новая кампания запускается, только если влезает в лимит."><b>${{ "%.2f"|format(committed_today) }} / ${{ "%.2f"|format(settings.max_daily_spend) }}</b><span>дневной лимит: занято / лимит · потрачено сегодня ${{ "%.2f"|format(spent_today) }}</span></div>
+  <div class="card kpi" title="Занято = потрачено за последние 24 часа остановленными кампаниями + дневные бюджеты работающих. Новая кампания запускается, только если влезает в лимит; если расход неизвестен — не запускается."><b>${{ "%.2f"|format(committed_today) }} / ${{ "%.2f"|format(settings.max_daily_spend) }}</b><span>лимит за 24 ч: занято / лимит · потрачено за 24 ч {% if spent_today is none %}— нет данных{% else %}${{ "%.2f"|format(spent_today) }}{% endif %}</span></div>
   <div class="card kpi"><b>{{ settings.agent_interval_hours or "выкл" }}{% if settings.agent_interval_hours %} ч{% endif %}</b><span>автозапуск цикла</span></div>
 </div>
 

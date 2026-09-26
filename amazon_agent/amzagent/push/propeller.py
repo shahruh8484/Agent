@@ -57,6 +57,18 @@ OLD_ZONE_MACROS = ("${ZONEID}",)
 URL_PATH = "/adv/campaigns/{id}/url/"
 
 
+def _network_tz():
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        return ZoneInfo("America/New_York")
+    except ZoneInfoNotFoundError:  # no tz database: fixed EST
+        return timezone(timedelta(hours=-5))
+
+
+NETWORK_TZ = _network_tz()
+
+
 def _today() -> date:
     return datetime.now(timezone.utc).date()
 
@@ -234,14 +246,34 @@ class PropellerClient:
     def spend(self, campaign_ids: list[str], days: int = 30, by_zone: bool = False) -> list[dict]:
         """Rows of {"campaign_id", "zone_id", "impressions", "clicks",
         "spent"} for the last `days` (zone_id is "" unless by_zone)."""
+        return self._stats(
+            campaign_ids,
+            f"{_today() - timedelta(days=days)} 00:00:00",
+            f"{_today() + timedelta(days=1)} 23:59:59",
+            by_zone,
+        )
+
+    def spend_last_hours(self, campaign_ids: list[str], hours: int = 24) -> list[dict]:
+        """Spend over a rolling window ending now. The API takes times in
+        its own zone (US Eastern), so the window is computed there."""
+        now = datetime.now(NETWORK_TZ)
+        return self._stats(
+            campaign_ids,
+            (now - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S"),
+            (now + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S"),
+            by_zone=False,
+        )
+
+    def _stats(self, campaign_ids: list[str], day_from: str, day_to: str,
+               by_zone: bool) -> list[dict]:
         if not campaign_ids:
             return []
         group_by = ["campaign_id", "zone_id"] if by_zone else ["campaign_id"]
         params = {
-            "day_from": f"{_today() - timedelta(days=days)} 00:00:00",
-            "day_to": f"{_today()} 23:59:59",
+            "day_from": day_from,
+            "day_to": day_to,
             # No "tz": the API only accepts it for ranges of up to a week;
-            # without it dates are in the network's EST.
+            # without it times are in the network's US Eastern zone.
             "group_by[]": group_by,
             "campaign_id[]": [int(i) for i in campaign_ids],
             "per_page": 1000,

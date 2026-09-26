@@ -496,7 +496,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "messages": store.list_messages(20),
                 "running_budget": store.running_daily_budget(),
                 "spent_today": spent_today(store),
-                "committed_today": spent_today(store, only_stopped=True)
+                "committed_today": (spent_today(store, only_stopped=True) or 0.0)
                 + store.running_daily_budget(),
                 "active_count": len(store.list_campaigns(statuses=(ACTIVE,))),
             },
