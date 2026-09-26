@@ -25,6 +25,7 @@ from amzagent.config import Settings
 from amzagent.content.llm import LLM, LLMError, get_llm
 from amzagent.content.writer import write_product_copy, write_site_copy
 from amzagent.models import COPY_VERSION, Niche
+from amzagent.panel_settings import effective
 from amzagent.push import propeller
 from amzagent.push.ai_creatives import CreativeError, OpenAIImages, make_ai_creatives
 from amzagent.push.creatives import render_creatives
@@ -61,6 +62,8 @@ class Deps:
 
 
 def build_deps(settings: Settings, store: Store) -> Deps:
+    # Values saved in the dashboard override .env.
+    settings = effective(settings, store)
     deps = Deps(settings=settings, store=store)
     try:
         deps.catalog = CreatorsApiCatalog(settings)
@@ -199,6 +202,32 @@ def stop_campaign(deps: Deps, campaign: dict, status: str, reason: str) -> None:
             return
     deps.store.update_campaign(campaign["id"], status=status, note=reason)
     deps.say(f"campaign #{campaign['id']} ({campaign['asin']}) stopped: {reason}")
+
+
+def enforce_budget_cap(deps: Deps) -> None:
+    """If the daily cap was lowered below what's running, stop the newest
+    campaigns until the total fits again."""
+    cap = deps.settings.max_daily_spend
+    for c in deps.store.list_campaigns(statuses=(ACTIVE,)):  # newest first
+        if deps.store.running_daily_budget() <= cap:
+            return
+        stop_campaign(deps, c, STOPPED, f"over the daily cap of ${cap:.2f}")
+
+
+def apply_daily_budget(deps: Deps, budget: float) -> int:
+    """Set the daily budget of every running campaign (after it was changed
+    in the dashboard). Returns how many were updated."""
+    updated = 0
+    for c in deps.store.list_campaigns(statuses=(ACTIVE, DRY_RUN)):
+        if c["status"] == ACTIVE and deps.push and c["external_id"]:
+            try:
+                deps.push.update_campaign(c["external_id"], {"daily_amount": round(budget, 2)})
+            except PropellerError as exc:
+                deps.say(f"campaign #{c['id']}: budget update failed: {exc}")
+                continue
+        deps.store.update_campaign(c["id"], daily_budget=budget)
+        updated += 1
+    return updated
 
 
 def sync_moderation(deps: Deps) -> None:
@@ -445,6 +474,7 @@ def manage_campaigns(deps: Deps) -> None:
         # products get real campaigns.
         for c in deps.store.list_campaigns(statuses=(DRY_RUN,)):
             deps.store.update_campaign(c["id"], status=STOPPED, note="dry run (never sent)")
+    enforce_budget_cap(deps)
     sync_moderation(deps)
     sync_spend(deps)
     apply_kill_rules(deps)

@@ -30,6 +30,30 @@
   <div class="card kpi"><b>{{ settings.agent_interval_hours or "выкл" }}{% if settings.agent_interval_hours %} ч{% endif %}</b><span>автозапуск цикла</span></div>
 </div>
 
+
+<details class="card" id="settings" style="margin-top:14px">
+  <summary style="cursor:pointer;font-weight:600">&#9881; Настройки рекламы и бюджета</summary>
+  <form method="post" action="/settings" style="margin-top:14px;display:grid;gap:14px">
+    <label class="row" style="gap:10px;font-weight:600">
+      <input type="checkbox" name="push_live" value="1" {% if settings.push_live %}checked{% endif %} style="width:20px;height:20px">
+      Реклама включена (кампании реально создаются в PropellerAds). Выключено = тестовый режим.
+    </label>
+    <div class="set-grid">
+      <label>Бюджет одной кампании, $/день<input name="campaign_daily_budget" type="number" step="0.01" min="10" value="{{ '%.2f'|format(settings.campaign_daily_budget) }}"><span class="muted">минимум PropellerAds — $10</span></label>
+      <label>Общий лимит, $/день<input name="max_daily_spend" type="number" step="0.01" min="0" value="{{ '%.2f'|format(settings.max_daily_spend) }}"><span class="muted">сумма бюджетов всех кампаний не больше этого</span></label>
+      <label>Кампаний на сайт<input name="campaigns_per_site" type="number" min="0" max="50" value="{{ settings.campaigns_per_site }}"></label>
+      <label>Ставка за клик (CPC), $<input name="push_bid_cpc" type="number" step="0.001" min="0.001" value="{{ settings.push_bid_cpc }}"></label>
+      <label>Страны<input name="push_countries" value="{{ settings.push_countries }}"><span class="muted">коды через запятую: us,ca,gb</span></label>
+      <label>Картинки пушей<select name="push_creatives"><option value="ai"{% if settings.push_creatives == "ai" %} selected{% endif %}>AI (OpenAI)</option><option value="simple"{% if settings.push_creatives == "simple" %} selected{% endif %}>Простые (бесплатно)</option></select></label>
+      <label>Отключать после расхода, $<input name="kill_min_spend" type="number" step="0.01" min="0" value="{{ settings.kill_min_spend }}"><span class="muted">сколько кампания должна потратить до оценки</span></label>
+      <label>Макс. цена клика на Amazon, $<input name="max_cost_per_amazon_click" type="number" step="0.01" min="0.01" value="{{ settings.max_cost_per_amazon_click }}"><span class="muted">дороже — кампания отключается</span></label>
+      <label>Площадка без кликов, $<input name="zone_min_spend" type="number" step="0.01" min="0" value="{{ settings.zone_min_spend }}"><span class="muted">потратила столько без кликов — в чёрный список</span></label>
+      <label>Держать сайтов (автоподбор)<input name="auto_niches" type="number" min="0" max="50" value="{{ settings.auto_niches }}"></label>
+    </div>
+    <div class="row"><button class="primary">Сохранить</button><span class="muted">Применяется сразу. Новый бюджет кампании применяется и к уже запущенным.</span></div>
+  </form>
+</details>
+
 <h2>Автоподбор ниш</h2>
 <form class="card row" method="post" action="/discover">
   <span style="flex:1;min-width:240px">Агент сам придумает ниши, проверит каждую по реальным товарам Amazon (сколько хороших товаров, рейтинги, цены) и соберёт сайты по лучшим.

@@ -38,7 +38,9 @@ from starlette.middleware.sessions import SessionMiddleware
 from amzagent.agent.runner import (
     KILLED,
     PAUSE_FLAG,
+    apply_daily_budget,
     build_deps,
+    enforce_budget_cap,
     redraw_campaign,
     run_cycle,
     stop_all,
@@ -47,6 +49,7 @@ from amzagent.agent.runner import (
 from amzagent.amazon.creator_connections import parse_opportunities, parse_opportunity_details
 from amzagent.config import Settings, get_settings
 from amzagent.models import Product
+from amzagent.panel_settings import effective, load_overrides, parse_form, save_overrides
 from amzagent.store import ACTIVE, STOPPED, Store
 
 logger = logging.getLogger(__name__)
@@ -121,7 +124,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                     run_cycle(build_deps(settings, store))
                 except Exception:
                     logger.exception("agent cycle crashed")
-                time.sleep(settings.agent_interval_hours * 3600)
+                time.sleep(max(effective(settings, store).agent_interval_hours, 1) * 3600)
 
         threading.Thread(target=loop, daemon=True).start()
 
@@ -376,7 +379,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             request, "dashboard.html",
             {
                 "request": request,
-                "settings": settings,
+                "settings": effective(settings, store),
+                "overrides": load_overrides(store),
                 "niches": niches,
                 "campaigns": campaigns,
                 "runs": store.list_runs(15),
@@ -498,6 +502,31 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             f"Кампания #{campaign_id}: агент перерисовывает картинки — обновите страницу через минуту."
         )
         return RedirectResponse("/admin", status_code=303)
+
+    @app.post("/settings")
+    async def save_settings(request: Request):
+        if not logged_in(request):
+            return to_login()
+        form = {k: str(v) for k, v in (await request.form()).items()}
+        values, errors = parse_form(form)
+        if errors:
+            request.session["flash"] = "Настройки не сохранены: " + "; ".join(errors)
+            return RedirectResponse("/admin#settings", status_code=303)
+        before = effective(settings, store)
+        save_overrides(store, values)
+        after = effective(settings, store)
+        note = "Настройки сохранены."
+        if after.campaign_daily_budget != before.campaign_daily_budget:
+            n = apply_daily_budget(build_deps(settings, store), after.campaign_daily_budget)
+            note += f" Бюджет ${after.campaign_daily_budget:.2f}/день применён к {n} кампаниям."
+        if after.max_daily_spend < store.running_daily_budget():
+            enforce_budget_cap(build_deps(settings, store))
+            note += " Лишние кампании остановлены, чтобы уложиться в новый лимит."
+        if before.push_live and not after.push_live:
+            note += (" Новые кампании больше не запускаются; уже работающие продолжают — "
+                     "остановить их можно кнопкой «Стоп всё».")
+        request.session["flash"] = note
+        return RedirectResponse("/admin#settings", status_code=303)
 
     @app.post("/killswitch")
     def killswitch(request: Request, on: str = Form(...)):

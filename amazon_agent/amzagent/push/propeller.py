@@ -185,6 +185,9 @@ class PropellerClient:
             "PATCH", EXCLUDE_ZONES_PATH.format(id=campaign_id), json={"zone": zones}
         )
 
+    def update_campaign(self, campaign_id: str, fields: dict[str, Any]) -> None:
+        self._request("PATCH", f"{CAMPAIGNS_PATH}/{campaign_id}", json=fields)
+
     def campaign_status(self, campaign_id: str) -> int | None:
         data = self._request("GET", f"{CAMPAIGNS_PATH}/{campaign_id}")
         inner = data.get("result", data) if isinstance(data, dict) else {}
