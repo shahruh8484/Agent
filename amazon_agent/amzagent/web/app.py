@@ -653,7 +653,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         request.session["flash"] = (
             f"Кампания #{campaign_id} не возвращена: {error}" if error else
             f"Кампания #{campaign_id} снова работает. Агент не будет отключать её по "
-            "результатам — остановить можно кнопкой «Стоп»."
+            "результатам (остановить можно кнопкой «Стоп»), но будет отключать её зоны "
+            "без переходов на Amazon."
         )
         return RedirectResponse(f"/admin#c{campaign_id}", status_code=303)
 

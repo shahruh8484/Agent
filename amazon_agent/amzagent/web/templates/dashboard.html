@@ -154,7 +154,7 @@
   <td class="acts">
     <button class="sm" type="button" onclick="toggleZones({{ c.id }})">Зоны {{ c.zones|length }} ▾</button>
     {% if c.status == "dry_run" %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/redraw"><button class="sm" title="Нарисовать новые картинки">&#10227;</button></form>{% endif %}
-    {% if c.status in ("killed","stopped") and c.external_id %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/resume" onsubmit="return confirm('Вернуть кампанию #{{ c.id }}? Агент не будет отключать её по результатам — только вы кнопкой «Стоп».')"><button class="sm" title="Снова запустить в PropellerAds">Вернуть</button></form>{% endif %}
+    {% if c.status in ("killed","stopped") and c.external_id %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/resume" onsubmit="return confirm('Вернуть кампанию #{{ c.id }}? Агент не будет отключать её по результатам (только вы кнопкой «Стоп»), но продолжит отключать её зоны без переходов на Amazon.')"><button class="sm" title="Снова запустить в PropellerAds">Вернуть</button></form>{% endif %}
     {% if c.status in ("active","dry_run","capped") %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/stop"><button class="sm danger" title="Остановить кампанию">Стоп</button></form>{% endif %}
   </td>
 </tr>

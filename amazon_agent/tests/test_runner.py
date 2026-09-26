@@ -451,3 +451,21 @@ def test_resume_refused_without_budget_or_for_dry_runs(settings, store):
     deps = _deps(settings, store, push)
     sync_today_spend(deps)
     assert "не хватает дневного лимита" in resume_campaign(deps, a["id"])
+
+
+def test_manual_campaign_zones_are_pruned_even_below_the_rate(settings, store):
+    settings.push_live = True
+    niche = store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    store.update_campaign(c["id"], manual_keep=1)
+    push.spend_rows = [{"campaign_id": c["external_id"], "spent": 5.0}]
+    for zone, visits, amazon in (("111", 100, 0), ("222", 100, 1)):  # 1 of 200 = 0.5% < 1%
+        for _ in range(visits):
+            store.log_event("visit", niche.id, c["asin"], c["id"], zone)
+        for _ in range(amazon):
+            store.log_event("click", niche.id, c["asin"], c["id"], zone)
+    run_cycle(_deps(settings, store, push))
+    assert store.get_campaign(c["id"])["status"] == ACTIVE  # kept (manual)
+    assert push.excluded == [(c["external_id"], ["111"])]  # dead zone cut, clicking zone kept

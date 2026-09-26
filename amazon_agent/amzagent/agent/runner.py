@@ -584,7 +584,8 @@ def apply_kill_rules(deps: Deps) -> None:
 
 def blacklist_bad_zones(deps: Deps) -> None:
     """For campaigns that passed the product test (spent KILL_MIN_SPEND and
-    >= MIN_AMAZON_RATE % of visitors went to Amazon), exclude the zones that
+    >= MIN_AMAZON_RATE % of visitors went to Amazon) or were resumed by hand,
+    exclude the zones that
     sent no one to Amazon once they've had a fair sample (ZONE_MIN_VISITS
     visits or ZONE_MIN_SPEND spent); zones with a click to Amazon stay."""
     if deps.push is None:
@@ -602,7 +603,9 @@ def blacklist_bad_zones(deps: Deps) -> None:
         visits = store.count_events(c["id"], "visit")
         rate = 100 * store.count_events(c["id"], "click") / visits if visits else 0.0
         passed = estimated_spend(deps, c) >= s.kill_min_spend and rate >= s.min_amazon_rate
-        if not passed:
+        # A campaign resumed by hand is kept whatever its overall rate, so
+        # trimming its dead zones is exactly what's left to optimize.
+        if not (passed or c.get("manual_keep")):
             continue  # still in its test (or about to be killed): leave zones alone
         clicks = store.events_by_zone(c["id"], "click")
         excluded = store.blacklisted_zones(c["id"])
