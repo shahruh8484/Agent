@@ -20,6 +20,7 @@
 
 {% if running %}<div class="banner" style="border-color:var(--accent);color:var(--accent)">Агент сейчас работает — журнал внизу обновляется, страница перезагружается сама каждые 10 секунд.</div>{% endif %}
 {% if flash %}<div class="banner" style="border-color:var(--ok);color:var(--ok)">{{ flash }}</div>{% endif %}
+{% if stats_error and settings.push_live %}<div class="banner bad">Статистика из PropellerAds не читается: {{ stats_error }}. Новые кампании не запускаются; если так продлится больше 30 минут, агент остановит работающие кампании.</div>{% endif %}
 {% if paused %}<div class="banner bad">Включён аварийный стоп: все кампании остановлены, новые не запускаются.</div>{% endif %}
 {% if not settings.push_live %}<div class="banner">Тестовый режим (PUSH_LIVE=false): агент собирает кампании, но НЕ отправляет их в PropellerAds. Проверьте payload ниже, затем поставьте PUSH_LIVE=true.</div>{% endif %}
 

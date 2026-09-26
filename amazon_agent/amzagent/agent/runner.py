@@ -40,7 +40,10 @@ logger = logging.getLogger(__name__)
 
 KILLED = "killed"
 CREATING = "creating"  # row exists, creatives/API call still in progress
-STUCK_CREATING_MINUTES = 30  # stopped by the kill rule — never relaunched for that product
+STUCK_CREATING_MINUTES = 30
+STATS_BLIND_MINUTES = 30
+STATS_OK_FLAG = "stats_ok_at"
+STATS_ERROR_FLAG = "stats_error"  # stopped by the kill rule — never relaunched for that product
 PAUSE_FLAG = "paused_all"
 SEARCH_PAGES = 2  # 10 items per page
 CURATED_SITE_SIZE = 30
@@ -278,20 +281,23 @@ def sync_moderation(deps: Deps) -> None:
             deps.store.update_campaign(c["id"], note=f"PropellerAds: {name}")
 
 
-def sync_stats(deps: Deps) -> None:
+def sync_stats(deps: Deps) -> bool:
     """Pull impressions / clicks / spend per campaign and per zone from
     PropellerAds into the store (what the dashboard shows and the kill and
-    zone rules read)."""
+    zone rules read). Returns False if the stats could not be read."""
     active = [c for c in deps.store.list_campaigns(statuses=(ACTIVE,)) if c["external_id"]]
     if not active or deps.push is None:
-        return
+        return True
     by_external = {c["external_id"]: c for c in active}
     try:
         totals = deps.push.spend(list(by_external), days=365)
         zones = deps.push.spend(list(by_external), days=365, by_zone=True)
     except PropellerError as exc:
         deps.say(f"stats sync failed: {exc}")
-        return
+        deps.store.set_flag(STATS_ERROR_FLAG, str(exc)[:300])
+        return False
+    deps.store.set_flag(STATS_OK_FLAG, now_iso())
+    deps.store.set_flag(STATS_ERROR_FLAG, "")
     for row in totals:
         c = by_external.get(row["campaign_id"])
         if c:
@@ -302,6 +308,32 @@ def sync_stats(deps: Deps) -> None:
         if c and row["zone_id"]:
             deps.store.upsert_zone_stats(c["id"], row["zone_id"], row["impressions"],
                                          row["clicks"], row["spent"])
+    return True
+
+
+def stop_if_flying_blind(deps: Deps) -> bool:
+    """Kill rules need spend numbers. If PropellerAds stats have been
+    unreadable for STATS_BLIND_MINUTES while campaigns run, stop them all:
+    better paused than spending unchecked. Returns True if it stopped any."""
+    active = [c for c in deps.store.list_campaigns(statuses=(ACTIVE,)) if c["external_id"]]
+    if not active:
+        return False
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=STATS_BLIND_MINUTES)
+    last_ok = deps.store.get_flag(STATS_OK_FLAG)
+    try:
+        blind_since = datetime.fromisoformat(last_ok) if last_ok else None
+    except ValueError:
+        blind_since = None
+    if blind_since is None:
+        # Never synced: count from the oldest running campaign's launch.
+        blind_since = min(datetime.fromisoformat(c["created_at"]) for c in active)
+    if blind_since > cutoff:
+        return False
+    for c in active:
+        stop_campaign(deps, c, STOPPED,
+                      f"no spend data from PropellerAds for {STATS_BLIND_MINUTES}+ min")
+    deps.say("safety stop: PropellerAds stats unavailable, running campaigns stopped")
+    return True
 
 
 # kept for callers/tests that still use the old name
@@ -553,7 +585,13 @@ def manage_campaigns(deps: Deps) -> None:
     expire_stuck_creations(deps)
     fix_tracking_urls(deps)
     sync_moderation(deps)
-    sync_stats(deps)
+    stats_ok = sync_stats(deps)
+    if not stats_ok:
+        # Can't judge spend: never launch more, and stop what runs once the
+        # outage outlasts STATS_BLIND_MINUTES.
+        stop_if_flying_blind(deps)
+        deps.say("launch skipped: PropellerAds stats unavailable")
+        return
     apply_kill_rules(deps)
     blacklist_bad_zones(deps)
     launch_campaigns(deps)

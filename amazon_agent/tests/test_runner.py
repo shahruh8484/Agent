@@ -237,3 +237,32 @@ def test_stuck_creating_row_holds_slot_then_expires(settings, store):
     run_cycle(_deps(settings, store, push))
     assert store.get_campaign(stuck)["status"] == "error"
     assert len(push.created) == 1  # slot reused
+
+
+def test_stats_outage_blocks_launches_then_stops_campaigns(settings, store):
+    from datetime import datetime, timedelta, timezone
+
+    from amzagent.push.propeller import PropellerError
+
+    settings.push_live = True
+    store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    assert len(store.list_campaigns(statuses=(ACTIVE,))) == 2
+
+    def broken(*a, **k):
+        raise PropellerError("Time zone is available only in the weekly period.")
+
+    push.spend = broken
+    store.update_campaign(store.list_campaigns(statuses=(ACTIVE,))[0]["id"], status="killed")
+    deps = _deps(settings, store, push)
+    run_cycle(deps)
+    assert len(push.created) == 2  # no replacement launched while blind
+    assert len(store.list_campaigns(statuses=(ACTIVE,))) == 1  # not stopped yet (< 30 min)
+    assert store.get_flag("stats_error")
+
+    old = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(timespec="seconds")
+    store.set_flag("stats_ok_at", old)
+    run_cycle(_deps(settings, store, push))
+    assert store.list_campaigns(statuses=(ACTIVE,)) == []  # safety stop
+    assert any("no spend data" in (c["note"] or "") for c in store.list_campaigns())
