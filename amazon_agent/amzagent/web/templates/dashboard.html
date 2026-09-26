@@ -172,7 +172,7 @@
 <thead>{{ head() }}</thead>
 <tbody>
 {% if campaigns %}
-<tr class="totals"><td>Итого по всем кампаниям</td><td></td><td></td>
+<tr class="totals"><td>Итого за всё время (все кампании)</td><td></td><td></td>
   <td class="num">{{ "{:,}".format(totals.impressions) }}</td><td class="num">{{ "{:,}".format(totals.ad_clicks) }}</td><td class="num">{{ pct(totals.ctr) }}</td>
   <td class="num">{{ money(totals.spend) }}</td><td class="num">{{ money(totals.cpc) }}</td><td class="num">{{ totals.visits }}</td><td class="num">{{ totals.clicks }}</td><td class="num">{{ money(totals.cost_per_click) }}</td><td></td></tr>
 {% endif %}
