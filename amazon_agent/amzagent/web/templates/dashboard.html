@@ -15,6 +15,7 @@
   </div>
 </div>
 
+{% if flash %}<div class="banner" style="border-color:var(--ok);color:var(--ok)">{{ flash }}</div>{% endif %}
 {% if paused %}<div class="banner bad">Включён аварийный стоп: все кампании остановлены, новые не запускаются.</div>{% endif %}
 {% if not settings.push_live %}<div class="banner">Тестовый режим (PUSH_LIVE=false): агент собирает кампании, но НЕ отправляет их в PropellerAds. Проверьте payload ниже, затем поставьте PUSH_LIVE=true.</div>{% endif %}
 
@@ -31,6 +32,17 @@
   {% if settings.auto_niches %}<br><span class="muted">Автоматически держит не меньше {{ settings.auto_niches }} сайтов (AUTO_NICHES).</span>{% endif %}</span>
   <select name="count">{% for n in [1,2,3,5] %}<option value="{{ n }}"{% if n == 3 %} selected{% endif %}>{{ n }} {{ "ниша" if n == 1 else "ниши" if n < 5 else "ниш" }}</option>{% endfor %}</select>
   <button class="primary">Подобрать сам</button>
+</form>
+
+<h2>Импорт из Creator Connections</h2>
+<form class="card" method="post" action="/import" style="display:grid;gap:10px">
+  <span class="muted">Откройте в Associates Central страницу Creator Connections (вкладка <b>Accepted</b> — бонус платят только по принятым кампаниям), нажмите Ctrl+A, Ctrl+C и вставьте сюда. Агент найдёт ASIN и Estimated EPC, проверит товары на Amazon (рейтинг, отзывы, продажи) и выставит лучшие на сайт — товары с высоким EPC выше.</span>
+  <textarea name="text" rows="5" required placeholder="Вставьте сюда текст страницы Creator Connections" style="padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--fg);font:inherit"></textarea>
+  <div class="row">
+    <input name="name" value="Top Deals" title="Название/тема сайта; тот же текст ещё раз — добавит товары в этот же сайт" style="flex:1;min-width:200px">
+    <input name="language" value="English" style="width:110px">
+    <button class="primary">Импортировать</button>
+  </div>
 </form>
 
 <h2>Новый сайт вручную</h2>
@@ -52,7 +64,7 @@
 <tr>
   <td>{% if n.site %}<a href="/s/{{ n.niche.slug }}/" target="_blank">{{ n.site.site_title }}</a>{% else %}<span class="muted">создаётся…</span>{% endif %}
       {% if not n.niche.enabled %}<span class="pill s-stopped">выкл</span>{% endif %}</td>
-  <td>{{ n.niche.keywords }} <span class="muted">({{ n.niche.search_index }})</span></td>
+  <td>{% if n.niche.asins %}{{ n.niche.keywords }} <span class="muted">(импорт, {{ n.niche.asins|length }} ASIN)</span>{% else %}{{ n.niche.keywords }} <span class="muted">({{ n.niche.search_index }})</span>{% endif %}</td>
   <td class="num">{{ n.products }}</td>
   <td class="num">{{ n.stats.visit }}</td>
   <td class="num">{{ n.stats.click }}</td>

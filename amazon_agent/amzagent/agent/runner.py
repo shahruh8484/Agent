@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 KILLED = "killed"  # stopped by the kill rule — never relaunched for that product
 PAUSE_FLAG = "paused_all"
 SEARCH_PAGES = 2  # 10 items per page
+CURATED_SITE_SIZE = 30
 
 
 @dataclass
@@ -75,13 +76,23 @@ def build_deps(settings: Settings, store: Store) -> Deps:
 
 def refresh_niche(deps: Deps, niche: Niche) -> bool:
     s, store = deps.settings, deps.store
-    deps.say(f"[{niche.slug}] searching Amazon for {niche.keywords!r}")
     if deps.catalog is None:
         deps.say(f"[{niche.slug}] skipped: Amazon API not configured")
         return False
 
     candidates = []
-    for page in range(1, SEARCH_PAGES + 1):
+    if niche.asins:
+        deps.say(f"[{niche.slug}] fetching {len(niche.asins)} imported products from Amazon")
+        try:
+            candidates = deps.catalog.get(list(niche.asins))
+        except CatalogError as exc:
+            deps.say(f"[{niche.slug}] fetch failed: {exc}")
+        for p in candidates:
+            p.epc = niche.asins.get(p.asin)
+    else:
+        deps.say(f"[{niche.slug}] searching Amazon for {niche.keywords!r}")
+    pages = 0 if niche.asins else SEARCH_PAGES
+    for page in range(1, pages + 1):
         try:
             found = deps.catalog.search(niche.keywords, niche.search_index, niche.max_price, page)
         except CatalogError as exc:
@@ -91,9 +102,9 @@ def refresh_niche(deps: Deps, niche: Niche) -> bool:
         if len(found) < 10:
             break
 
-    selected, rejected = select_products(
-        candidates, s.products_per_site, s.min_rating, s.min_reviews
-    )
+    # An imported list was already hand-picked, so it gets a bigger shelf.
+    limit = max(s.products_per_site, CURATED_SITE_SIZE) if niche.asins else s.products_per_site
+    selected, rejected = select_products(candidates, limit, s.min_rating, s.min_reviews)
     deps.say(
         f"[{niche.slug}] {len(candidates)} found, {len(selected)} selected, "
         f"{len(rejected)} rejected"

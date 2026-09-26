@@ -8,6 +8,7 @@ social proof (rating + review count). Qualified products are ranked by
     rating * log10(reviews)          social proof, diminishing in volume
   + discount bonus                   push traffic reacts to deals
   + sales-rank bonus                 bestsellers convert better
+  + EPC bonus                        Creator Connections pays more per click
 """
 from __future__ import annotations
 
@@ -23,6 +24,9 @@ def score(product: Product) -> float:
     if product.sales_rank:
         # rank 1 -> +3, rank 1000 -> +1, rank 1M -> ~0
         s += max(0.0, 3 - math.log10(product.sales_rank) * 0.5)
+    if product.epc:
+        # $1 of estimated earnings per click ~ one extra star of social proof
+        s += min(product.epc, 5) * 2
     return round(s, 3)
 
 

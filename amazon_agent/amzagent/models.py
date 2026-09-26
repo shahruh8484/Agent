@@ -21,6 +21,9 @@ class Product(BaseModel):
     review_count: int = 0
     sales_rank: int | None = None
     category: str = ""
+    # Creator Connections "Estimated EPC" ($ per click) for imported
+    # campaign products; None for products found by search.
+    epc: float | None = None
     # ISO timestamp of the API call the price came from. Amazon only lets
     # you show a price fetched within the last 24h.
     fetched_at: str = ""
@@ -50,3 +53,6 @@ class Niche(BaseModel):
     language: str = "English"
     max_price: float | None = None
     enabled: bool = True
+    # Curated site: products come from this fixed ASIN list ({asin: EPC})
+    # instead of a keyword search, e.g. Creator Connections imports.
+    asins: dict[str, float | None] = Field(default_factory=dict)

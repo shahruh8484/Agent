@@ -32,6 +32,7 @@ from amzagent.agent.runner import (
     stop_all,
     stop_campaign,
 )
+from amzagent.amazon.creator_connections import parse_opportunities
 from amzagent.config import Settings, get_settings
 from amzagent.models import Product
 from amzagent.store import ACTIVE, STOPPED, Store
@@ -237,6 +238,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "campaigns": campaigns,
                 "runs": store.list_runs(15),
                 "paused": store.get_flag(PAUSE_FLAG) == "1",
+                "flash": request.session.pop("flash", None),
                 "running_budget": store.running_daily_budget(),
                 "active_count": len(store.list_campaigns(statuses=(ACTIVE,))),
             },
@@ -253,6 +255,35 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             price = None
         niche = store.add_niche(keywords.strip(), search_index.strip(), language.strip(), price)
         run_in_background(niche.id)
+        return RedirectResponse("/", status_code=303)
+
+    @app.post("/import")
+    def import_opportunities(request: Request, text: str = Form(...),
+                             name: str = Form("Top Deals"), language: str = Form("English")):
+        if not logged_in(request):
+            return to_login()
+        asins = parse_opportunities(text)
+        if not asins:
+            request.session["flash"] = "В тексте не найдено ни одного ASIN."
+            return RedirectResponse("/", status_code=303)
+        name = name.strip() or "Top Deals"
+        existing = next(
+            (n for n in store.list_niches() if n.asins and n.keywords.lower() == name.lower()),
+            None,
+        )
+        if existing:
+            total = store.merge_niche_asins(existing.id, asins)
+            niche_id = existing.id
+        else:
+            niche_id = store.add_niche(name, language=language.strip() or "English",
+                                       asins=asins).id
+            total = len(asins)
+        with_epc = sum(1 for v in asins.values() if v is not None)
+        request.session["flash"] = (
+            f"Импортировано {len(asins)} товаров ({with_epc} с EPC), всего на сайте "
+            f"«{name}»: {total}. Агент проверяет их на Amazon — обновите страницу через минуту."
+        )
+        run_in_background(niche_id)
         return RedirectResponse("/", status_code=303)
 
     @app.post("/niches/{niche_id}/run")
