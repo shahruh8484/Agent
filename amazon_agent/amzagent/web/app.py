@@ -92,7 +92,8 @@ def _clean(value: str | None) -> str | None:
     return value if value and SAFE_PARAM.match(value) else None
 
 
-STATUS_ORDER = {"active": 0, "dry_run": 1, "creating": 2, "error": 3, "killed": 4, "stopped": 5}
+STATUS_ORDER = {"active": 0, "capped": 1, "dry_run": 2, "creating": 3, "error": 4, "killed": 5,
+                "stopped": 6}
 
 
 def _ratio(num: float, den: float) -> float | None:

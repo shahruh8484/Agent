@@ -40,6 +40,8 @@ logger = logging.getLogger(__name__)
 
 KILLED = "killed"
 CREATING = "creating"  # row exists, creatives/API call still in progress
+CAPPED = "capped"  # paused by the agent: 24h spend limit reached; resumes by itself
+RESUME_HEADROOM = 1.0  # $ left under the 24h limit before capped campaigns resume
 STUCK_CREATING_MINUTES = 30
 STATS_BLIND_MINUTES = 30
 # Share of paid push clicks that reach our page (measured: 298 of 338).
@@ -220,6 +222,47 @@ def stop_campaign(deps: Deps, campaign: dict, status: str, reason: str) -> None:
                 return
     deps.store.update_campaign(campaign["id"], status=status, note=reason)
     deps.say(f"campaign #{campaign['id']} ({campaign['asin']}) stopped: {reason}")
+
+
+def enforce_spend_cap(deps: Deps) -> None:
+    """The 24h limit applies to money actually spent: once it's reached,
+    pause every running campaign (status "capped"); when enough of the
+    window has rolled off, resume them."""
+    if deps.push is None:
+        return
+    spent = spent_today(deps.store)
+    if spent is None:
+        return
+    cap = deps.settings.max_daily_spend
+    if spent >= cap:
+        for c in deps.store.list_campaigns(statuses=(ACTIVE,)):
+            if not c["external_id"]:
+                continue
+            try:
+                deps.push.stop([c["external_id"]])
+            except PropellerError as exc:
+                try:
+                    api_status = deps.push.campaign_status(c["external_id"])
+                except PropellerError:
+                    api_status = None
+                if api_status not in propeller.API_STATUSES_NOT_RUNNING:
+                    deps.say(f"campaign #{c['id']}: pause at limit failed, will retry: {exc}")
+                    continue
+            deps.store.update_campaign(
+                c["id"], status=CAPPED,
+                note=f"paused: ${spent:.2f} spent in 24h >= limit ${cap:.2f}")
+            deps.say(f"campaign #{c['id']} paused: 24h limit ${cap:.2f} reached "
+                     f"(${spent:.2f} spent)")
+    elif cap - spent >= RESUME_HEADROOM:
+        for c in deps.store.list_campaigns(statuses=(CAPPED,)):
+            try:
+                deps.push.start([c["external_id"]])
+            except PropellerError as exc:
+                deps.say(f"campaign #{c['id']}: resume failed, will retry: {exc}")
+                continue
+            deps.store.update_campaign(c["id"], status=ACTIVE,
+                                       note="resumed: back under the 24h limit")
+            deps.say(f"campaign #{c['id']} resumed: ${spent:.2f} of ${cap:.2f} spent in 24h")
 
 
 def enforce_budget_cap(deps: Deps) -> None:
@@ -521,9 +564,10 @@ def launch_campaigns(deps: Deps) -> None:
             continue
         campaigns = store.list_campaigns(niche_id=niche.id)
         # A campaign still being created holds its slot and its product.
-        running = [c for c in campaigns if c["status"] in (running_status, CREATING)]
+        # Campaigns being created or paused at the limit keep their slot.
+        running = [c for c in campaigns if c["status"] in (running_status, CREATING, CAPPED)]
         taken = {c["asin"] for c in campaigns
-                 if c["status"] in (running_status, KILLED, CREATING)}
+                 if c["status"] in (running_status, KILLED, CREATING, CAPPED)}
         slots = s.campaigns_per_site - len(running)
 
         for product, copy in store.list_products(niche.id):
@@ -640,7 +684,7 @@ def redraw_campaign(deps: Deps, campaign_id: int) -> bool:
 
 
 def stop_all(deps: Deps, reason: str = "stopped by kill switch") -> None:
-    for c in deps.store.list_campaigns(statuses=(ACTIVE, DRY_RUN)):
+    for c in deps.store.list_campaigns(statuses=(ACTIVE, DRY_RUN, CAPPED)):
         stop_campaign(deps, c, STOPPED, reason)
 
 
@@ -668,6 +712,7 @@ def manage_campaigns(deps: Deps) -> None:
     apply_kill_rules(deps)
     blacklist_bad_zones(deps)
     sync_today_spend(deps)  # right before launching: the cap needs fresh numbers
+    enforce_spend_cap(deps)
     launch_campaigns(deps)
 
 

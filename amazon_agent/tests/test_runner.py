@@ -359,3 +359,24 @@ def test_unknown_24h_spend_blocks_launches(settings, store):
     run_cycle(deps)
     assert push.created == []
     assert any("24h spend unknown" in line for line in deps.log)
+
+
+def test_24h_limit_pauses_running_and_resumes_later(settings, store):
+    settings.push_live = True
+    settings.max_daily_spend = 20
+    settings.min_amazon_rate = 0  # keep kill rules out of this test
+    store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    a, b = store.list_campaigns(statuses=(ACTIVE,))
+    push.spend_rows = [{"campaign_id": a["external_id"], "spent": 12.0},
+                       {"campaign_id": b["external_id"], "spent": 9.0}]  # $21 >= $20
+    run_cycle(_deps(settings, store, push))
+    assert {store.get_campaign(c["id"])["status"] for c in (a, b)} == {"capped"}
+    assert set(push.stopped) >= {a["external_id"], b["external_id"]}
+    assert len(push.created) == 2  # paused ones keep their slots: nothing new
+
+    push.spend_rows = [{"campaign_id": a["external_id"], "spent": 5.0}]  # window rolled on
+    run_cycle(_deps(settings, store, push))
+    assert {store.get_campaign(c["id"])["status"] for c in (a, b)} == {ACTIVE}
+    assert set(push.started) == {a["external_id"], b["external_id"]}
