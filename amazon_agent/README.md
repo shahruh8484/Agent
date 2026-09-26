@@ -127,6 +127,13 @@ pytest                                            # тесты, полность
 
 ## Правила Amazon, которые агент соблюдает
 
+- Страницы, которые проверяет Amazon при ревью сайта: `/about`, `/contact`
+  (форма связи — сообщения видны в панели), `/privacy` (с обязательным
+  пунктом о cookies Amazon и третьих сторон), `/terms`,
+  `/affiliate-disclosure`; ссылки на них в подвале каждой страницы. Плюс
+  `/sitemap.xml`, `/robots.txt`, значок сайта. `CONTACT_EMAIL` в `.env`
+  добавит email на страницы Contact и Privacy.
+
 - На каждой странице — раскрытие «As an Amazon Associate we earn from
   qualifying purchases».
 - Цена показывается только если получена из API менее 24 часов назад, с

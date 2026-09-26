@@ -1,0 +1,23 @@
+{% extends "root_base.html" %}
+{% block title %}About Us — {{ brand }}{% endblock %}
+{% block extra_head %}{% include "_legal_style.html" %}{% endblock %}
+{% block content %}
+<article class="doc">
+<h1>About {{ brand }}</h1>
+<p class="updated">Independent product guides, updated regularly.</p>
+<p>{{ brand }} helps shoppers find well-reviewed products without spending hours comparing listings. Each of our guides focuses on one kind of product and lists the options that real customers rate highest.</p>
+<h2>How we choose products</h2>
+<ul>
+  <li><b>Customer ratings.</b> We only list products with a strong average rating (typically 4 stars or higher).</li>
+  <li><b>Number of reviews.</b> A high rating from thousands of buyers counts for more than one from a handful.</li>
+  <li><b>Popularity.</b> Products that sell consistently well rank higher.</li>
+  <li><b>Regular updates.</b> Our lists are refreshed often, so products that go out of stock or slip in ratings drop off.</li>
+</ul>
+<h2>How our pages are written</h2>
+<p>Product summaries and buying tips are written with the help of AI, based on each product's listed features and on general knowledge of the product category. We do not physically test products, and we never invent specifications. Always check the full product details on Amazon before you buy.</p>
+<h2>How we make money</h2>
+<p>We earn a commission when you buy through our links, at no extra cost to you. This never changes the price you pay. See our <a href="/affiliate-disclosure">Affiliate Disclosure</a> for details.</p>
+<h2>Get in touch</h2>
+<p>Questions, corrections or suggestions? <a href="/contact">Contact us</a> — we read every message.</p>
+</article>
+{% endblock %}

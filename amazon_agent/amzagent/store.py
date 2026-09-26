@@ -75,6 +75,13 @@ CREATE TABLE IF NOT EXISTS runs (
     ok INTEGER NOT NULL,
     log TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    body TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS kv (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -406,6 +413,21 @@ class Store:
 
     def list_runs(self, limit: int = 20) -> list[dict]:
         return [dict(r) for r in self._all("SELECT * FROM runs ORDER BY id DESC LIMIT ?", (limit,))]
+
+    # --- contact form -----------------------------------------------------
+
+    def add_message(self, name: str, email: str, body: str) -> None:
+        self._exec("INSERT INTO messages (ts, name, email, body) VALUES (?, ?, ?, ?)",
+                   (now_iso(), name, email, body))
+
+    def list_messages(self, limit: int = 20) -> list[dict]:
+        rows = self._all("SELECT * FROM messages ORDER BY id DESC LIMIT ?", (limit,))
+        return [dict(r) for r in rows]
+
+    def count_recent_messages(self, hours: int = 1) -> int:
+        since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
+        r = self._one("SELECT COUNT(*) AS n FROM messages WHERE ts >= ?", (since,))
+        return int(r["n"])
 
     def get_flag(self, key: str, default: str = "") -> str:
         r = self._one("SELECT value FROM kv WHERE key = ?", (key,))

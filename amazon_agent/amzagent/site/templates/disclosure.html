@@ -1,0 +1,20 @@
+{% extends "root_base.html" %}
+{% block title %}Affiliate Disclosure — {{ brand }}{% endblock %}
+{% block extra_head %}{% include "_legal_style.html" %}{% endblock %}
+{% block content %}
+<article class="doc">
+<h1>Affiliate Disclosure</h1>
+<p class="updated">Last updated: {{ updated }}</p>
+<p class="note"><b>As an Amazon Associate we earn from qualifying purchases.</b></p>
+<p>{{ brand }} ({{ domain }}) is a participant in the Amazon Services LLC Associates Program, an affiliate advertising program designed to provide a means for sites to earn advertising fees by advertising and linking to Amazon.com.</p>
+<p>This means that when you click a link on our site that leads to Amazon (for example, a "Check price on Amazon" button) and then make a purchase, we may receive a small commission from Amazon. This comes at no additional cost to you — the price you pay on Amazon is exactly the same.</p>
+<h2>Our independence</h2>
+<p>Products are chosen based on customer ratings, number of reviews and popularity. Manufacturers and sellers cannot pay to be listed or to change their position. Commissions help us keep the site running.</p>
+<h2>Prices and availability</h2>
+<p>Product prices and availability are accurate as of the date and time indicated and are subject to change. Any price and availability information displayed on Amazon at the time of purchase will apply to the purchase of the product.</p>
+<h2>Trademarks</h2>
+<p>Amazon and the Amazon logo are trademarks of Amazon.com, Inc. or its affiliates. All other product names and brands are the property of their respective owners. {{ brand }} is not affiliated with or endorsed by Amazon or by the manufacturers of the products we feature.</p>
+<h2>Questions</h2>
+<p>If you have any questions about this disclosure, please <a href="/contact">contact us</a>.</p>
+</article>
+{% endblock %}

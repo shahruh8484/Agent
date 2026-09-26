@@ -95,3 +95,48 @@ def test_login_lands_on_admin(site):
     resp = client.post("/login", data={"username": "admin", "password": "pw"},
                        follow_redirects=False)
     assert resp.headers["location"] == "/admin"
+
+
+def test_site_wide_pages_amazon_expects(site):
+    client, _ = site
+    for path, needle in [
+        ("/about", "How we choose products"),
+        ("/privacy", "may collect information directly from visitors, including by placing or recognizing cookies"),
+        ("/terms", "Terms of Use"),
+        ("/affiliate-disclosure", "As an Amazon Associate we earn from qualifying purchases"),
+        ("/contact", "Send message"),
+    ]:
+        page = client.get(path)
+        assert page.status_code == 200 and needle in page.text, path
+        # every public page links to every legal page from the footer
+        for link in ("/privacy", "/terms", "/affiliate-disclosure", "/contact", "/about"):
+            assert f'href="{link}"' in page.text
+    product = client.get("/s/earbuds/p/NEW").text
+    assert 'href="/privacy"' in product and 'href="/affiliate-disclosure"' in product
+    assert client.get("/s/earbuds/about", follow_redirects=False).headers["location"] \
+        == "/affiliate-disclosure"
+
+
+def test_contact_form_reaches_dashboard(site, store):
+    client, _ = site
+    bad = client.post("/contact", data={"name": "", "email": "x", "message": ""})
+    assert bad.status_code == 400
+    ok = client.post("/contact", data={"name": "Ann", "email": "ann@example.com",
+                                       "message": "Hello there"})
+    assert "your message has been sent" in ok.text
+    client.post("/contact", data={"name": "Bot", "email": "b@b.co", "message": "spam",
+                                  "website": "http://spam"})
+    assert [m["name"] for m in store.list_messages()] == ["Ann"]
+    client.post("/login", data={"username": "admin", "password": "pw"})
+    assert "Hello there" in client.get("/admin").text
+
+
+def test_robots_and_sitemap(site):
+    client, _ = site
+    robots = client.get("/robots.txt").text
+    assert "Disallow: /admin" in robots and "Sitemap: https://example.com/sitemap.xml" in robots
+    sitemap = client.get("/sitemap.xml")
+    assert sitemap.headers["content-type"].startswith("application/xml")
+    assert "https://example.com/s/earbuds/p/NEW" in sitemap.text
+    assert "https://example.com/privacy" in sitemap.text
+    assert client.get("/favicon.svg").headers["content-type"].startswith("image/svg")

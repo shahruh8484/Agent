@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     domain: str = ""  # public domain the sites and dashboard are served on
     # Name shown on the public home page (defaults to the domain name)
     site_name: str = ""
+    # Shown on the Contact and Privacy pages (the contact form works without it)
+    contact_email: str = ""
     data_dir: str = "data"
     admin_username: str = "admin"
     admin_password_hash: str = ""

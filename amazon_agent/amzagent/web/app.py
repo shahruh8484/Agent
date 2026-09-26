@@ -3,7 +3,9 @@
 Public (no login):
   /s/{slug}/                 site home — the niche's selected products
   /s/{slug}/p/{asin}         product page (push ads land here)
-  /s/{slug}/about            affiliate disclosure + privacy
+  /about /contact /privacy /terms /affiliate-disclosure
+                             site-wide pages Amazon Associates reviewers expect
+  /robots.txt /sitemap.xml /favicon.svg
   /go/{slug}/{asin}          logs a click, redirects to Amazon
   /media/{slug}/{file}       push creative images
 
@@ -17,11 +19,18 @@ import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
+from html import escape
 from pathlib import Path
 
 import bcrypt
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -48,6 +57,9 @@ SITE_TEMPLATES.env.filters["hue"] = lambda text: int(
     hashlib.md5((text or "").encode()).hexdigest(), 16
 ) % 360  # stable per-brand color for image placeholders
 PRICE_MAX_AGE = timedelta(hours=24)
+# "Last updated" on the legal pages: change it when their text changes.
+LEGAL_PAGES_UPDATED = "September 26, 2026"
+CONTACT_HOURLY_LIMIT = 20  # site-wide, keeps a spam bot from flooding the inbox
 SAFE_PARAM = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
 
 
@@ -113,15 +125,25 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             raise HTTPException(404)
         return niche, copy
 
-    def site_ctx(request: Request, niche, site_copy, **extra) -> dict:
+    brand = settings.site_name or (
+        settings.domain.split(".")[0].title() if settings.domain else "Top Picks"
+    )
+    domain = settings.domain or "this site"
+
+    def public_ctx(request: Request, **extra) -> dict:
         return {
             "request": request,
-            "niche": niche,
-            "site": site_copy,
-            "price_is_fresh": price_is_fresh,
+            "brand": brand,
+            "domain": domain,
+            "contact_email": settings.contact_email,
+            "updated": LEGAL_PAGES_UPDATED,
             "year": datetime.now(timezone.utc).year,
             **extra,
         }
+
+    def site_ctx(request: Request, niche, site_copy, **extra) -> dict:
+        return public_ctx(request, niche=niche, site=site_copy,
+                          price_is_fresh=price_is_fresh, **extra)
 
     @app.get("/s/{slug}/", response_class=HTMLResponse)
     def site_home(request: Request, slug: str):
@@ -158,12 +180,85 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                      go_url=go, others=others, rank=rank),
         )
 
-    @app.get("/s/{slug}/about", response_class=HTMLResponse)
-    def about_page(request: Request, slug: str):
-        niche, copy = site_or_404(slug)
+    @app.get("/s/{slug}/about")
+    def old_about_page(slug: str):
+        return RedirectResponse("/affiliate-disclosure", status_code=301)
+
+    # --- site-wide pages Amazon Associates reviewers look for -------------
+
+    for path, template in (
+        ("/about", "about_site.html"),
+        ("/privacy", "privacy.html"),
+        ("/terms", "terms.html"),
+        ("/affiliate-disclosure", "disclosure.html"),
+    ):
+        def page(request: Request, _template: str = template):
+            return SITE_TEMPLATES.TemplateResponse(request, _template, public_ctx(request))
+
+        app.add_api_route(path, page, methods=["GET"], response_class=HTMLResponse)
+
+    @app.get("/contact", response_class=HTMLResponse)
+    def contact_form(request: Request):
+        return SITE_TEMPLATES.TemplateResponse(request, "contact.html", public_ctx(request))
+
+    @app.post("/contact", response_class=HTMLResponse)
+    def contact_send(request: Request, name: str = Form(""), email: str = Form(""),
+                     message: str = Form(""), website: str = Form("")):
+        error = None
+        if website:  # honeypot field, invisible to people
+            return SITE_TEMPLATES.TemplateResponse(
+                request, "contact.html", public_ctx(request, sent=True))
+        if not (name.strip() and "@" in email and message.strip()):
+            error = "Please fill in your name, a valid email and a message."
+        elif store.count_recent_messages(hours=1) >= CONTACT_HOURLY_LIMIT:
+            error = "Too many messages right now — please try again later."
+        if error:
+            return SITE_TEMPLATES.TemplateResponse(
+                request, "contact.html", public_ctx(request, error=error), status_code=400)
+        store.add_message(name.strip()[:100], email.strip()[:200], message.strip()[:5000])
         return SITE_TEMPLATES.TemplateResponse(
-            request, "about.html", site_ctx(request, niche, copy)
+            request, "contact.html", public_ctx(request, sent=True))
+
+    @app.get("/robots.txt", response_class=PlainTextResponse)
+    def robots():
+        return (
+            "User-agent: *\nDisallow: /admin\nDisallow: /login\nDisallow: /go/\n"
+            f"Sitemap: {settings.public_base_url()}/sitemap.xml\n"
         )
+
+    @app.get("/sitemap.xml")
+    def sitemap():
+        base = settings.public_base_url()
+        urls = [f"{base}/"] + [f"{base}{p}" for p in (
+            "/about", "/contact", "/privacy", "/terms", "/affiliate-disclosure")]
+        for n in store.list_niches():
+            if not n.enabled or store.get_site_copy(n.id) is None:
+                continue
+            urls.append(f"{base}/s/{n.slug}/")
+            urls += [f"{base}/s/{n.slug}/p/{p.asin}"
+                     for p, c in store.list_products(n.id) if c]
+        body = "".join(f"<url><loc>{escape(u)}</loc></url>" for u in urls)
+        return Response(
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>',
+            media_type="application/xml",
+        )
+
+    @app.get("/favicon.svg")
+    def favicon():
+        return Response(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+            '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+            '<stop offset="0" stop-color="#e8590c"/><stop offset="1" stop-color="#f59f00"/>'
+            '</linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#g)"/>'
+            '<text x="32" y="44" font-family="Arial,sans-serif" font-size="36" '
+            f'font-weight="700" fill="#fff" text-anchor="middle">{escape(brand[:1])}</text></svg>',
+            media_type="image/svg+xml",
+        )
+
+    @app.get("/favicon.ico")
+    def favicon_ico():
+        return RedirectResponse("/favicon.svg", status_code=301)
 
     @app.get("/go/{slug}/{asin}")
     def outbound(slug: str, asin: str, c: str | None = None, z: str | None = None):
@@ -225,13 +320,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             products = [p for p, c in store.list_products(n.id) if c][:4]
             if products:
                 sites.append({"niche": n, "site": copy, "products": products})
-        title = settings.site_name or (settings.domain.split(".")[0].title() if settings.domain
-                                       else "Top Picks")
         return SITE_TEMPLATES.TemplateResponse(
-            request, "hub.html",
-            {"request": request, "title": title, "sites": sites,
-             "year": datetime.now(timezone.utc).year},
-        )
+            request, "hub.html", public_ctx(request, sites=sites))
 
     @app.get("/admin", response_class=HTMLResponse)
     def dashboard(request: Request):
@@ -267,6 +357,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "paused": store.get_flag(PAUSE_FLAG) == "1",
                 "flash": request.session.pop("flash", None),
                 "running": store.run_in_progress(),
+                "messages": store.list_messages(20),
                 "running_budget": store.running_daily_budget(),
                 "active_count": len(store.list_campaigns(statuses=(ACTIVE,))),
             },

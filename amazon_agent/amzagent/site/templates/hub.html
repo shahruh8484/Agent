@@ -1,22 +1,14 @@
-<!doctype html>
-<html lang="en">
-<head>
-{% include "_head.html" %}
-<title>{{ title }} — top rated product picks</title>
-<meta name="description" content="Hand-picked, top rated products across categories, chosen by customer ratings and reviews.">
-</head>
-<body>
-<header class="topbar"><div class="wrap">
-  <a class="logo" href="/"><span class="logo-mark">{{ title[:1] }}</span>{{ title }}</a>
-  <nav class="nav">{% for s in sites[:3] %}<a href="/s/{{ s.niche.slug }}/">{{ s.site.site_title }}</a>{% endfor %}</nav>
-</div></header>
-<div class="disclosure-bar">As an Amazon Associate we earn from qualifying purchases.</div>
+{% extends "root_base.html" %}
+{% block title %}{{ brand }} — top rated product picks{% endblock %}
+{% block description %}Hand-picked, top rated products across categories, chosen by customer ratings and reviews.{% endblock %}
+{% block hero %}
 <section class="hero"><div class="wrap">
   <h1>The best-rated products, picked for you</h1>
   <p>We rank products by what real customers say — ratings, review counts and sales — so you can skip the endless scrolling.</p>
   <div class="chips"><span class="chip">&#10003; Ranked by ratings &amp; reviews</span><span class="chip">&#10003; Refreshed daily</span><span class="chip">&#10003; Independent picks</span></div>
 </div></section>
-<main><div class="wrap">
+{% endblock %}
+{% block content %}
 {% for s in sites %}
   <section style="margin-bottom:44px">
     <div class="section-head"><h2><a href="/s/{{ s.niche.slug }}/" style="text-decoration:none">{{ s.site.site_title }}</a></h2><a href="/s/{{ s.niche.slug }}/">See all picks &rarr;</a></div>
@@ -28,12 +20,4 @@
 {% else %}
   <p>New product guides are being prepared. Check back soon.</p>
 {% endfor %}
-</div></main>
-<footer><div class="wrap">
-  <div class="brandline">{{ title }}</div>
-  &copy; {{ year }} {{ title }}{% if sites %} &middot; <a href="/s/{{ sites[0].niche.slug }}/about">Disclosure &amp; privacy</a>{% endif %}<br>
-  {{ title }} is a participant in the Amazon Services LLC Associates Program, an affiliate advertising program designed to provide a means for sites to earn advertising fees by advertising and linking to Amazon.com.
-  Amazon and the Amazon logo are trademarks of Amazon.com, Inc. or its affiliates.
-</div></footer>
-</body>
-</html>
+{% endblock %}

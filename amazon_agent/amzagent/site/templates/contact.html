@@ -1,0 +1,31 @@
+{% extends "root_base.html" %}
+{% block title %}Contact — {{ brand }}{% endblock %}
+{% block extra_head %}{% include "_legal_style.html" %}
+<style>
+.form { display:grid; gap:12px; margin-top:18px; }
+.form label { display:grid; gap:6px; font-weight:600; font-size:.92rem; }
+.form input, .form textarea { font:inherit; padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); }
+.form textarea { min-height:140px; resize:vertical; }
+.hp { position:absolute; left:-9999px; }
+.ok { background:#e8f7ee; color:#14532d; border-radius:12px; padding:14px 16px; }
+.err { background:#fdecec; color:#7f1d1d; border-radius:12px; padding:14px 16px; }
+</style>{% endblock %}
+{% block content %}
+<article class="doc">
+<h1>Contact us</h1>
+<p>Questions about a product guide, a correction, or a partnership request? Send us a message and we'll get back to you by email.</p>
+{% if contact_email %}<p>Email: <a href="mailto:{{ contact_email }}">{{ contact_email }}</a></p>{% endif %}
+{% if sent %}<p class="ok">Thank you — your message has been sent. We'll reply as soon as we can.</p>
+{% else %}
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+<form class="form" method="post" action="/contact">
+  <label>Your name<input name="name" maxlength="100" required></label>
+  <label>Your email<input name="email" type="email" maxlength="200" required></label>
+  <label>Message<textarea name="message" maxlength="5000" required></textarea></label>
+  <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+  <button class="btn" type="submit">Send message</button>
+</form>
+{% endif %}
+<p class="updated" style="margin-top:20px">Please note: we don't sell products ourselves. For questions about an Amazon order, please contact Amazon customer service.</p>
+</article>
+{% endblock %}

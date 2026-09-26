@@ -1,0 +1,40 @@
+{% extends "root_base.html" %}
+{% block title %}Privacy Policy — {{ brand }}{% endblock %}
+{% block extra_head %}{% include "_legal_style.html" %}{% endblock %}
+{% block content %}
+<article class="doc">
+<h1>Privacy Policy</h1>
+<p class="updated">Last updated: {{ updated }}</p>
+<p>This Privacy Policy explains what information {{ brand }} ("we", "us") collects when you visit {{ domain }} (the "Site"), how we use it, and your choices.</p>
+
+<h2>Information we collect</h2>
+<ul>
+  <li><b>Usage information.</b> We count page views and clicks on links to Amazon, together with the page visited and, if you arrived from an advertisement, an identifier of that ad and the ad placement. We use this only to understand which pages and ads are useful.</li>
+  <li><b>Server logs.</b> Like most websites, our hosting servers automatically record technical information such as IP address, browser type and the time of the request. These logs are used for security and troubleshooting and are deleted on a rolling basis.</li>
+  <li><b>Information you send us.</b> If you use our contact form, we receive the name, email address and message you provide, and use them only to reply to you.</li>
+</ul>
+<p>We do not sell your personal information, and we do not ask for payment details — all purchases happen on Amazon.</p>
+
+<h2>Cookies</h2>
+<p>We do not use cookies to track visitors on this Site.</p>
+<p class="note">Amazon and other third parties may provide content and advertising on this Site and may collect information directly from visitors, including by placing or recognizing cookies on your browser. When you click a link to Amazon, Amazon's own privacy notice applies to information collected on Amazon's website, including cookies Amazon uses to attribute purchases to referring sites.</p>
+
+<h2>Advertising</h2>
+<p>We may promote our pages through advertising networks, including push-notification ads. If you subscribed to notifications, that subscription is managed by your browser and the advertising network, not by us; you can remove it at any time in your browser's site settings.</p>
+
+<h2>Third-party links</h2>
+<p>Our Site links to Amazon and other websites. We are not responsible for the privacy practices of those websites; please review their policies.</p>
+
+<h2>Your rights</h2>
+<p>Depending on where you live (for example, under the GDPR in the EU/UK or the CCPA/CPRA in California), you may have the right to request access to, correction of, or deletion of personal information we hold about you, and to opt out of the sale or sharing of personal information. We do not sell or share personal information. To make a request, <a href="/contact">contact us</a>.</p>
+
+<h2>Children's privacy</h2>
+<p>The Site is not directed to children under 13, and we do not knowingly collect personal information from children.</p>
+
+<h2>Changes to this policy</h2>
+<p>We may update this policy from time to time. The "Last updated" date above shows when it was last changed.</p>
+
+<h2>Contact</h2>
+<p>For any privacy question, please use our <a href="/contact">contact page</a>{% if contact_email %} or email <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}.</p>
+</article>
+{% endblock %}

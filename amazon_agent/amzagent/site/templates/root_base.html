@@ -2,15 +2,15 @@
 <html lang="en">
 <head>
 {% include "_head.html" %}
-<title>{% block title %}{{ site.site_title }} — {{ site.tagline }}{% endblock %}</title>
-<meta name="description" content="{{ site.tagline }}">
+<title>{% block title %}{{ brand }}{% endblock %}</title>
+<meta name="description" content="{% block description %}Top rated products, picked by customer ratings and reviews.{% endblock %}">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 {% block extra_head %}{% endblock %}
 </head>
 <body>
 <header class="topbar"><div class="wrap">
-  <a class="logo" href="/s/{{ niche.slug }}/"><span class="logo-mark">{{ site.site_title[:1] }}</span>{{ site.site_title }}</a>
-  <nav class="nav"><a href="/">All guides</a><a href="/about">About</a><a href="/contact">Contact</a></nav>
+  <a class="logo" href="/"><span class="logo-mark">{{ brand[:1] }}</span>{{ brand }}</a>
+  <nav class="nav"><a href="/">Guides</a><a href="/about">About</a><a href="/contact">Contact</a></nav>
 </div></header>
 <div class="disclosure-bar">As an Amazon Associate we earn from qualifying purchases. <a href="/affiliate-disclosure">Learn more</a></div>
 {% block hero %}{% endblock %}
