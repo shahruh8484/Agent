@@ -111,3 +111,29 @@ def test_empty_search_keeps_existing_site(settings, store):
     deps.catalog = FakeCatalog([])
     run_cycle(deps)
     assert len(store.list_products(niche.id)) == 4
+
+
+def test_run_log_is_live_and_finished(settings, store):
+    store.add_niche("earbuds")
+    run_cycle(_deps(settings, store))
+    run = store.list_runs()[0]
+    assert run["ok"] == 1 and "4 selected" in run["log"]
+    assert not store.run_in_progress()
+
+
+def test_interrupted_run_is_closed_on_startup(settings, store):
+    store.start_run(None)
+    assert store.run_in_progress()
+    store.close_interrupted_runs()
+    assert not store.run_in_progress()
+    assert store.list_runs()[0]["ok"] == 0
+
+
+def test_busy_cycle_without_wait_is_skipped(settings, store):
+    from amzagent.agent import runner
+
+    runner._run_lock.acquire()
+    try:
+        assert run_cycle(_deps(settings, store)) is False
+    finally:
+        runner._run_lock.release()

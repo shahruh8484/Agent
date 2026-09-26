@@ -47,10 +47,14 @@ class Deps:
     llm: LLM | None = None
     push: PropellerClient | None = None
     log: list[str] = field(default_factory=list)
+    run_id: int | None = None
 
     def say(self, msg: str) -> None:
         logger.info(msg)
         self.log.append(msg)
+        if self.run_id is not None:
+            # Written as it happens so the dashboard shows a long run live.
+            self.store.append_run_log(self.run_id, msg)
 
 
 def build_deps(settings: Settings, store: Store) -> Deps:
@@ -344,15 +348,22 @@ def add_discovered_niches(deps: Deps, count: int) -> int:
     return len(winners)
 
 
-def run_cycle(deps: Deps, niche_id: int | None = None, discover: int = 0) -> bool:
-    """One full cycle. Returns False if another cycle is already running.
+def run_cycle(
+    deps: Deps, niche_id: int | None = None, discover: int = 0, wait: bool = False
+) -> bool:
+    """One full cycle. Returns False if another cycle was running and
+    `wait` is off (with `wait`, queue behind it for up to an hour).
 
     `discover` asks the agent to find that many new niches first. Without
     it, the agent still tops the site count up to AUTO_NICHES by itself.
     """
-    if not _run_lock.acquire(blocking=False):
+    acquired = _run_lock.acquire(timeout=3600) if wait else _run_lock.acquire(blocking=False)
+    if not acquired:
         return False
     ok = True
+    deps.run_id = deps.store.start_run(niche_id)
+    for line in deps.log:  # setup messages from build_deps
+        deps.store.append_run_log(deps.run_id, line)
     try:
         if niche_id is None:
             enabled = sum(1 for n in deps.store.list_niches() if n.enabled)
@@ -382,6 +393,6 @@ def run_cycle(deps: Deps, niche_id: int | None = None, discover: int = 0) -> boo
             logger.exception("campaign management failed")
             deps.say(f"campaign management: unexpected error: {exc}")
     finally:
-        deps.store.add_run(niche_id, ok, deps.log)
+        deps.store.finish_run(deps.run_id, ok)
         _run_lock.release()
     return True

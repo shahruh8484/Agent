@@ -77,10 +77,12 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
     )
     app.state.settings = settings
     app.state.store = store
+    store.close_interrupted_runs()
 
     def run_in_background(niche_id: int | None = None, discover: int = 0) -> None:
         def target():
-            run_cycle(build_deps(settings, store), niche_id, discover)
+            # Button presses queue behind a running cycle instead of being dropped.
+            run_cycle(build_deps(settings, store), niche_id, discover, wait=True)
 
         threading.Thread(target=target, daemon=True).start()
 
@@ -258,6 +260,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "runs": store.list_runs(15),
                 "paused": store.get_flag(PAUSE_FLAG) == "1",
                 "flash": request.session.pop("flash", None),
+                "running": store.run_in_progress(),
                 "running_budget": store.running_daily_budget(),
                 "active_count": len(store.list_campaigns(statuses=(ACTIVE,))),
             },

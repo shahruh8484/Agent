@@ -48,9 +48,28 @@ def write_site_copy(llm: LLM, keywords: str, language: str) -> SiteCopy:
         raise LLMError(f"Bad site copy from model: {exc}") from exc
 
 
+# Products per LLM call: a whole 30-product import in one reply can run
+# past the output limit and come back as truncated, unparseable JSON.
+COPY_BATCH = 8
+
+
 def write_product_copy(llm: LLM, products: list[Product], language: str) -> dict[str, ProductCopy]:
-    """One LLM call for all products of a site. Returns {asin: copy};
-    products the model skipped are simply missing from the dict."""
+    """Returns {asin: copy}; products the model skipped are simply missing.
+    A failed batch is skipped (and retried on the next cycle) unless every
+    batch failed."""
+    result: dict[str, ProductCopy] = {}
+    errors: list[LLMError] = []
+    for start in range(0, len(products), COPY_BATCH):
+        try:
+            result.update(_write_copy_batch(llm, products[start : start + COPY_BATCH], language))
+        except LLMError as exc:
+            errors.append(exc)
+    if errors and not result:
+        raise errors[0]
+    return result
+
+
+def _write_copy_batch(llm: LLM, products: list[Product], language: str) -> dict[str, ProductCopy]:
     lines = []
     for p in products:
         lines.append(

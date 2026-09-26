@@ -28,3 +28,22 @@ def test_product_copy_truncates_push_fields_and_ignores_unknown_asins():
 def test_site_copy():
     copy = write_site_copy(FakeLLM(), "earbuds", "English")
     assert copy.site_title == "Sound Picks"
+
+
+def test_product_copy_is_written_in_batches():
+    llm = FakeLLM()
+    products = [make_product(f"P{i}") for i in range(20)]
+    copies = write_product_copy(llm, products, "English")
+    assert len(copies) == 20
+    assert len(llm.prompts) == 3  # 8 + 8 + 4
+
+
+def test_one_failed_batch_does_not_lose_the_others():
+    class Flaky(FakeLLM):
+        def generate(self, system, prompt, max_tokens=2048):
+            if "asin: P0" in prompt:
+                return "sorry, cannot help"
+            return super().generate(system, prompt, max_tokens)
+
+    copies = write_product_copy(Flaky(), [make_product(f"P{i}") for i in range(10)], "English")
+    assert set(copies) == {"P8", "P9"}

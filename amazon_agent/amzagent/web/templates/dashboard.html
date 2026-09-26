@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Amazon агент</title>{% include "_style.html" %}</head>
+<title>Amazon агент</title>{% include "_style.html" %}
+{% if running %}<meta http-equiv="refresh" content="10">{% endif %}</head>
 <body><div class="wrap">
 
 <div class="row" style="justify-content:space-between">
@@ -16,6 +17,7 @@
   </div>
 </div>
 
+{% if running %}<div class="banner" style="border-color:var(--accent);color:var(--accent)">Агент сейчас работает — журнал внизу обновляется, страница перезагружается сама каждые 10 секунд.</div>{% endif %}
 {% if flash %}<div class="banner" style="border-color:var(--ok);color:var(--ok)">{{ flash }}</div>{% endif %}
 {% if paused %}<div class="banner bad">Включён аварийный стоп: все кампании остановлены, новые не запускаются.</div>{% endif %}
 {% if not settings.push_live %}<div class="banner">Тестовый режим (PUSH_LIVE=false): агент собирает кампании, но НЕ отправляет их в PropellerAds. Проверьте payload ниже, затем поставьте PUSH_LIVE=true.</div>{% endif %}
@@ -100,7 +102,7 @@
 <h2>Журнал агента</h2>
 {% for r in runs %}
 <details class="card" style="margin-bottom:8px"{% if loop.first %} open{% endif %}>
-  <summary>{{ r.ts }} — {{ "ок" if r.ok else "с ошибками" }}</summary>
+  <summary>{{ r.ts }} — {{ "идёт…" if r.ok == 2 else "ок" if r.ok else "с ошибками" }}</summary>
   <pre>{{ r.log }}</pre>
 </details>
 {% else %}<p class="muted">Агент ещё не запускался.</p>{% endfor %}

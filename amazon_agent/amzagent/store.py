@@ -87,6 +87,9 @@ STOPPED = "stopped"
 ERROR = "error"
 RUNNING_STATUSES = (ACTIVE, DRY_RUN)
 
+# runs.ok values: 0 = finished with errors, 1 = ok, 2 = still running
+RUN_IN_PROGRESS = 2
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -355,11 +358,31 @@ class Store:
 
     # --- runs + flags -----------------------------------------------------
 
-    def add_run(self, niche_id: int | None, ok: bool, log: list[str]) -> None:
-        self._exec(
-            "INSERT INTO runs (ts, niche_id, ok, log) VALUES (?, ?, ?, ?)",
-            (now_iso(), niche_id, int(ok), "\n".join(log)),
+    def start_run(self, niche_id: int | None) -> int:
+        """Open a run row that the dashboard shows live while it fills."""
+        cur = self._exec(
+            "INSERT INTO runs (ts, niche_id, ok, log) VALUES (?, ?, ?, '')",
+            (now_iso(), niche_id, RUN_IN_PROGRESS),
         )
+        return cur.lastrowid
+
+    def append_run_log(self, run_id: int, line: str) -> None:
+        self._exec(
+            "UPDATE runs SET log = CASE WHEN log = '' THEN ? ELSE log || char(10) || ? END"
+            " WHERE id = ?",
+            (line, line, run_id),
+        )
+
+    def finish_run(self, run_id: int, ok: bool) -> None:
+        self._exec("UPDATE runs SET ok = ? WHERE id = ?", (int(ok), run_id))
+
+    def close_interrupted_runs(self) -> None:
+        """Runs still "in progress" at startup died with the old process."""
+        self._exec("UPDATE runs SET ok = 0, log = log || char(10) || ? WHERE ok = ?",
+                   ("(прервано перезапуском сервера)", RUN_IN_PROGRESS))
+
+    def run_in_progress(self) -> bool:
+        return self._one("SELECT 1 FROM runs WHERE ok = ?", (RUN_IN_PROGRESS,)) is not None
 
     def list_runs(self, limit: int = 20) -> list[dict]:
         return [dict(r) for r in self._all("SELECT * FROM runs ORDER BY id DESC LIMIT ?", (limit,))]
