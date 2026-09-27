@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from amzagent.amazon.catalog import Catalog, CatalogError, CreatorsApiCatalog
-from amzagent.amazon.creator_connections import offline_products
+from amzagent.amazon.creator_connections import accepted_link, marketplace_host, offline_products
 from amzagent.config import Settings
 from amzagent.content.llm import LLM, LLMError, get_llm
 from amzagent.content.writer import write_product_copy, write_site_copy
@@ -128,8 +128,12 @@ def _curated_candidates(deps: Deps, niche: Niche) -> tuple[list, bool]:
         except CatalogError as exc:
             deps.say(f"[{niche.slug}] Amazon API unavailable: {exc}")
         else:
+            host = marketplace_host(deps.settings.amazon_country)
             for p in products:
                 p.epc = niche.asins.get(p.asin)
+                if deps.settings.amazon_partner_tag:
+                    # Same link as "Get associate link" on the accepted campaign.
+                    p.url = accepted_link(host, p.asin, deps.settings.amazon_partner_tag)
             return products, False
     return [], True
 

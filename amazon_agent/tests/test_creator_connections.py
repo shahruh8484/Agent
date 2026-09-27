@@ -157,7 +157,8 @@ def test_fallback_builds_site_from_pasted_page(settings, store):
     assert [p.asin for p, _ in products] == ["B0FYZ9QQ9Z", "B0DZ7RZ14S", "B01EIG6A4Q"]
     p = products[0][0]
     assert p.offline and p.image_url == "" and p.price is None and p.rating is None
-    assert p.url == "https://www.amazon.com/dp/B0FYZ9QQ9Z?tag=screensoundlo-20"
+    assert p.url.startswith("https://www.amazon.com/dp/B0FYZ9QQ9Z?ref=t_ac_spc_accepted_tile"
+                            "&linkCode=tr1&tag=screensoundlo-20&linkId=B0FYZ9QQ9Z_")
     assert all(c is not None for _, c in products)
     assert any("fallback mode" in line for line in deps.log)
 
@@ -167,7 +168,7 @@ def test_fallback_builds_site_from_pasted_page(settings, store):
     assert 'class="ph"' in page and "Price as of" not in page and "ratings on Amazon" not in page
     assert "See current price, photos and customer reviews on Amazon" in page
     assert client.get("/go/top-deals/B0FYZ9QQ9Z", follow_redirects=False) \
-        .headers["location"].endswith("tag=screensoundlo-20")
+        .headers["location"].split("&linkId=")[0].endswith("tag=screensoundlo-20")
 
 
 def test_import_site_size_limits_the_shelf(settings, store):

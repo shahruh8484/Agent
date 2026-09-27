@@ -13,6 +13,7 @@ Central, so accept them there before importing.
 from __future__ import annotations
 
 import math
+import time
 import re
 
 from amzagent.models import Product
@@ -100,6 +101,24 @@ def parse_opportunity_details(text: str) -> dict[str, dict]:
     return details
 
 
+def marketplace_host(country: str) -> str:
+    try:
+        from amazon_creatorsapi.core.marketplaces import MARKETPLACES
+
+        return MARKETPLACES.get(country.upper(), "www.amazon.com")
+    except ImportError:
+        return "www.amazon.com"
+
+
+def accepted_link(host: str, asin: str, partner_tag: str) -> str:
+    """The link Creator Connections' "Get associate link" gives for an
+    accepted campaign, built the same way so the bonus is credited like a
+    link copied from there (the tag is what attributes the sale)."""
+    link_id = f"{asin}_{int(time.time() * 1000)}"
+    return (f"https://{host}/dp/{asin}?ref=t_ac_spc_accepted_tile&linkCode=tr1"
+            f"&tag={partner_tag}&linkId={link_id}")
+
+
 def offline_products(
     asins: dict[str, float | None],
     meta: dict[str, dict],
@@ -111,13 +130,7 @@ def offline_products(
 ) -> tuple[list[Product], dict[str, str]]:
     """Products built from the pasted page alone, best first, for when the
     Creators API refuses access. Returns (selected, {asin: rejection})."""
-    try:
-        from amazon_creatorsapi.core.marketplaces import MARKETPLACES
-
-        host = MARKETPLACES.get(country.upper(), "www.amazon.com")
-    except ImportError:
-        host = "www.amazon.com"
-
+    host = marketplace_host(country)
     ranked: list[tuple[float, Product]] = []
     rejected: dict[str, str] = {}
     for asin, epc in asins.items():
@@ -138,7 +151,7 @@ def offline_products(
             asin=asin,
             title=m["title"],
             brand=m.get("brand", ""),
-            url=f"https://{host}/dp/{asin}?tag={partner_tag}",
+            url=accepted_link(host, asin, partner_tag),
             epc=epc,
             offline=True,
         )))
