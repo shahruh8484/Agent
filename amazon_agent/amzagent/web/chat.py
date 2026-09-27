@@ -96,7 +96,10 @@ SYSTEM = """Ты — автономный агент, который ведёт 
   неоднозначна или действие увеличит расходы, а владелец этого явно не
   сказал — сначала уточни.
 - После действия скажи, что именно сделано, и результат (или ошибку).
-- Если спрашивают совета — дай рекомендацию с цифрами."""
+- Если спрашивают совета — дай рекомендацию с цифрами.
+- revenue_max / profit_max — переходы на Amazon × EPC «up to» из Creator
+  Connections (минус расход): лучший возможный результат, реальный доход
+  (процент с покупок) обычно ниже. Так и говори: «максимум»."""
 
 
 def _tool(name: str, description: str, properties: dict | None = None,
@@ -276,6 +279,9 @@ class ChatAgent:
             "site_visits": c["visits"], "amazon_clicks": c["clicks"],
             "to_amazon_percent": _round(100 * c["to_amazon"]) if c["to_amazon"] else 0,
             "cost_per_amazon_click": _round(c["cost_per_click"]),
+            "epc_up_to": c["epc"],
+            "revenue_max": _round(c["revenue"]),
+            "profit_max": _round(c["profit"]),
             "zones": len(c["zones"]), "zones_excluded": sum(z["excluded"] for z in c["zones"]),
             "created_at": c["created_at"],
         } for c in rows[:60]]

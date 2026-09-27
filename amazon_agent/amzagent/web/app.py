@@ -121,12 +121,17 @@ def _campaign_rows(store: Store, bid: float = 0.0, period: Period | None = None,
     With a `period`, network numbers come from `net` / `net_zones` (fetched
     for that window: {external_id: row} / {external_id: [rows]}) and site
     numbers from events inside the window."""
-    slugs = {n.id: n.slug for n in store.list_niches()}
+    niches = {n.id: n for n in store.list_niches()}
+    slugs = {nid: n.slug for nid, n in niches.items()}
     since = period.since if period else None
     until = period.until if period else None
     rows = []
     for c in store.list_campaigns()[:300]:
         found = store.get_product(c["niche_id"], c["asin"])
+        niche = niches.get(c["niche_id"])
+        # Creator Connections' "Estimated EPC: up to $X" = the most a click
+        # to Amazon can earn; revenue/profit below are that upper bound.
+        epc = (found[0].epc if found else None) or (niche.asins.get(c["asin"]) if niche else None)
         visits = store.count_events(c["id"], "visit", since, until)
         amazon = store.count_events(c["id"], "click", since, until)
         if since is not None:
@@ -144,10 +149,13 @@ def _campaign_rows(store: Store, bid: float = 0.0, period: Period | None = None,
             spend_est=(visits * bid / VISITS_PER_PAID_CLICK
                        if since is None and c["status"] == ACTIVE and c["external_id"] else 0.0),
             cost_per_click=_ratio(c["spend"], amazon),
+            epc=epc,
+            revenue=amazon * epc if epc else None,
+            profit=amazon * epc - c["spend"] if epc else None,
             images=_payload_images(c["payload"]),
             zones=_zone_rows(store, c["id"], since, until,
                              (net_zones or {}).get(c["external_id"] or "", [])
-                             if since is not None else None),
+                             if since is not None else None, epc),
         )
         rows.append(c)
     rows.sort(key=lambda c: (STATUS_ORDER.get(c["status"], 9), -c["spend"], -c["id"]))
@@ -155,7 +163,8 @@ def _campaign_rows(store: Store, bid: float = 0.0, period: Period | None = None,
 
 
 def _zone_rows(store: Store, campaign_id: int, since: str | None = None,
-               until: str | None = None, net_rows: list | None = None) -> list[dict]:
+               until: str | None = None, net_rows: list | None = None,
+               epc: float | None = None) -> list[dict]:
     visits = store.events_by_zone(campaign_id, "visit", since, until)
     clicks = store.events_by_zone(campaign_id, "click", since, until)
     excluded = store.blacklisted_zones(campaign_id)
@@ -176,6 +185,7 @@ def _zone_rows(store: Store, campaign_id: int, since: str | None = None,
             "visits": visits.get(z["zone"], 0),
             "amazon": amazon,
             "cost_per_amazon": _ratio(z["spent"], amazon),
+            "profit": amazon * epc - z["spent"] if epc else None,
             "excluded": z["zone"] in excluded,
         })
     out.sort(key=lambda z: (z["excluded"], -z["spent"], -z["impressions"]))
@@ -223,6 +233,9 @@ def _campaign_totals(rows: list[dict]) -> dict:
     t["ctr"] = _ratio(t["ad_clicks"], t["impressions"])
     t["cpc"] = _ratio(t["spend"], t["ad_clicks"])
     t["cost_per_click"] = _ratio(t["spend"], t["clicks"])
+    with_epc = [r for r in rows if r.get("revenue") is not None]
+    t["revenue"] = sum(r["revenue"] for r in with_epc) if with_epc else None
+    t["profit"] = t["revenue"] - t["spend"] if with_epc else None
     return t
 
 

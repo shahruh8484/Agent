@@ -125,3 +125,26 @@ def test_dashboard_reuses_period_stats_for_a_few_minutes(settings, store, monkey
     client.get("/admin?period=today")
     client.get("/admin?period=today")
     assert len(calls) == 2  # one load's worth: the reload was served from cache
+
+
+def test_revenue_and_profit_use_the_epc(settings, store):
+    from amzagent.web.app import _campaign_rows, _campaign_totals
+
+    niche = store.add_niche("Top Deals", asins={"A0": 1.5})
+    cid = store.add_campaign(niche.id, "A0", ACTIVE, 10)
+    store.update_campaign(cid, spend=4.0, external_id="1")
+    for _ in range(3):
+        store.log_event("click", niche.id, "A0", cid, "777")
+    store.log_event("visit", niche.id, "A0", cid, "777")
+    store.upsert_zone_stats(cid, "777", 100, 5, 1.0)
+    row = _campaign_rows(store)[0]
+    assert row["revenue"] == 4.5 and row["profit"] == 0.5  # 3 × $1.50 − $4
+    assert row["zones"][0]["profit"] == 3.5  # 3 × $1.50 − $1
+    t = _campaign_totals([row])
+    assert t["revenue"] == 4.5 and t["profit"] == 0.5
+
+    cid2 = store.add_campaign(niche.id, "B9", ACTIVE, 10)  # no EPC known
+    store.update_campaign(cid2, spend=2.0)
+    rows = _campaign_rows(store)
+    assert next(r for r in rows if r["id"] == cid2)["profit"] is None
+    assert _campaign_totals(rows)["profit"] == 4.5 - 6.0  # all spend counts
