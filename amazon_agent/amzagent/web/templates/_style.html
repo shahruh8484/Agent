@@ -33,14 +33,15 @@ a { color:var(--accent); }
 .set-grid label { display:grid; gap:4px; font-size:.9rem; font-weight:600; align-content:start; grid-template-rows:2.6em auto auto; }
 .set-grid .muted { font-weight:400; font-size:.78rem; }
 .camp { border:none; border-radius:0; }
-.camp th { font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; padding:8px 8px; white-space:nowrap; background:var(--bg); }
-.camp td { font-size:.82rem; padding:7px 8px; vertical-align:middle; }
+.camp th { font-size:.7rem; text-transform:uppercase; letter-spacing:.02em; padding:8px 6px; white-space:nowrap; background:var(--bg); }
+.camp td { font-size:.82rem; padding:7px 6px; vertical-align:middle; }
 .camp td.num { white-space:nowrap; }
 .camp .sub { display:block; font-size:.72rem; color:var(--muted); margin-top:1px; white-space:nowrap; }
 .camp tr.totals td { background:var(--bg); font-weight:700; font-size:.8rem; }
-.camp td.prod { min-width:220px; max-width:290px; }
+.camp td.prod { min-width:200px; max-width:260px; }
 .camp .pwrap { display:flex; gap:8px; align-items:center; }
-.camp td.st { white-space:nowrap; }
+.camp td.st { min-width:160px; max-width:210px; }
+.camp td.st .sub { white-space:normal; }
 .camp td.prod img, .camp td.prod .noimg { width:48px; height:32px; object-fit:cover; border-radius:5px; border:1px solid var(--line); flex:none; display:block; background:var(--bg); }
 .camp .pwrap > div { min-width:0; }
 .camp td.prod .t { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600; text-decoration:none; color:var(--fg); }
