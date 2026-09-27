@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -1187,6 +1188,7 @@ def run_cycle(
         return False
     ok = True
     deps.run_id = deps.store.start_run(niche_id)
+    deps.store.append_run_log(deps.run_id, f"agent version {os.environ.get('APP_VERSION', 'dev')}")
     for line in deps.log:  # setup messages from build_deps
         deps.store.append_run_log(deps.run_id, line)
     try:
