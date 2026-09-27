@@ -42,7 +42,7 @@ h1.title { font-size:clamp(1.4rem,3vw,1.9rem); line-height:1.25; margin:12px 0 8
 </style>
 {% endblock %}
 {% block content %}
-<div class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/s/{{ niche.slug }}/">{{ site.site_title }}</a> &rsaquo; {{ product.brand or "Product" }}</div>
+<div class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/s/{{ niche.slug }}/">{{ site.site_title }}</a>{% if section %} &rsaquo; <a href="{% if section.picks %}/s/{{ niche.slug }}/c/{{ section.slug }}{% else %}/s/{{ niche.slug }}/#{{ section.slug }}{% endif %}">{{ section.name }}</a>{% endif %} &rsaquo; {{ product.brand or "Product" }}</div>
 <div class="product">
   <div class="shot"><div class="media">
     {% if product.image_url %}<img src="{{ product.image_url }}" alt="{{ product.title }}">
@@ -83,7 +83,7 @@ h1.title { font-size:clamp(1.4rem,3vw,1.9rem); line-height:1.25; margin:12px 0 8
 
 {% if others %}
 <section class="more">
-  <div class="section-head"><h2>More top picks</h2><a href="/s/{{ niche.slug }}/">See all &rarr;</a></div>
+  <div class="section-head"><h2>{% if section %}More {{ section.name|lower }}{% else %}More top picks{% endif %}</h2>{% if section and section.picks %}<a href="/s/{{ niche.slug }}/c/{{ section.slug }}">Compare in our guide &rarr;</a>{% else %}<a href="/s/{{ niche.slug }}/">See all &rarr;</a>{% endif %}</div>
   <div class="grid">
   {% for p, c in others %}{% set rank = none %}{% set niche_slug = niche.slug %}{% include "_card.html" %}{% endfor %}
   </div>

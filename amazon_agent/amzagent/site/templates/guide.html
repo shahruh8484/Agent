@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}{{ section.guide_title }} — {{ site.site_title }}{% endblock %}
+{% block extra_head %}
+<meta name="description" content="{{ section.intro|truncate(155) }}">
+<style>
+.crumbs { font-size:.85rem; color:var(--muted); margin-bottom:18px; }
+.crumbs a { text-decoration:none; } .crumbs a:hover { color:var(--ink); }
+h1.gt { font-size:clamp(1.5rem,3.4vw,2.2rem); line-height:1.2; letter-spacing:-.015em; margin:0 0 12px; }
+.gintro { font-size:1.08rem; max-width:760px; margin:0 0 8px; }
+.byline { font-size:.85rem; color:var(--muted); margin:0 0 26px; }
+.cmp-wrap { overflow-x:auto; background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); margin:0 0 36px; }
+table.cmp { width:100%; border-collapse:collapse; min-width:640px; }
+table.cmp th { text-align:left; font-size:.75rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); padding:12px 14px; border-bottom:1px solid var(--line); }
+table.cmp td { padding:14px; border-bottom:1px solid var(--line); vertical-align:middle; font-size:.93rem; }
+table.cmp tr:last-child td { border-bottom:none; }
+table.cmp td:first-child { width:92px; }
+table.cmp .pimg { width:76px; height:76px; object-fit:contain; background:#fff; border-radius:8px; }
+table.cmp .pname { font-weight:700; color:var(--ink); text-decoration:none; }
+table.cmp .pname:hover { text-decoration:underline; }
+table.cmp .bf { display:inline-block; font-size:.78rem; font-weight:700; padding:4px 10px; border-radius:99px; background:var(--accent-soft); color:var(--accent-dark); }
+table.cmp ul { margin:0; padding-left:16px; color:var(--muted); font-size:.85rem; }
+table.cmp .btn { white-space:nowrap; padding:9px 14px; font-size:.88rem; }
+.choose { background:var(--accent-soft); border-radius:16px; padding:22px 24px; margin:0 0 36px; }
+.choose h2 { margin:0 0 12px; font-size:1.25rem; }
+.choose ol { margin:0; padding-left:20px; display:grid; gap:9px; }
+.pick { display:grid; grid-template-columns:150px minmax(0,1fr); gap:22px; background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:20px; margin:0 0 18px; }
+.pick img { width:150px; height:150px; object-fit:contain; background:#fff; border-radius:10px; }
+.pick h3 { margin:6px 0 8px; font-size:1.1rem; line-height:1.3; }
+.pick h3 a { color:var(--ink); text-decoration:none; } .pick h3 a:hover { text-decoration:underline; }
+.pick .num { font-size:.78rem; font-weight:800; color:var(--accent-dark); letter-spacing:.06em; text-transform:uppercase; }
+.pick .acts { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+.pick .ghost { display:inline-block; padding:9px 14px; border-radius:10px; border:1px solid var(--line); text-decoration:none; font-weight:600; font-size:.9rem; color:var(--ink); }
+.verdict { border-left:4px solid var(--accent); padding:6px 0 6px 18px; margin:28px 0 40px; font-size:1.02rem; }
+.others { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.others a { font-size:.88rem; font-weight:600; text-decoration:none; padding:7px 14px; border-radius:99px; background:var(--surface); border:1px solid var(--line); color:var(--ink); }
+@media (max-width:640px) { .pick { grid-template-columns:1fr; } .pick img { width:100%; height:200px; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/s/{{ niche.slug }}/">{{ site.site_title }}</a> &rsaquo; {{ section.name }}</div>
+<h1 class="gt">{{ section.guide_title }}</h1>
+<p class="gintro">{{ section.intro }}</p>
+<p class="byline">By the {{ site.site_title }} team &middot; picks based on product specifications, popularity and value. We earn a commission from qualifying purchases at no extra cost to you.</p>
+
+<div class="cmp-wrap"><table class="cmp">
+  <tr><th></th><th>Product</th><th>Best for</th><th>Highlights</th><th></th></tr>
+  {% for pick, p, c in picks %}
+  <tr>
+    <td>{% if p.image_url %}<img class="pimg" src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% endif %}</td>
+    <td><a class="pname" href="/s/{{ niche.slug }}/p/{{ p.asin }}">{{ p.title|truncate(70) }}</a>{% if p.brand %}<div class="meta">{{ p.brand }}</div>{% endif %}</td>
+    <td>{% if pick.best_for %}<span class="bf">{{ pick.best_for }}</span>{% endif %}</td>
+    <td>{% if p.features %}<ul>{% for f in p.features[:2] %}<li>{{ f|truncate(80) }}</li>{% endfor %}</ul>{% endif %}</td>
+    <td><a class="btn" href="/go/{{ niche.slug }}/{{ p.asin }}" rel="nofollow sponsored noopener" target="_blank">Check price</a></td>
+  </tr>
+  {% endfor %}
+</table></div>
+
+{% if section.how_to_choose %}
+<div class="choose"><h2>How to choose</h2><ol>{% for t in section.how_to_choose %}<li>{{ t }}</li>{% endfor %}</ol></div>
+{% endif %}
+
+<div class="section-head"><h2>Our picks in detail</h2></div>
+{% for pick, p, c in picks %}
+<article class="pick">
+  <div>{% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% endif %}</div>
+  <div>
+    <span class="num">#{{ loop.index }}{% if pick.best_for %} &middot; {{ pick.best_for }}{% endif %}</span>
+    <h3><a href="/s/{{ niche.slug }}/p/{{ p.asin }}">{{ p.title }}</a></h3>
+    <p>{{ pick.blurb or c.summary }}</p>
+    <div class="acts">
+      <a class="btn" href="/go/{{ niche.slug }}/{{ p.asin }}" rel="nofollow sponsored noopener" target="_blank">Check price on Amazon &rarr;</a>
+      <a class="ghost" href="/s/{{ niche.slug }}/p/{{ p.asin }}">Pros, cons &amp; features</a>
+    </div>
+  </div>
+</article>
+{% endfor %}
+
+{% if section.verdict %}<div class="verdict"><b>The bottom line:</b> {{ section.verdict }}</div>{% endif %}
+
+{% if entries|length > picks|length %}
+<div class="section-head"><h2>More {{ section.name|lower }}</h2></div>
+<div class="grid">
+{% set picked = picks|map(attribute=1)|map(attribute="asin")|list %}
+{% for p, c in entries %}{% if p.asin not in picked %}{% set rank = none %}{% set niche_slug = niche.slug %}{% include "_card.html" %}{% endif %}{% endfor %}
+</div>
+{% endif %}
+
+{% set other_guides = sections|rejectattr("section.slug", "equalto", section.slug)|selectattr("section.picks")|list %}
+{% if other_guides %}
+<div style="margin-top:40px"><b>More buying guides</b>
+<div class="others">{% for x in other_guides %}<a href="/s/{{ niche.slug }}/c/{{ x.section.slug }}">{{ x.section.name }}</a>{% endfor %}</div></div>
+{% endif %}
+{% endblock %}

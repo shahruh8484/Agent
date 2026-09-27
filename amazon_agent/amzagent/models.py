@@ -62,6 +62,35 @@ class ProductCopy(BaseModel):
 COPY_VERSION = 1
 
 
+class GuidePick(BaseModel):
+    """One product in a section's buying guide."""
+
+    asin: str
+    best_for: str = ""  # e.g. "Best for large living rooms"
+    blurb: str = ""  # 1-2 sentences, from the product's own features
+
+
+class SiteSection(BaseModel):
+    """A topic on a site (e.g. "Air Purifiers") with a comparison guide."""
+
+    slug: str
+    name: str
+    asins: list[str] = Field(default_factory=list)  # best first
+    guide_title: str = ""
+    intro: str = ""
+    how_to_choose: list[str] = Field(default_factory=list)
+    picks: list[GuidePick] = Field(default_factory=list)
+    verdict: str = ""
+
+
+class SitePlan(BaseModel):
+    """How a site's products are grouped into sections, and their guides."""
+
+    signature: str = ""  # which products it was built for
+    built_at: str = ""
+    sections: list[SiteSection] = Field(default_factory=list)
+
+
 class SiteCopy(BaseModel):
     site_title: str
     tagline: str

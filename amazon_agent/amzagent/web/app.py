@@ -70,6 +70,8 @@ from amzagent.models import Product
 from amzagent.panel_settings import effective, load_overrides, parse_form
 from amzagent.push.propeller import PropellerClient, PropellerError
 from amzagent.store import ACTIVE, STOPPED, Store
+from amzagent.content.sections import OTHER as SECTIONS_OTHER
+from amzagent.models import SiteSection
 from amzagent.web.chat import ChatAgent
 from amzagent.web.period import PRESETS, Period, parse_period
 
@@ -419,12 +421,53 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         return public_ctx(request, niche=niche, site=site_copy,
                           price_is_fresh=price_is_fresh, **extra)
 
+    def site_sections(niche_id: int, products: list) -> list[dict]:
+        """The site's sections with their live products (best first); products
+        not in the saved plan yet go to "More Picks". [] if there's no plan."""
+        plan = store.get_site_plan(niche_id)
+        if plan is None:
+            return []
+        by_asin = {p.asin: (p, c) for p, c in products}
+        out, placed = [], set()
+        for s in plan.sections:
+            items = [by_asin[a] for a in s.asins if a in by_asin]
+            placed.update(p.asin for p, _ in items)
+            if items:
+                out.append({"section": s, "entries": items})
+        rest = [(p, c) for p, c in products if p.asin not in placed]
+        if rest:
+            other = next((x for x in out if x["section"].name == SECTIONS_OTHER), None)
+            if other is None:
+                other = {"section": SiteSection(slug="more-picks", name=SECTIONS_OTHER),
+                         "entries": []}
+                out.append(other)
+            other["entries"] += rest
+        return out
+
     @app.get("/s/{slug}/", response_class=HTMLResponse)
     def site_home(request: Request, slug: str):
         niche, copy = site_or_404(slug)
         products = [(p, c) for p, c in store.list_products(niche.id) if c]
         return SITE_TEMPLATES.TemplateResponse(
-            request, "index.html", site_ctx(request, niche, copy, products=products)
+            request, "index.html", site_ctx(request, niche, copy, products=products,
+                                            sections=site_sections(niche.id, products))
+        )
+
+    @app.get("/s/{slug}/c/{section_slug}", response_class=HTMLResponse)
+    def guide_page(request: Request, slug: str, section_slug: str):
+        niche, copy = site_or_404(slug)
+        products = [(p, c) for p, c in store.list_products(niche.id) if c]
+        sections = site_sections(niche.id, products)
+        found = next((x for x in sections if x["section"].slug == section_slug), None)
+        if found is None:
+            raise HTTPException(404)
+        by_asin = {p.asin: (p, c) for p, c in found["entries"]}
+        picks = [(pick, *by_asin[pick.asin]) for pick in found["section"].picks
+                 if pick.asin in by_asin]
+        return SITE_TEMPLATES.TemplateResponse(
+            request, "guide.html",
+            site_ctx(request, niche, copy, section=found["section"], entries=found["entries"],
+                     picks=picks, sections=sections),
         )
 
     @app.get("/s/{slug}")
@@ -445,13 +488,21 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         go = f"/go/{slug}/{asin}"
         if campaign_id:
             go += f"?c={campaign_id}" + (f"&z={zone}" if zone else "")
-        listed = [p.asin for p, pc in store.list_products(niche.id) if pc]
+        listed_products = [(p, pc) for p, pc in store.list_products(niche.id) if pc]
+        listed = [p.asin for p, _ in listed_products]
         rank = listed.index(asin) + 1 if asin in listed else None
-        others = [(p, pc) for p, pc in store.list_products(niche.id) if pc and p.asin != asin][:4]
+        section = next((x for x in site_sections(niche.id, listed_products)
+                        if any(p.asin == asin for p, _ in x["entries"])), None)
+        pool = section["entries"] if section else listed_products
+        others = [(p, pc) for p, pc in pool if p.asin != asin][:4]
+        if len(others) < 4:  # top up from the rest of the site
+            others += [(p, pc) for p, pc in listed_products
+                       if p.asin != asin and (p, pc) not in others][:4 - len(others)]
         return SITE_TEMPLATES.TemplateResponse(
             request, "product.html",
             site_ctx(request, niche, copy, product=product, copy=product_copy,
-                     go_url=go, others=others, rank=rank),
+                     go_url=go, others=others, rank=rank,
+                     section=section["section"] if section else None),
         )
 
     @app.get("/s/{slug}/about")
@@ -509,6 +560,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             if not n.enabled or store.get_site_copy(n.id) is None:
                 continue
             urls.append(f"{base}/s/{n.slug}/")
+            plan = store.get_site_plan(n.id)
+            urls += [f"{base}/s/{n.slug}/c/{s.slug}" for s in (plan.sections if plan else [])
+                     if s.picks]
             urls += [f"{base}/s/{n.slug}/p/{p.asin}"
                      for p, c in store.list_products(n.id) if c]
         body = "".join(f"<url><loc>{escape(u)}</loc></url>" for u in urls)

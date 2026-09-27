@@ -45,6 +45,20 @@ class FakeLLM:
 
     def generate(self, system, prompt, max_tokens=2048):
         self.prompts.append(prompt)
+        if prompt.startswith("TASK: group products"):
+            asins = [line.split(" | ")[0] for line in prompt.splitlines() if " | " in line
+                     and not line.startswith("Products")]
+            half = max(2, len(asins) // 2)
+            return json.dumps([{"name": "Earbuds", "asins": asins[:half]},
+                               {"name": "Chargers", "asins": asins[half:]}])
+        if prompt.startswith("TASK: write a buying guide"):
+            asins = [line.split("asin: ")[1] for line in prompt.splitlines() if "asin: " in line]
+            return json.dumps({
+                "guide_title": "Best Earbuds: Our Picks Compared", "intro": "A short guide.",
+                "how_to_choose": ["Check fit", "Check battery"],
+                "picks": [{"asin": a, "best_for": "Best for commuting", "blurb": f"About {a}."}
+                          for a in asins],
+                "verdict": "Pick the first one."})
         if "site_title" in prompt:
             return json.dumps({"site_title": "Sound Picks", "tagline": "Top rated audio",
                                "intro": "We pick well-rated products."})

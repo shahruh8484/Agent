@@ -1,12 +1,36 @@
 {% extends "base.html" %}
+{% block extra_head %}
+<style>
+.jump { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 28px; }
+.jump a { font-size:.88rem; font-weight:600; text-decoration:none; padding:7px 14px; border-radius:99px; background:var(--surface); border:1px solid var(--line); color:var(--ink); }
+.jump a:hover { border-color:var(--accent); color:var(--accent-dark); }
+.sect { margin:0 0 44px; scroll-margin-top:84px; }
+.sect .guide-link { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 16px; padding:14px 18px; border-radius:14px; background:var(--accent-soft); text-decoration:none; color:var(--ink); }
+.sect .guide-link b { font-size:1rem; }
+.sect .guide-link span { color:var(--accent-dark); font-weight:700; white-space:nowrap; }
+</style>
+{% endblock %}
 {% block hero %}
 <section class="hero"><div class="wrap">
   <h1>{{ site.site_title }}</h1>
   <p>{{ site.intro }}</p>
-  <div class="chips"><span class="chip">&#10003; Ranked by ratings &amp; reviews</span><span class="chip">&#10003; Refreshed daily</span><span class="chip">&#10003; Independent picks</span></div>
+  <div class="chips"><span class="chip">&#10003; Buying guides by category</span><span class="chip">&#10003; Prices refreshed daily</span><span class="chip">&#10003; Independent picks</span></div>
 </div></section>
 {% endblock %}
 {% block content %}
+{% if sections %}
+<nav class="jump">{% for x in sections %}<a href="#{{ x.section.slug }}">{{ x.section.name }} <span class="meta">({{ x.entries|length }})</span></a>{% endfor %}</nav>
+{% for x in sections %}{% set s = x.section %}
+<section class="sect" id="{{ s.slug }}">
+  <div class="section-head"><h2>{{ s.name }}</h2><span class="meta">{{ x.entries|length }} products</span></div>
+  {% if s.picks %}<a class="guide-link" href="/s/{{ niche.slug }}/c/{{ s.slug }}"><b>{{ s.guide_title }}</b><span>Read the guide &rarr;</span></a>{% endif %}
+  <div class="grid">
+  {% for p, c in x.entries[:8] %}{% set rank = loop.index %}{% set niche_slug = niche.slug %}{% include "_card.html" %}{% endfor %}
+  </div>
+  {% if x.entries|length > 8 %}<p class="meta" style="margin-top:12px">{% if s.picks %}<a href="/s/{{ niche.slug }}/c/{{ s.slug }}">See the full guide and all {{ x.entries|length }} products &rarr;</a>{% else %}and {{ x.entries|length - 8 }} more below in other picks{% endif %}</p>{% endif %}
+</section>
+{% endfor %}
+{% else %}
 <div class="section-head"><h2>Our top picks</h2><span class="meta">{{ products|length }} products</span></div>
 <div class="grid">
 {% for p, c in products %}
@@ -16,9 +40,10 @@
   <p>Products are being selected, check back soon.</p>
 {% endfor %}
 </div>
+{% endif %}
 <div class="how">
-  <div><b>How we pick</b><span>Products are ranked by customer ratings, number of reviews and how well they sell.</span></div>
-  <div><b>Always up to date</b><span>The list is refreshed regularly, so sold-out or poorly rated items drop off.</span></div>
+  <div><b>How we pick</b><span>Products are grouped by what they're for, then ranked by popularity and value, so each guide compares like with like.</span></div>
+  <div><b>Always up to date</b><span>Prices and availability are refreshed regularly, and sold-out items drop off.</span></div>
   <div><b>Buy with confidence</b><span>Every purchase happens on Amazon, with Amazon's shipping and returns.</span></div>
 </div>
 {% endblock %}

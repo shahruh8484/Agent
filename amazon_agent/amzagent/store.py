@@ -13,7 +13,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from amzagent.models import Niche, Product, ProductCopy, SiteCopy
+from amzagent.models import Niche, Product, ProductCopy, SiteCopy, SitePlan
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS niches (
@@ -540,6 +540,20 @@ class Store:
 
     def clear_chat(self) -> None:
         self._exec("DELETE FROM chat")
+
+    # --- site sections and guides ------------------------------------------
+
+    def get_site_plan(self, niche_id: int) -> SitePlan | None:
+        raw = self.get_flag(f"site_plan_{niche_id}")
+        if not raw:
+            return None
+        try:
+            return SitePlan.model_validate_json(raw)
+        except ValueError:
+            return None
+
+    def set_site_plan(self, niche_id: int, plan: SitePlan) -> None:
+        self.set_flag(f"site_plan_{niche_id}", plan.model_dump_json())
 
     def get_flag(self, key: str, default: str = "") -> str:
         r = self._one("SELECT value FROM kv WHERE key = ?", (key,))

@@ -14,6 +14,7 @@ cycle moves on, since this runs unattended.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import threading
@@ -26,7 +27,9 @@ from amzagent.amazon.creator_connections import accepted_link, marketplace_host,
 from amzagent.config import Settings
 from amzagent.content.llm import LLM, LLMError, get_llm
 from amzagent.content.writer import uses_amazon_marks, write_product_copy, write_site_copy
-from amzagent.models import COPY_VERSION, Niche
+from amzagent.content.sections import OTHER as SECTIONS_OTHER
+from amzagent.content.sections import group_products, write_guide
+from amzagent.models import COPY_VERSION, Niche, SitePlan
 from amzagent.panel_settings import effective, save_overrides
 from amzagent.push import propeller
 from amzagent.push.ai_creatives import (
@@ -241,8 +244,50 @@ def refresh_niche(deps: Deps, niche: Niche) -> bool:
             deps.say(f"[{niche.slug}] wrote copy for {len(copies)}/{len(missing)} products")
     except LLMError as exc:
         deps.say(f"[{niche.slug}] copy generation failed: {exc}")
+    update_site_plan(deps, niche)
     illustrate_products(deps, niche)
     return True
+
+
+SITE_PLAN_MIN_HOURS = 12  # rebuild sections/guides at most this often
+
+
+def update_site_plan(deps: Deps, niche: Niche) -> None:
+    """Group the site's products into sections with buying guides. Rebuilt
+    when the product set changed (at most every SITE_PLAN_MIN_HOURS; until
+    then new products show under "More Picks")."""
+    if deps.llm is None:
+        return
+    items = [(p, c) for p, c in deps.store.list_products(niche.id) if c]
+    if len(items) < 4:
+        return  # too few to be worth sections
+    signature = hashlib.sha1(",".join(sorted(p.asin for p, _ in items)).encode()).hexdigest()
+    plan = deps.store.get_site_plan(niche.id)
+    if plan and plan.signature == signature:
+        return
+    if plan and plan.built_at:
+        age = datetime.now(timezone.utc) - datetime.fromisoformat(plan.built_at)
+        if age < timedelta(hours=SITE_PLAN_MIN_HOURS):
+            return
+    try:
+        sections = group_products(deps.llm, items, niche.language)
+    except LLMError as exc:
+        deps.say(f"[{niche.slug}] sections failed: {exc}")
+        return
+    by_asin = {p.asin: (p, c) for p, c in items}
+    guides = 0
+    for section in sections:
+        if section.name == SECTIONS_OTHER:
+            continue
+        try:
+            write_guide(deps.llm, section, by_asin, niche.language)
+            guides += 1
+        except LLMError as exc:
+            deps.say(f"[{niche.slug}] guide for {section.name!r} failed: {exc}")
+    deps.store.set_site_plan(niche.id, SitePlan(signature=signature, built_at=now_iso(),
+                                                sections=sections))
+    deps.say(f"[{niche.slug}] organised {len(items)} products into {len(sections)} sections, "
+             f"{guides} buying guides")
 
 
 def illustrate_products(deps: Deps, niche: Niche) -> int:
