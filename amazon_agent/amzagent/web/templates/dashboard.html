@@ -4,7 +4,7 @@
 <link rel="icon" href="/admin-favicon.svg" type="image/svg+xml">
 {% if running %}<meta http-equiv="refresh" content="10">{% endif %}</head>
 <body><div class="wrap">
-{% set status_names = {"active":"активна","capped":"пауза: лимит","dry_run":"тест","killed":"отключена агентом","stopped":"остановлена","error":"ошибка","creating":"создаётся"} %}
+{% set status_names = {"active":"активна","capped":"пауза: лимит","paced":"растягиваю бюджет","dry_run":"тест","killed":"отключена агентом","stopped":"остановлена","error":"ошибка","creating":"создаётся"} %}
 
 <div class="row" style="justify-content:space-between">
   <h1>Amazon агент <span class="muted" style="font-size:.72rem;font-weight:400" title="Версия агента: коммит и время, когда он появился на GitHub">версия {{ app_version }}</span></h1>
@@ -45,6 +45,10 @@
     <label class="row" style="gap:10px;font-weight:600">
       <input type="checkbox" name="push_live" value="1" {% if settings.push_live %}checked{% endif %} style="width:20px;height:20px">
       Реклама включена (кампании реально создаются в PropellerAds). Выключено = тестовый режим.
+    </label>
+    <label class="row" style="gap:10px;font-weight:600">
+      <input type="checkbox" name="pace_daily_budget" value="1" {% if settings.pace_daily_budget %}checked{% endif %} style="width:20px;height:20px">
+      Растягивать бюджет кампании на весь день <span class="muted" style="font-weight:400">— PropellerAds тратит его за несколько часов; агент ставит обогнавшую график кампанию на паузу и включает, когда время её догонит (день кампании — с 00:00 UTC, это 05:00 по Ташкенту)</span>
     </label>
     <div class="set-grid">
       <label>Бюджет одной кампании, $/день<input name="campaign_daily_budget" type="number" step="0.01" min="10" title="PropellerAds не принимает меньше $10" value="{{ '%.2f'|format(settings.campaign_daily_budget) }}"><span class="muted">минимум PropellerAds — $10</span></label>
@@ -123,7 +127,7 @@
   <td class="num">{% if it.epc %}${{ "%.2f"|format(it.epc) }}{% else %}—{% endif %}</td>
   <td>{% if it.budget %}<span class="dot b-{{ it.budget }}"></span>{{ {"high": "High", "medium": "Medium", "low": "Low — не рекламируется"}[it.budget] }}{% else %}<span class="muted">—</span>{% endif %}</td>
   <td>{% if c %}<a href="#c{{ c.id }}">#{{ c.id }}</a> <span class="muted">{{ status_names.get(c.status, c.status) }}</span>{% else %}<span class="muted">не запускалась</span>{% endif %}</td>
-  <td class="acts">{% if c and c.status in ("active", "capped", "creating", "dry_run") %}<span class="muted">{{ {"active": "работает", "capped": "на паузе до освобождения лимита", "creating": "создаётся", "dry_run": "тест"}[c.status] }}</span>{% elif it.ready %}<form class="inline" method="post" action="/niches/{{ n.niche.id }}/products/{{ it.asin }}/launch"><button class="sm" onclick="return confirm('Запустить рекламу на этот товар? Бюджет ${{ '%.2f'|format(settings.campaign_daily_budget) }}/день.')">Запустить рекламу</button></form>{% else %}<span class="muted">нет текстов</span>{% endif %}</td>
+  <td class="acts">{% if c and c.status in ("active", "capped", "paced", "creating", "dry_run") %}<span class="muted">{{ {"active": "работает", "capped": "на паузе до освобождения лимита", "paced": "пауза: растягиваю бюджет на день", "creating": "создаётся", "dry_run": "тест"}[c.status] }}</span>{% elif it.ready %}<form class="inline" method="post" action="/niches/{{ n.niche.id }}/products/{{ it.asin }}/launch"><button class="sm" onclick="return confirm('Запустить рекламу на этот товар? Бюджет ${{ '%.2f'|format(settings.campaign_daily_budget) }}/день.')">Запустить рекламу</button></form>{% else %}<span class="muted">нет текстов</span>{% endif %}</td>
 </tr>{% endfor %}
 </table></div></td></tr>{% endif %}
 {% else %}<tr><td colspan="6" class="muted">Пока нет сайтов — добавьте нишу выше.</td></tr>{% endfor %}
@@ -151,8 +155,8 @@
 {% macro dev_visits(d) %}{% if d %}<span class="sub dev" title="Визиты с телефонов/планшетов · с компьютеров">📱 {{ d.mobile.visits }} · 💻 {{ d.desktop.visits }}</span>{% endif %}{% endmacro %}
 {% macro dev_rate(d) %}{% if d %}<span class="sub dev" title="Переходы на Amazon: с телефонов/планшетов · с компьютеров (доля от визитов)">📱 {{ d.mobile.amazon }}{% if d.mobile.rate is not none %} ({{ "%.1f%%"|format(d.mobile.rate * 100) }}){% endif %} · 💻 {{ d.desktop.amazon }}{% if d.desktop.rate is not none %} ({{ "%.1f%%"|format(d.desktop.rate * 100) }}){% endif %}</span>{% endif %}{% endmacro %}
 {% macro pct(v) %}{{ "%.2f%%"|format(v * 100) if v is not none else "—" }}{% endmacro %}
-{% set live = campaigns|selectattr("status", "in", ["active", "capped", "dry_run", "creating"])|list %}
-{% set done = campaigns|rejectattr("status", "in", ["active", "capped", "dry_run", "creating"])|list %}
+{% set live = campaigns|selectattr("status", "in", ["active", "capped", "paced", "dry_run", "creating"])|list %}
+{% set done = campaigns|rejectattr("status", "in", ["active", "capped", "paced", "dry_run", "creating"])|list %}
 
 {% macro camp_rows(rows) %}
 {% for c in rows %}
@@ -177,7 +181,7 @@
     <button class="sm" type="button" onclick="toggleZones({{ c.id }})">Зоны {{ c.zones|length }} ▾</button>
     {% if c.status == "dry_run" %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/redraw"><button class="sm" title="Нарисовать новые картинки">&#10227;</button></form>{% endif %}
     {% if c.status in ("killed","stopped") and c.external_id %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/resume" onsubmit="return confirm('Вернуть кампанию #{{ c.id }}? Агент не будет отключать её по результатам (только вы кнопкой «Стоп»), но продолжит отключать её зоны без переходов на Amazon.')"><button class="sm" title="Снова запустить в PropellerAds">Вернуть</button></form>{% endif %}
-    {% if c.status in ("active","dry_run","capped") %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/stop"><button class="sm danger" title="Остановить кампанию">Стоп</button></form>{% endif %}
+    {% if c.status in ("active","dry_run","capped","paced") %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/stop"><button class="sm danger" title="Остановить кампанию">Стоп</button></form>{% endif %}
   </td>
 </tr>
 <tr class="zones-row" id="z{{ c.id }}" hidden><td colspan="11">

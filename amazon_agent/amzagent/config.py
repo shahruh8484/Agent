@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     # Hard cap on the sum of daily budgets of every running campaign. The
     # agent never launches a campaign that would push the total above it.
     max_daily_spend: float = 30.0
+    # Spread each campaign's daily budget over its (UTC) day: PropellerAds
+    # push CPC has no pacing of its own and spends it in a few hours, so the
+    # agent pauses a campaign that runs ahead of schedule and resumes it later.
+    pace_daily_budget: bool = True
     campaigns_per_site: int = 3
     # Kill rule: once a campaign has spent at least kill_min_spend, stop it
     # if each click through to Amazon cost more than max_cost_per_amazon_click.

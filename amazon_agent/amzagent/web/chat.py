@@ -61,7 +61,12 @@ SYSTEM = """Ты — автономный агент, который ведёт 
   достижении все кампании ставятся на паузу (статус capped), потом снимаются.
 - Вернутая вручную кампания (manual_keep) не отключается правилами — только
   владельцем.
-- Статусы: active — работает; capped — пауза по лимиту; killed — отключена
+- Растягивание бюджета (pace_daily_budget): PropellerAds тратит дневной
+  бюджет кампании за несколько часов, поэтому агент ставит кампанию,
+  обогнавшую равномерный график (бюджет × прошедшая доля дня UTC + час
+  запаса), на паузу (статус paced) и включает, когда время её догонит.
+- Статусы: active — работает; paced — пауза, растягиваю бюджет на день;
+  capped — пауза по лимиту; killed — отключена
   (правилом или вручную); stopped — остановлена; error — не создалась;
   dry_run — тест без отправки; creating — создаётся.
 - Creator Connections: у товара есть "bonus_budget" (high/medium/low) — сколько
@@ -220,6 +225,11 @@ class ChatAgent:
                 f"${(spent or 0):.2f} при лимите ${s.max_daily_spend:.2f}. Возобновятся, когда "
                 f"расход за 24 ч опустится ниже ${s.max_daily_spend - 1:.2f}"
                 + (f" — примерно в {eta}." if eta else "."))
+        paced = self.store.list_campaigns(statuses=("paced",))
+        if paced:
+            out.append(f"{len(paced)} кампаний на короткой паузе: агент растягивает их дневной "
+                       f"бюджет на весь день (они опередили график и включатся сами, когда "
+                       f"время их догонит).")
         for c in self.store.list_campaigns(statuses=("active",)):
             note = c["note"] or ""
             if note.startswith("PropellerAds: paused"):
@@ -269,7 +279,7 @@ class ChatAgent:
         s = effective(self.settings, self.store)
         rows = _campaign_rows(self.store, s.push_bid_cpc)
         if args.get("only_running"):
-            rows = [c for c in rows if c["status"] in ("active", "capped")]
+            rows = [c for c in rows if c["status"] in ("active", "capped", "paced")]
         return [{
             "id": c["id"], "asin": c["asin"], "title": c["title"][:70],
             "status": c["status"], "note": c["note"], "manual_keep": bool(c.get("manual_keep")),

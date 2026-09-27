@@ -17,6 +17,7 @@ OVERRIDES_KEY = "settings_overrides"
 # field: (type, min, max). Budgets follow PropellerAds' limits.
 EDITABLE: dict[str, tuple[type, float | None, float | None]] = {
     "push_live": (bool, None, None),
+    "pace_daily_budget": (bool, None, None),
     "campaign_daily_budget": (float, MIN_DAILY_AMOUNT, 10_000),
     "max_daily_spend": (float, 0, 100_000),
     "campaigns_per_site": (int, 0, 50),

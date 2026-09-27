@@ -552,3 +552,46 @@ def test_stopped_campaigns_keep_getting_late_spend(settings, store):
     run_cycle(_deps(settings, store, push))
     assert store.get_campaign(c["id"])["spend"] == 6.9
     assert store.get_campaign(c["id"])["status"] == KILLED
+
+
+def test_pacing_spreads_the_daily_budget(settings, store, monkeypatch):
+    import json
+    from datetime import datetime, timezone
+
+    import amzagent.agent.runner as runner
+
+    settings.push_live = True
+    niche = store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    for _ in range(100):  # 100 visits x $0.03 / 0.85 = $3.53 spent today
+        store.log_event("visit", niche.id, c["asin"], c["id"], "1")
+    settings.pace_daily_budget = True
+    store.set_flag(runner.TODAY_SPEND_FLAG, json.dumps({
+        "at": datetime.now(timezone.utc).isoformat(), "by_campaign": {str(c["id"]): 3.5}}))
+
+    monkeypatch.setattr(runner, "pace_allowance", lambda budget, now: 2.0)  # early in the day
+    runner.pace_campaigns(_deps(settings, store, push))
+    assert store.get_campaign(c["id"])["status"] == runner.PACED
+    assert c["external_id"] in push.stopped
+
+    monkeypatch.setattr(runner, "pace_allowance", lambda budget, now: 3.6)  # barely caught up
+    runner.pace_campaigns(_deps(settings, store, push))
+    assert store.get_campaign(c["id"])["status"] == runner.PACED  # no flapping
+
+    monkeypatch.setattr(runner, "pace_allowance", lambda budget, now: 5.0)  # later
+    runner.pace_campaigns(_deps(settings, store, push))
+    assert store.get_campaign(c["id"])["status"] == ACTIVE
+    assert push.started == [c["external_id"]]
+
+
+def test_pace_allowance_is_an_even_share_with_a_head_start():
+    from datetime import datetime, timezone
+
+    from amzagent.agent.runner import pace_allowance
+
+    noon = datetime(2026, 9, 27, 12, 0, tzinfo=timezone.utc)
+    assert round(pace_allowance(10, noon), 2) == round(10 * 780 / 1440, 2)  # 13h of 24
+    late = datetime(2026, 9, 27, 23, 30, tzinfo=timezone.utc)
+    assert pace_allowance(10, late) == 10  # capped at the budget

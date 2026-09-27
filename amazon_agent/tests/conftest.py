@@ -116,6 +116,7 @@ def settings(tmp_path):
         campaigns_per_site=2,
         campaign_daily_budget=10,
         max_daily_spend=30,
+        pace_daily_budget=False,  # time-of-day dependent; tested on its own
         agent_interval_hours=0,
         session_https_only=False,
         secret_key="test",

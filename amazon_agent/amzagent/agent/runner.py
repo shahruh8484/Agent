@@ -48,6 +48,8 @@ logger = logging.getLogger(__name__)
 KILLED = "killed"
 CREATING = "creating"  # row exists, creatives/API call still in progress
 CAPPED = "capped"  # paused by the agent: 24h spend limit reached; resumes by itself
+PACED = "paced"  # paused by the agent: ahead of its daily budget schedule; resumes by itself
+PACE_LEAD_MINUTES = 60  # a campaign may run this far ahead of an even schedule
 RESUME_HEADROOM = 1.0  # $ left under the 24h limit before capped campaigns resume
 STUCK_CREATING_MINUTES = 30
 STATS_BLIND_MINUTES = 30
@@ -351,6 +353,68 @@ def resume_eta(store: Store, cap: float) -> datetime | None:
     return datetime.fromisoformat(times[-1]) + timedelta(hours=24)
 
 
+def spent_since_budget_day(deps: Deps, c: dict, now: datetime | None = None) -> float:
+    """Real-time estimate of what a campaign spent since 00:00 UTC (its
+    budget day: campaigns run in UTC), from its site visits x bid;
+    PropellerAds' own numbers lag up to an hour."""
+    now = now or datetime.now(timezone.utc)
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    visits = deps.store.count_events(c["id"], "visit", midnight.isoformat(timespec="seconds"))
+    return visits * deps.settings.push_bid_cpc / VISITS_PER_PAID_CLICK
+
+
+def pace_allowance(budget: float, now: datetime) -> float:
+    """How much of a daily budget may be spent by `now`: an even share of
+    the UTC day so far, plus PACE_LEAD_MINUTES of head start."""
+    minutes = now.hour * 60 + now.minute + PACE_LEAD_MINUTES
+    return budget * min(1.0, minutes / 1440)
+
+
+def pace_campaigns(deps: Deps) -> None:
+    """Spread each campaign's daily budget over the day: pause one that is
+    ahead of an even schedule (status paced), resume it once time catches
+    up — never above the 24h limit or with the kill switch on."""
+    if deps.push is None:
+        return
+    s, store = deps.settings, deps.store
+    now = datetime.now(timezone.utc)
+    if s.pace_daily_budget:
+        for c in store.list_campaigns(statuses=(ACTIVE,)):
+            if not c["external_id"]:
+                continue
+            spent = spent_since_budget_day(deps, c, now)
+            allowed = pace_allowance(c["daily_budget"], now)
+            if spent <= allowed:
+                continue
+            try:
+                deps.push.stop([c["external_id"]])
+            except PropellerError as exc:
+                deps.say(f"campaign #{c['id']}: pacing pause failed, will retry: {exc}")
+                continue
+            store.update_campaign(c["id"], status=PACED,
+                                  note=f"paced: ${spent:.2f} of ${c['daily_budget']:.0f} spent by "
+                                       f"{now:%H:%M} UTC, ahead of schedule")
+            deps.say(f"campaign #{c['id']} paced: ${spent:.2f} spent today by {now:%H:%M} UTC "
+                     f"(schedule allows ${allowed:.2f})")
+    spent_24h = spent_today(store)
+    room = spent_24h is not None and s.max_daily_spend - spent_24h >= RESUME_HEADROOM
+    for c in store.list_campaigns(statuses=(PACED,)):
+        spent = spent_since_budget_day(deps, c, now)
+        # Resume a little below the line so it doesn't flap every check.
+        behind = spent <= pace_allowance(c["daily_budget"], now) - c["daily_budget"] / 48
+        if s.pace_daily_budget and not behind:
+            continue
+        if not room or store.get_flag(PAUSE_FLAG) == "1":
+            continue
+        try:
+            deps.push.start([c["external_id"]])
+        except PropellerError as exc:
+            deps.say(f"campaign #{c['id']}: pacing resume failed, will retry: {exc}")
+            continue
+        store.update_campaign(c["id"], status=ACTIVE, note="resumed: back on its daily schedule")
+        deps.say(f"campaign #{c['id']} resumed: ${spent:.2f} spent today, back on schedule")
+
+
 def enforce_budget_cap(deps: Deps) -> None:
     """If the daily cap was lowered below what's running, stop the newest
     campaigns until the total fits again."""
@@ -539,7 +603,7 @@ def committed_24h(store: Store) -> float | None:
     by_campaign = _spend_24h_by_campaign(store)
     if by_campaign is None:
         return None
-    running = store.list_campaigns(statuses=(ACTIVE,))
+    running = store.list_campaigns(statuses=(ACTIVE, PACED))  # paced ones resume today
     ids = {str(c["id"]) for c in running}
     stopped = sum(v for k, v in by_campaign.items() if k not in ids)
     return stopped + sum(max(c["daily_budget"], by_campaign.get(str(c["id"]), 0.0))
@@ -778,9 +842,10 @@ def launch_campaigns(deps: Deps) -> None:
         campaigns = store.list_campaigns(niche_id=niche.id)
         # A campaign still being created holds its slot and its product.
         # Campaigns being created or paused at the limit keep their slot.
-        running = [c for c in campaigns if c["status"] in (running_status, CREATING, CAPPED)]
+        running = [c for c in campaigns
+                   if c["status"] in (running_status, CREATING, CAPPED, PACED)]
         taken = {c["asin"] for c in campaigns
-                 if c["status"] in (running_status, KILLED, CREATING, CAPPED)}
+                 if c["status"] in (running_status, KILLED, CREATING, CAPPED, PACED)}
         slots = s.campaigns_per_site - len(running)
 
         for product, copy in store.list_products(niche.id):
@@ -850,7 +915,7 @@ def launch_product(deps: Deps, niche_id: int, asin: str) -> str | None:
     site_copy = store.get_site_copy(niche_id)
     if copy is None or site_copy is None:
         return "у товара ещё нет текстов — дождитесь окончания цикла"
-    running = (ACTIVE, CREATING, CAPPED, DRY_RUN)
+    running = (ACTIVE, CREATING, CAPPED, PACED, DRY_RUN)
     if any(c["asin"] == asin for c in store.list_campaigns(niche_id=niche_id, statuses=running)):
         return "на этот товар уже есть работающая кампания"
     if s.push_live:
@@ -933,7 +998,7 @@ def redraw_campaign(deps: Deps, campaign_id: int) -> bool:
 
 
 def stop_all(deps: Deps, reason: str = "stopped by kill switch") -> None:
-    for c in deps.store.list_campaigns(statuses=(ACTIVE, DRY_RUN, CAPPED)):
+    for c in deps.store.list_campaigns(statuses=(ACTIVE, DRY_RUN, CAPPED, PACED)):
         stop_campaign(deps, c, STOPPED, reason)
 
 
@@ -964,6 +1029,7 @@ def manage_campaigns(deps: Deps) -> None:
         blacklist_bad_zones(deps)
     sync_today_spend(deps)  # right before launching: the cap needs fresh numbers
     enforce_spend_cap(deps)
+    pace_campaigns(deps)
     if not manual:
         launch_campaigns(deps)
 

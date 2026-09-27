@@ -117,7 +117,7 @@ def _clean(value: str | None) -> str | None:
     return value if value and SAFE_PARAM.match(value) else None
 
 
-STATUS_ORDER = {"active": 0, "capped": 1, "dry_run": 2, "creating": 3, "error": 4, "killed": 5,
+STATUS_ORDER = {"active": 0, "paced": 1, "capped": 1, "dry_run": 2, "creating": 3, "error": 4, "killed": 5,
                 "stopped": 6}
 
 
