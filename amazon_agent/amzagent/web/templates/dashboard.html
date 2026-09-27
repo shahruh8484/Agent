@@ -148,6 +148,8 @@
 <p class="muted" style="margin:8px 0 10px;font-size:.82rem">Показы, клики, расход — PropellerAds (с задержкой до часа). Визиты и переходы на Amazon — ваш сайт. «$/Amazon» — сколько стоил один переход на Amazon. «Доход ≤» — переходы на Amazon × Estimated EPC товара из Creator Connections, то есть максимум, который обещает Amazon; «Прибыль ≤» — доход минус расход (реальная обычно ниже). Агент принимает решения по данным за всё время кампании, независимо от выбранного периода.</p>
 {% macro money(v) %}{{ "$%.2f"|format(v) if v is not none else "—" }}{% endmacro %}
 {% macro profit(v) %}{% if v is none %}—{% elif v >= 0 %}<span class="pos">+${{ "%.2f"|format(v) }}</span>{% else %}<span class="neg">−${{ "%.2f"|format(-v) }}</span>{% endif %}{% endmacro %}
+{% macro dev_visits(d) %}{% if d %}<span class="sub dev" title="Визиты с телефонов/планшетов · с компьютеров">📱 {{ d.mobile.visits }} · 💻 {{ d.desktop.visits }}</span>{% endif %}{% endmacro %}
+{% macro dev_rate(d) %}{% if d %}<span class="sub dev" title="Переходы на Amazon: с телефонов/планшетов · с компьютеров (доля от визитов)">📱 {{ d.mobile.amazon }}{% if d.mobile.rate is not none %} ({{ "%.1f%%"|format(d.mobile.rate * 100) }}){% endif %} · 💻 {{ d.desktop.amazon }}{% if d.desktop.rate is not none %} ({{ "%.1f%%"|format(d.desktop.rate * 100) }}){% endif %}</span>{% endif %}{% endmacro %}
 {% macro pct(v) %}{{ "%.2f%%"|format(v * 100) if v is not none else "—" }}{% endmacro %}
 {% set live = campaigns|selectattr("status", "in", ["active", "capped", "dry_run", "creating"])|list %}
 {% set done = campaigns|rejectattr("status", "in", ["active", "capped", "dry_run", "creating"])|list %}
@@ -166,8 +168,8 @@
   <td class="num">{{ "{:,}".format(c.impressions) }}</td>
   <td class="num" title="CTR · цена клика (CPC)">{{ "{:,}".format(c.ad_clicks) }}<span class="sub">{{ pct(c.ctr) }} · {{ money(c.cpc) }}</span></td>
   <td class="num" title="PropellerAds отдаёт расход с задержкой; ≈ — оценка агента по визитам на сайт (без задержки), по ней он и принимает решения"><b>{{ money(c.spend) }}</b>{% if c.spend_est > c.spend + 0.05 %}<span class="sub">≈ {{ money(c.spend_est) }} сейчас</span>{% endif %}</td>
-  <td class="num">{{ c.visits }}</td>
-  <td class="num">{{ c.clicks }}{% if c.to_amazon is not none %}<span class="sub">{{ pct(c.to_amazon) }}</span>{% endif %}</td>
+  <td class="num">{{ c.visits }}{{ dev_visits(c.devices) }}</td>
+  <td class="num">{{ c.clicks }}{% if c.to_amazon is not none %}<span class="sub">{{ pct(c.to_amazon) }}</span>{% endif %}{{ dev_rate(c.devices) }}</td>
   <td class="num"><b>{{ money(c.cost_per_click) }}</b></td>
   <td class="num" title="Переходы на Amazon × Estimated EPC товара ({{ money(c.epc) }}) — максимум, который обещает Amazon">{{ money(c.revenue) }}</td>
   <td class="num"><b>{{ profit(c.profit) }}</b></td>
@@ -186,7 +188,7 @@
     <tr{% if z.excluded %} class="excluded"{% endif %}>
       <td>{{ z.zone }}</td>
       <td class="num">{{ "{:,}".format(z.impressions) }}</td><td class="num">{{ "{:,}".format(z.clicks) }}</td><td class="num">{{ pct(z.ctr) }}</td>
-      <td class="num">{{ money(z.spent) }}</td><td class="num">{{ z.visits }}</td><td class="num">{{ z.amazon }}</td><td class="num">{{ money(z.cost_per_amazon) }}</td><td class="num">{{ profit(z.profit) }}</td>
+      <td class="num">{{ money(z.spent) }}</td><td class="num">{{ z.visits }}{{ dev_visits(z.devices) }}</td><td class="num">{{ z.amazon }}{{ dev_rate(z.devices) }}</td><td class="num">{{ money(z.cost_per_amazon) }}</td><td class="num">{{ profit(z.profit) }}</td>
       <td class="acts"><form class="inline" method="post" action="/campaigns/{{ c.id }}/zones/{{ z.zone }}/{{ 'include' if z.excluded else 'exclude' }}" onsubmit="return zoneToggle(event, this)">{% if z.excluded %}<button class="sm">Включить</button>{% else %}<button class="sm danger">Отключить</button>{% endif %}</form></td>
     </tr>
     {% endfor %}
@@ -207,7 +209,7 @@
 {% if campaigns %}
 <tr class="totals"><td>Итого{% if period.is_all %} за всё время{% else %} за {{ period.label() }}{% endif %}</td><td></td>
   <td class="num">{{ "{:,}".format(totals.impressions) }}</td><td class="num">{{ "{:,}".format(totals.ad_clicks) }}<span class="sub">{{ pct(totals.ctr) }} · {{ money(totals.cpc) }}</span></td>
-  <td class="num">{{ money(totals.spend) }}</td><td class="num">{{ totals.visits }}</td><td class="num">{{ totals.clicks }}</td><td class="num">{{ money(totals.cost_per_click) }}</td><td class="num">{{ money(totals.revenue) }}</td><td class="num">{{ profit(totals.profit) }}</td><td></td></tr>
+  <td class="num">{{ money(totals.spend) }}</td><td class="num">{{ totals.visits }}{{ dev_visits(totals.devices) }}</td><td class="num">{{ totals.clicks }}{{ dev_rate(totals.devices) }}</td><td class="num">{{ money(totals.cost_per_click) }}</td><td class="num">{{ money(totals.revenue) }}</td><td class="num">{{ profit(totals.profit) }}</td><td></td></tr>
 {% endif %}
 {{ camp_rows(live) }}
 {% if not live %}<tr><td colspan="11" class="muted">Работающих кампаний нет.</td></tr>{% endif %}
@@ -241,7 +243,7 @@ function toggleZones(id) {
 // (first click: largest first, again: smallest first). Remembered per
 // kind of table across reloads.
 function cellValue(td) {
-  var t = (td.innerText || "").trim();
+  var t = (td.innerText || "").trim().split("\n")[0].trim();  // main value, not the sub-lines
   var n = parseFloat(t.replace(/[$,%\s]/g, ""));
   if (/^[-\d.,$%\s]+$/.test(t) && !isNaN(n)) return n;
   return t === "—" || t === "" ? null : t.toLowerCase();

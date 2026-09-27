@@ -279,6 +279,7 @@ class ChatAgent:
             "site_visits": c["visits"], "amazon_clicks": c["clicks"],
             "to_amazon_percent": _round(100 * c["to_amazon"]) if c["to_amazon"] else 0,
             "cost_per_amazon_click": _round(c["cost_per_click"]),
+            "by_device": c["devices"] or None,  # mobile/desktop visits, Amazon clicks, rate
             "epc_up_to": c["epc"],
             "revenue_max": _round(c["revenue"]),
             "profit_max": _round(c["profit"]),

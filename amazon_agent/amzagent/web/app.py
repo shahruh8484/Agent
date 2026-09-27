@@ -101,6 +101,18 @@ def price_is_fresh(product: Product) -> bool:
     return datetime.now(timezone.utc) - fetched < PRICE_MAX_AGE
 
 
+MOBILE_UA = re.compile(r"Mobi|Android|iPhone|iPad|iPod|Silk|Kindle|Opera Mini|IEMobile|"
+                       r"BlackBerry|webOS", re.IGNORECASE)
+
+
+def device_of(request: Request) -> str:
+    """"mobile" (phones and tablets) or "desktop", from the User-Agent."""
+    ua = request.headers.get("user-agent", "")
+    # iPadOS reports a desktop Mac user agent; its touch support gives it away
+    # only in JS, so an iPad may count as desktop.
+    return "mobile" if MOBILE_UA.search(ua) else "desktop"
+
+
 def _clean(value: str | None) -> str | None:
     return value if value and SAFE_PARAM.match(value) else None
 
@@ -111,6 +123,18 @@ STATUS_ORDER = {"active": 0, "capped": 1, "dry_run": 2, "creating": 3, "error": 
 
 def _ratio(num: float, den: float) -> float | None:
     return num / den if den else None
+
+
+DEVICES = ("mobile", "desktop")
+
+
+def _device_split(visits: dict[str, int], clicks: dict[str, int]) -> dict:
+    """{"mobile": {"visits", "amazon", "rate"}, "desktop": {...}} or {} if no
+    visit recorded a device yet."""
+    if not any(visits.get(d) for d in DEVICES):
+        return {}
+    return {d: {"visits": visits.get(d, 0), "amazon": clicks.get(d, 0),
+                "rate": _ratio(clicks.get(d, 0), visits.get(d, 0))} for d in DEVICES}
 
 
 def _campaign_rows(store: Store, bid: float = 0.0, period: Period | None = None,
@@ -151,6 +175,8 @@ def _campaign_rows(store: Store, bid: float = 0.0, period: Period | None = None,
             spend_est=(visits * bid / VISITS_PER_PAID_CLICK
                        if since is None and c["status"] == ACTIVE and c["external_id"] else 0.0),
             cost_per_click=_ratio(c["spend"], amazon),
+            devices=_device_split(store.events_by_device(c["id"], "visit", since, until),
+                                  store.events_by_device(c["id"], "click", since, until)),
             epc=epc,
             revenue=amazon * epc if epc else None,
             profit=amazon * epc - c["spend"] if epc else None,
@@ -169,6 +195,8 @@ def _zone_rows(store: Store, campaign_id: int, since: str | None = None,
                epc: float | None = None) -> list[dict]:
     visits = store.events_by_zone(campaign_id, "visit", since, until)
     clicks = store.events_by_zone(campaign_id, "click", since, until)
+    dev_visits = store.events_by_zone_device(campaign_id, "visit", since, until)
+    dev_clicks = store.events_by_zone_device(campaign_id, "click", since, until)
     excluded = store.blacklisted_zones(campaign_id)
     if net_rows is None:
         zones = {z["zone"]: z for z in store.zone_stats(campaign_id)}
@@ -188,6 +216,9 @@ def _zone_rows(store: Store, campaign_id: int, since: str | None = None,
             "amazon": amazon,
             "cost_per_amazon": _ratio(z["spent"], amazon),
             "profit": amazon * epc - z["spent"] if epc else None,
+            "devices": _device_split(
+                {d: dev_visits.get((z["zone"], d), 0) for d in DEVICES},
+                {d: dev_clicks.get((z["zone"], d), 0) for d in DEVICES}),
             "excluded": z["zone"] in excluded,
         })
     out.sort(key=lambda z: (z["excluded"], -z["spent"], -z["impressions"]))
@@ -235,6 +266,10 @@ def _campaign_totals(rows: list[dict]) -> dict:
     t["ctr"] = _ratio(t["ad_clicks"], t["impressions"])
     t["cpc"] = _ratio(t["spend"], t["ad_clicks"])
     t["cost_per_click"] = _ratio(t["spend"], t["clicks"])
+    split = [r["devices"] for r in rows if r.get("devices")]
+    t["devices"] = _device_split(
+        {d: sum(s[d]["visits"] for s in split) for d in DEVICES},
+        {d: sum(s[d]["amazon"] for s in split) for d in DEVICES}) if split else {}
     with_epc = [r for r in rows if r.get("revenue") is not None]
     t["revenue"] = sum(r["revenue"] for r in with_epc) if with_epc else None
     t["profit"] = t["revenue"] - t["spend"] if with_epc else None
@@ -406,7 +441,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         product, product_copy = found
         campaign_id = int(c) if c and c.isdigit() else None
         zone = _clean(z)
-        store.log_event("visit", niche.id, asin, campaign_id, zone)
+        store.log_event("visit", niche.id, asin, campaign_id, zone, device_of(request))
         go = f"/go/{slug}/{asin}"
         if campaign_id:
             go += f"?c={campaign_id}" + (f"&z={zone}" if zone else "")
@@ -514,13 +549,14 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         return RedirectResponse("/favicon.svg", status_code=301)
 
     @app.get("/go/{slug}/{asin}")
-    def outbound(slug: str, asin: str, c: str | None = None, z: str | None = None):
+    def outbound(request: Request, slug: str, asin: str, c: str | None = None,
+                 z: str | None = None):
         niche = store.get_niche_by_slug(slug)
         found = store.get_product(niche.id, asin) if niche else None
         if found is None:
             raise HTTPException(404)
         campaign_id = int(c) if c and c.isdigit() else None
-        store.log_event("click", niche.id, asin, campaign_id, _clean(z))
+        store.log_event("click", niche.id, asin, campaign_id, _clean(z), device_of(request))
         return RedirectResponse(found[0].url, status_code=302)
 
     @app.get("/media/{slug}/{filename}")

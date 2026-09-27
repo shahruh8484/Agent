@@ -147,6 +147,10 @@ class Store:
                               ("manual_keep", "INTEGER NOT NULL DEFAULT 0")):
                 if col not in cols:
                     self._db.execute(f"ALTER TABLE campaigns ADD COLUMN {col} {decl}")
+            # Visitor device on events (added later): mobile | desktop.
+            cols = {r[1] for r in self._db.execute("PRAGMA table_info(events)")}
+            if "device" not in cols:
+                self._db.execute("ALTER TABLE events ADD COLUMN device TEXT")
             self._db.commit()
 
     def _exec(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
@@ -396,11 +400,12 @@ class Store:
         asin: str | None = None,
         campaign_id: int | None = None,
         zone: str | None = None,
+        device: str | None = None,
     ) -> None:
         self._exec(
-            "INSERT INTO events (ts, type, niche_id, asin, campaign_id, zone)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
-            (now_iso(), type_, niche_id, asin, campaign_id, zone),
+            "INSERT INTO events (ts, type, niche_id, asin, campaign_id, zone, device)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (now_iso(), type_, niche_id, asin, campaign_id, zone, device),
         )
 
     @staticmethod
@@ -427,6 +432,28 @@ class Store:
         rows = self._all("SELECT ts FROM events WHERE type = 'visit' AND campaign_id IS NOT NULL"
                          " AND ts >= ? ORDER BY ts", (since,))
         return [r["ts"] for r in rows]
+
+    def events_by_device(self, campaign_id: int, type_: str, since: str | None = None,
+                         until: str | None = None) -> dict[str, int]:
+        """{device: count} for events that recorded one (mobile / desktop)."""
+        window, extra = self._window(since, until)
+        rows = self._all(
+            "SELECT device, COUNT(*) AS n FROM events WHERE campaign_id = ? AND type = ?"
+            " AND device IS NOT NULL" + window + " GROUP BY device",
+            (campaign_id, type_, *extra),
+        )
+        return {r["device"]: int(r["n"]) for r in rows}
+
+    def events_by_zone_device(self, campaign_id: int, type_: str, since: str | None = None,
+                              until: str | None = None) -> dict[tuple[str, str], int]:
+        """{(zone, device): count}."""
+        window, extra = self._window(since, until)
+        rows = self._all(
+            "SELECT zone, device, COUNT(*) AS n FROM events WHERE campaign_id = ? AND type = ?"
+            " AND zone IS NOT NULL AND device IS NOT NULL" + window + " GROUP BY zone, device",
+            (campaign_id, type_, *extra),
+        )
+        return {(r["zone"], r["device"]): int(r["n"]) for r in rows}
 
     def events_by_zone(self, campaign_id: int, type_: str, since: str | None = None,
                        until: str | None = None) -> dict[str, int]:

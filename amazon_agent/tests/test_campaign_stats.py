@@ -148,3 +148,30 @@ def test_revenue_and_profit_use_the_epc(settings, store):
     rows = _campaign_rows(store)
     assert next(r for r in rows if r["id"] == cid2)["profit"] is None
     assert _campaign_totals(rows)["profit"] == 4.5 - 6.0  # all spend counts
+
+
+IPHONE = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
+          "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
+WINDOWS = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+           "Chrome/128.0 Safari/537.36")
+
+
+def test_visits_record_the_device_and_stats_split_by_it(settings, store):
+    niche, push = _live(settings, store)
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    client = _client(settings, store)
+    page = f"/s/{niche.slug}/p/{c['asin']}?c={c['id']}&z=777"
+    for _ in range(3):
+        client.get(page, headers={"User-Agent": IPHONE})
+    client.get(page, headers={"User-Agent": WINDOWS})
+    client.get(f"/go/{niche.slug}/{c['asin']}?c={c['id']}&z=777",
+               headers={"User-Agent": IPHONE}, follow_redirects=False)
+    assert store.events_by_device(c["id"], "visit") == {"mobile": 3, "desktop": 1}
+
+    from amzagent.web.app import _campaign_rows, _campaign_totals
+    row = next(r for r in _campaign_rows(store) if r["id"] == c["id"])
+    assert row["devices"]["mobile"] == {"visits": 3, "amazon": 1, "rate": 1 / 3}
+    assert row["devices"]["desktop"]["amazon"] == 0
+    assert row["zones"][0]["devices"]["mobile"]["visits"] == 3
+    assert _campaign_totals([row])["devices"]["desktop"]["visits"] == 1
+    assert "📱 3 · 💻 1" in client.get("/admin").text
