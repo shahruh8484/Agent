@@ -62,6 +62,10 @@ ZONE_STATS_EVERY_MINUTES = 15
 TODAY_SPEND_FLAG = "spent_24h"
 TODAY_SPEND_MAX_AGE_MINUTES = 20  # stopped by the kill rule — never relaunched for that product
 PAUSE_FLAG = "paused_all"
+# "1" = manual mode: the agent keeps sites, stats and money safety going but
+# makes no campaign decisions (no launches, no kills by results, no zone
+# exclusions, no new niches) — the owner does that from the panel or chat.
+MANUAL_FLAG = "manual_mode"
 SEARCH_PAGES = 2  # 10 items per page
 
 
@@ -585,7 +589,13 @@ def resume_campaign(deps: Deps, campaign_id: int) -> str | None:
     return None
 
 
-def apply_kill_rules(deps: Deps) -> None:
+def is_manual(store: Store) -> bool:
+    return store.get_flag(MANUAL_FLAG) == "1"
+
+
+def apply_kill_rules(deps: Deps, by_results: bool = True) -> None:
+    """Stop campaigns whose product or site is gone and, with `by_results`,
+    the ones that failed the product test."""
     s, store = deps.settings, deps.store
     for c in store.list_campaigns(statuses=(ACTIVE,)):
         if c.get("manual_keep"):
@@ -600,6 +610,8 @@ def apply_kill_rules(deps: Deps) -> None:
         active_asins = {p.asin for p, _ in store.list_products(c["niche_id"])}
         if c["asin"] not in active_asins:
             stop_campaign(deps, c, STOPPED, "product no longer selected")
+            continue
+        if not by_results:
             continue
         spend = estimated_spend(deps, c)
         if spend < s.kill_min_spend:
@@ -718,30 +730,65 @@ def launch_campaigns(deps: Deps) -> None:
                 )
                 return
 
-            cid = store.add_campaign(niche.id, product.asin, CREATING, s.campaign_daily_budget)
-            payload = build_payload(deps, niche, site_copy, product, copy, cid)
+            if create_campaign(deps, niche, site_copy, product, copy) is None:
+                slots -= 1
 
-            if not live:
-                store.update_campaign(cid, status=DRY_RUN, payload=payload,
-                                      note="dry run: not sent (PUSH_LIVE=false)")
-                deps.say(f"[{niche.slug}] dry-run campaign #{cid} for {product.asin}")
-            else:
-                try:
-                    # Created straight into moderation; it starts once approved.
-                    external_id = deps.push.create_campaign(
-                        propeller.inline_images(payload, lambda url: media_file(deps, url))
-                    )
-                except PropellerError as exc:
-                    store.update_campaign(cid, status=ERROR, payload=payload, note=str(exc)[:500])
-                    deps.say(f"[{niche.slug}] campaign #{cid} failed: {exc}")
-                    continue
-                store.update_campaign(cid, status=ACTIVE, external_id=external_id,
-                                      payload=payload, note="sent to PropellerAds moderation")
-                deps.say(
-                    f"[{niche.slug}] launched campaign #{cid} (PropellerAds {external_id}) "
-                    f"for {product.asin}, ${s.campaign_daily_budget:.2f}/day"
-                )
-            slots -= 1
+
+def create_campaign(deps: Deps, niche: Niche, site_copy, product, copy) -> str | None:
+    """Create one campaign (or a dry-run row). Returns an error or None."""
+    s, store = deps.settings, deps.store
+    cid = store.add_campaign(niche.id, product.asin, CREATING, s.campaign_daily_budget)
+    payload = build_payload(deps, niche, site_copy, product, copy, cid)
+    if not s.push_live:
+        store.update_campaign(cid, status=DRY_RUN, payload=payload,
+                              note="dry run: not sent (PUSH_LIVE=false)")
+        deps.say(f"[{niche.slug}] dry-run campaign #{cid} for {product.asin}")
+        return None
+    try:
+        # Created straight into moderation; it starts once approved.
+        external_id = deps.push.create_campaign(
+            propeller.inline_images(payload, lambda url: media_file(deps, url))
+        )
+    except PropellerError as exc:
+        store.update_campaign(cid, status=ERROR, payload=payload, note=str(exc)[:500])
+        deps.say(f"[{niche.slug}] campaign #{cid} failed: {exc}")
+        return f"PropellerAds не создал кампанию: {exc}"
+    store.update_campaign(cid, status=ACTIVE, external_id=external_id,
+                          payload=payload, note="sent to PropellerAds moderation")
+    deps.say(
+        f"[{niche.slug}] launched campaign #{cid} (PropellerAds {external_id}) "
+        f"for {product.asin}, ${s.campaign_daily_budget:.2f}/day"
+    )
+    return None
+
+
+def launch_product(deps: Deps, niche_id: int, asin: str) -> str | None:
+    """Launch a campaign for one product by hand (any mode). The daily
+    limit still applies; the per-site slot count and "already killed"
+    history don't — that's the owner's call. Returns an error or None."""
+    s, store = deps.settings, deps.store
+    niche = store.get_niche(niche_id)
+    found = store.get_product(niche_id, asin) if niche else None
+    if found is None:
+        return "товар не найден на сайте"
+    product, copy = found
+    site_copy = store.get_site_copy(niche_id)
+    if copy is None or site_copy is None:
+        return "у товара ещё нет текстов — дождитесь окончания цикла"
+    running = (ACTIVE, CREATING, CAPPED, DRY_RUN)
+    if any(c["asin"] == asin for c in store.list_campaigns(niche_id=niche_id, statuses=running)):
+        return "на этот товар уже есть работающая кампания"
+    if s.push_live:
+        if deps.push is None:
+            return "PropellerAds не подключён"
+        stopped_spend = spent_today(store, only_stopped=True)
+        if stopped_spend is None:
+            return "расход за 24 ч ещё не получен из PropellerAds — попробуйте через пару минут"
+        committed = stopped_spend + store.running_daily_budget()
+        if committed + s.campaign_daily_budget > s.max_daily_spend:
+            return (f"не хватает дневного лимита: занято ${committed:.2f} из "
+                    f"${s.max_daily_spend:.2f} (поднимите лимит в настройках)")
+    return create_campaign(deps, niche, site_copy, product, copy)
 
 
 def push_images(deps: Deps, niche: Niche, site_title: str, product, copy, cid: int
@@ -837,11 +884,14 @@ def manage_campaigns(deps: Deps) -> None:
         stop_if_flying_blind(deps)
         deps.say("launch skipped: PropellerAds stats unavailable")
         return
-    apply_kill_rules(deps)
-    blacklist_bad_zones(deps)
+    manual = is_manual(deps.store)
+    apply_kill_rules(deps, by_results=not manual)
+    if not manual:
+        blacklist_bad_zones(deps)
     sync_today_spend(deps)  # right before launching: the cap needs fresh numbers
     enforce_spend_cap(deps)
-    launch_campaigns(deps)
+    if not manual:
+        launch_campaigns(deps)
 
 
 # --- entrypoints ----------------------------------------------------------
@@ -922,7 +972,8 @@ def run_cycle(
     try:
         if niche_id is None:
             enabled = sum(1 for n in deps.store.list_niches() if n.enabled)
-            missing = max(discover, deps.settings.auto_niches - enabled)
+            auto = 0 if is_manual(deps.store) else deps.settings.auto_niches - enabled
+            missing = max(discover, auto)  # a "find niches" press works in either mode
             try:
                 add_discovered_niches(deps, missing)
             except Exception as exc:

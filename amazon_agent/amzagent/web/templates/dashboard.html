@@ -4,10 +4,16 @@
 <link rel="icon" href="/admin-favicon.svg" type="image/svg+xml">
 {% if running %}<meta http-equiv="refresh" content="10">{% endif %}</head>
 <body><div class="wrap">
+{% set status_names = {"active":"активна","capped":"пауза: лимит","dry_run":"тест","killed":"отключена агентом","stopped":"остановлена","error":"ошибка","creating":"создаётся"} %}
 
 <div class="row" style="justify-content:space-between">
   <h1>Amazon агент</h1>
   <div class="row">
+    <form class="mode" method="post" action="/mode" title="Авто — агент сам запускает, тестирует и отключает кампании и зоны. Ручной — только вы (кнопки и чат); лимит и защиты работают в обоих режимах.">
+      <span class="muted">Режим:</span>
+      <button name="mode" value="auto"{% if not manual %} class="on"{% endif %}>Авто</button>
+      <button name="mode" value="manual"{% if manual %} class="on"{% endif %}>Ручной</button>
+    </form>
     <form class="inline" method="post" action="/run"><button class="primary">Запустить цикл сейчас</button></form>
     <form class="inline" method="post" action="/killswitch">
       {% if paused %}<input type="hidden" name="on" value="0"><button>Снять стоп</button>
@@ -21,6 +27,7 @@
 {% if running %}<div class="banner" style="border-color:var(--accent);color:var(--accent)">Агент сейчас работает — журнал внизу обновляется, страница перезагружается сама каждые 10 секунд.</div>{% endif %}
 {% if flash %}<div class="banner" style="border-color:var(--ok);color:var(--ok)">{{ flash }}</div>{% endif %}
 {% if stats_error and settings.push_live %}<div class="banner bad">Статистика из PropellerAds не читается: {{ stats_error }}. Новые кампании не запускаются; если так продлится больше 30 минут, агент остановит работающие кампании.</div>{% endif %}
+{% if manual %}<div class="banner">Ручной режим: агент сам не запускает и не отключает кампании, не отключает зоны и не подбирает ниши. Запуск — кнопкой «Запустить рекламу» в списке товаров сайта, остальное — кнопками кампаний или через чат. Лимит за 24 ч и аварийные защиты работают.</div>{% endif %}
 {% if paused %}<div class="banner bad">Включён аварийный стоп: все кампании остановлены, новые не запускаются.</div>{% endif %}
 {% if not settings.push_live %}<div class="banner">Тестовый режим (PUSH_LIVE=false): агент собирает кампании, но НЕ отправляет их в PropellerAds. Проверьте payload ниже, затем поставьте PUSH_LIVE=true.</div>{% endif %}
 
@@ -101,11 +108,23 @@
   <td class="num">{{ n.stats.visit }}</td>
   <td class="num">{{ n.stats.click }}</td>
   <td style="white-space:nowrap">
+    {% if n.shelf %}<button onclick="toggleRow('p{{ n.niche.id }}')">Товары {{ n.shelf|length }} ▾</button>{% endif %}
     <form class="inline" method="post" action="/niches/{{ n.niche.id }}/run"><button>Обновить</button></form>
     <form class="inline" method="post" action="/niches/{{ n.niche.id }}/toggle"><button>{{ "Выключить" if n.niche.enabled else "Включить" }}</button></form>
     <form class="inline" method="post" action="/niches/{{ n.niche.id }}/delete"><button class="danger" onclick="return confirm('Удалить сайт и остановить его кампании?')">Удалить</button></form>
   </td>
 </tr>
+{% if n.shelf %}<tr id="p{{ n.niche.id }}" hidden><td colspan="6" style="background:var(--bg)"><div class="zwrap"><table class="zones">
+<tr><th>#</th><th>Товар</th><th>ASIN</th><th class="num">EPC</th><th>Реклама</th><th></th></tr>
+{% for it in n.shelf %}{% set c = it.campaign %}
+<tr><td class="muted">{{ loop.index }}</td>
+  <td style="max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="/s/{{ n.niche.slug }}/p/{{ it.asin }}" target="_blank">{{ it.title }}</a></td>
+  <td>{{ it.asin }}</td>
+  <td class="num">{% if it.epc %}${{ "%.2f"|format(it.epc) }}{% else %}—{% endif %}</td>
+  <td>{% if c %}<a href="#c{{ c.id }}">#{{ c.id }}</a> <span class="muted">{{ status_names.get(c.status, c.status) }}</span>{% else %}<span class="muted">не запускалась</span>{% endif %}</td>
+  <td class="acts">{% if c and c.status in ("active", "capped", "creating", "dry_run") %}<span class="muted">идёт</span>{% elif it.ready %}<form class="inline" method="post" action="/niches/{{ n.niche.id }}/products/{{ it.asin }}/launch"><button class="sm" onclick="return confirm('Запустить рекламу на этот товар? Бюджет ${{ '%.2f'|format(settings.campaign_daily_budget) }}/день.')">Запустить рекламу</button></form>{% else %}<span class="muted">нет текстов</span>{% endif %}</td>
+</tr>{% endfor %}
+</table></div></td></tr>{% endif %}
 {% else %}<tr><td colspan="6" class="muted">Пока нет сайтов — добавьте нишу выше.</td></tr>{% endfor %}
 </table></div>
 
@@ -128,7 +147,6 @@
 <p class="muted" style="margin:8px 0 10px;font-size:.82rem">Показы, клики, расход — PropellerAds (с задержкой до часа). Визиты и переходы на Amazon — ваш сайт. «$/Amazon» — сколько стоил один переход на Amazon. Агент принимает решения по данным за всё время кампании, независимо от выбранного периода.</p>
 {% macro money(v) %}{{ "$%.2f"|format(v) if v is not none else "—" }}{% endmacro %}
 {% macro pct(v) %}{{ "%.2f%%"|format(v * 100) if v is not none else "—" }}{% endmacro %}
-{% set status_names = {"active":"активна","capped":"пауза: лимит","dry_run":"тест","killed":"отключена агентом","stopped":"остановлена","error":"ошибка","creating":"создаётся"} %}
 {% set live = campaigns|selectattr("status", "in", ["active", "capped", "dry_run", "creating", "error"])|list %}
 {% set done = campaigns|rejectattr("status", "in", ["active", "capped", "dry_run", "creating", "error"])|list %}
 
@@ -204,6 +222,10 @@
 {% endif %}
 </table></div>
 <script>
+function toggleRow(id) {
+  var r = document.getElementById(id);
+  if (r) r.hidden = !r.hidden;
+}
 function toggleZones(id) {
   var r = document.getElementById("z" + id);
   if (r) r.hidden = !r.hidden;

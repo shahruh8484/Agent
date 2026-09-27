@@ -63,6 +63,12 @@ table.zones tr.excluded td.acts { opacity:1; text-decoration:none; }
 .period .preset.on { background:var(--accent); border-color:var(--accent); color:#fff; }
 .period .range { display:flex; gap:8px; align-items:center; font-size:.85rem; }
 .period input[type=date] { padding:4px 8px; font-size:.85rem; }
+form.mode { display:inline-flex; align-items:center; gap:0; }
+form.mode .muted { margin-right:6px; font-size:.85rem; }
+form.mode button { border-radius:0; margin-left:-1px; }
+form.mode button:first-of-type { border-radius:7px 0 0 7px; }
+form.mode button:last-of-type { border-radius:0 7px 7px 0; }
+form.mode button.on { background:var(--fg); color:var(--bg); border-color:var(--fg); font-weight:600; }
 .chat-fab { position:fixed; right:18px; bottom:18px; z-index:50; padding:11px 16px; border-radius:99px; background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; box-shadow:0 4px 16px rgb(0 0 0 / .18); }
 .chat-box { position:fixed; right:18px; bottom:18px; z-index:51; width:400px; height:min(600px, calc(100vh - 36px)); display:flex; flex-direction:column; background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 8px 32px rgb(0 0 0 / .22); }
 .chat-box[hidden], .chat-fab[hidden] { display:none; }

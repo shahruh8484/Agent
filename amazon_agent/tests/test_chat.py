@@ -100,3 +100,21 @@ def test_chat_routes_need_login(settings, store, monkeypatch):
     assert client.get("/chat/history").json()["messages"][0]["content"] == "x"
     client.post("/chat/clear")
     assert store.list_chat() == []
+
+
+def test_chat_switches_mode_and_launches_a_product(settings, store, monkeypatch):
+    from amzagent.agent.runner import MANUAL_FLAG
+
+    push = _live(settings, store, monkeypatch)
+    niche = store.list_niches()[0]
+    idle = [p.asin for p, _ in store.list_products(niche.id)
+            if p.asin not in {c["asin"] for c in store.list_campaigns()}]
+    settings.max_daily_spend = 100
+    out = ChatAgent(settings, store, backend=ScriptedBackend([
+        ("set_mode", {"mode": "manual"}),
+        ("site_products", {"site_id": niche.id}),
+        ("launch_product", {"site_id": niche.id, "asin": idle[0]}),
+    ])).reply("ручной режим и запусти следующий товар")
+    assert store.get_flag(MANUAL_FLAG) == "1"
+    assert any(c["asin"] == idle[0] for c in store.list_campaigns(statuses=(ACTIVE,)))
+    assert len(out["actions"]) == 2 and len(push.created) == 3

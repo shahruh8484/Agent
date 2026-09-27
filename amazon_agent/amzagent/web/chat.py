@@ -17,12 +17,15 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from amzagent.agent.runner import (
     KILLED,
+    MANUAL_FLAG,
     PAUSE_FLAG,
     STATS_ERROR_FLAG,
     build_deps,
     change_settings,
     exclude_zone,
     include_zone,
+    is_manual,
+    launch_product,
     resume_campaign,
     spent_today,
     stop_all,
@@ -58,6 +61,11 @@ SYSTEM = """Ты — автономный агент, который ведёт 
 - Статусы: active — работает; capped — пауза по лимиту; killed — отключена
   (правилом или вручную); stopped — остановлена; error — не создалась;
   dry_run — тест без отправки; creating — создаётся.
+- Режим: авто — всё выше агент делает сам (и сам запускает новые кампании
+  по лучшим товарам, по 3 на сайт); ручной — агент не запускает и не
+  отключает кампании, не трогает зоны и не подбирает ниши, только следит
+  за лимитом и аварийными защитами; решения принимает владелец (через тебя
+  или кнопки).
 - Проверка кампаний идёт каждые 3 минуты, полный цикл — каждые
   AGENT_INTERVAL_HOURS часов. Amazon Creators API пока может отказывать
   (AssociateNotEligible) — тогда сайт в запасном режиме без фото и цен Amazon.
@@ -95,6 +103,16 @@ TOOLS = [
           ["campaign_id"]),
     _tool("journal", "Последние записи журнала агента.",
           {"limit": {"type": "integer", "description": "сколько записей (5)"}}),
+    _tool("site_products", "Товары сайта по порядку (лучшие первыми): ASIN, название, EPC "
+                           "и последняя кампания на товар.",
+          {"site_id": {"type": "integer"}}, ["site_id"]),
+    _tool("launch_product", "Запустить рекламу на товар сайта (в любом режиме; лимит "
+                            "за 24 ч соблюдается).",
+          {"site_id": {"type": "integer"}, "asin": {"type": "string"}},
+          ["site_id", "asin"]),
+    _tool("set_mode", "Переключить режим: auto — агент сам управляет кампаниями, "
+                      "manual — только владелец.",
+          {"mode": {"type": "string", "enum": ["auto", "manual"]}}, ["mode"]),
     _tool("stop_campaign", "Остановить кампанию (товар больше не запускается).",
           {"campaign_id": {"type": "integer"}}, ["campaign_id"]),
     _tool("resume_campaign", "Вернуть остановленную/отключённую кампанию. Правила её "
@@ -143,6 +161,7 @@ class ChatAgent:
         running = self.store.list_campaigns(statuses=("active",))
         return {
             "now_panel_time": _now_local(s.panel_timezone),
+            "mode": "manual" if is_manual(self.store) else "auto",
             "ads_live": s.push_live,
             "stop_all_on": self.store.get_flag(PAUSE_FLAG) == "1",
             "spent_24h": _round(spent_today(self.store)),
@@ -192,6 +211,32 @@ class ChatAgent:
         limit = max(1, min(int(args.get("limit") or 5), 20))
         return [{"at": r["ts"], "ok": r["ok"], "log": (r["log"] or "")[-1500:]}
                 for r in self.store.list_runs(limit)]
+
+    def _site_products(self, args: dict) -> dict:
+        niche_id = int(args["site_id"])
+        if self.store.get_niche(niche_id) is None:
+            return {"error": f"сайта {niche_id} нет"}
+        latest: dict[str, dict] = {}
+        for c in self.store.list_campaigns(niche_id=niche_id):
+            latest.setdefault(c["asin"], c)
+        out = []
+        for p, copy in self.store.list_products(niche_id):
+            c = latest.get(p.asin)
+            out.append({"asin": p.asin, "title": p.title[:70], "epc": p.epc,
+                        "has_texts": copy is not None,
+                        "campaign": {"id": c["id"], "status": c["status"]} if c else None})
+        return {"products": out}
+
+    def _launch(self, deps, args: dict) -> dict:
+        error = launch_product(deps, int(args["site_id"]), str(args["asin"]).strip().upper())
+        return {"error": error} if error else {"ok": True}
+
+    def _set_mode(self, args: dict) -> dict:
+        mode = args.get("mode")
+        if mode not in ("auto", "manual"):
+            return {"error": "mode — auto или manual"}
+        self.store.set_flag(MANUAL_FLAG, "1" if mode == "manual" else "0")
+        return {"ok": True, "mode": mode}
 
     def _stop(self, deps, args: dict) -> dict:
         c = self.store.get_campaign(int(args["campaign_id"]))
@@ -246,8 +291,10 @@ class ChatAgent:
     def run_tool(self, deps, name: str, args: dict) -> dict | list:
         readers = {"overview": self._overview, "list_campaigns": self._campaigns,
                    "campaign_zones": self._zones, "journal": self._journal,
-                   "update_settings": self._update_settings, "run_cycle": self._run}
+                   "update_settings": self._update_settings, "run_cycle": self._run,
+                   "site_products": self._site_products, "set_mode": self._set_mode}
         actors = {"stop_campaign": self._stop, "resume_campaign": self._resume,
+                  "launch_product": self._launch,
                   "set_zone": self._set_zone, "kill_switch": self._kill_switch}
         try:
             if name in readers:
@@ -272,7 +319,8 @@ class ChatAgent:
 
         def call(name: str, args: dict) -> str:
             result = self.run_tool(deps, name, args)
-            if name not in ("overview", "list_campaigns", "campaign_zones", "journal"):
+            if name not in ("overview", "list_campaigns", "campaign_zones", "journal",
+                            "site_products"):
                 actions.append(f"{name} {json.dumps(args, ensure_ascii=False)} → "
                                f"{json.dumps(result, ensure_ascii=False)[:200]}")
             return json.dumps(result, ensure_ascii=False, default=str)

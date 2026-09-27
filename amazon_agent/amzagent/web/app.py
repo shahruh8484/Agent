@@ -39,6 +39,9 @@ from starlette.concurrency import run_in_threadpool
 from starlette.middleware.sessions import SessionMiddleware
 
 from amzagent.agent.runner import (
+    MANUAL_FLAG,
+    is_manual,
+    launch_product,
     change_settings,
     KILLED,
     PAUSE_FLAG,
@@ -538,10 +541,17 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             net, net_zones, period_error = _network_stats(eff, store, chosen, network_cache)
         niches = []
         for n in store.list_niches():
+            latest: dict[str, dict] = {}
+            for c in store.list_campaigns(niche_id=n.id):  # newest first
+                latest.setdefault(c["asin"], c)
+            items = [{"asin": p.asin, "title": p.title, "epc": p.epc, "ready": copy is not None,
+                      "campaign": latest.get(p.asin)}
+                     for p, copy in store.list_products(n.id)]
             niches.append({
                 "niche": n,
                 "site": store.get_site_copy(n.id),
-                "products": len(store.list_products(n.id)),
+                "products": len(items),
+                "shelf": items,
                 "stats": store.niche_stats(n.id),
             })
         campaigns = _campaign_rows(store, eff.push_bid_cpc, chosen, net, net_zones)
@@ -556,6 +566,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "campaigns": campaigns,
                 "runs": store.list_runs(15),
                 "paused": store.get_flag(PAUSE_FLAG) == "1",
+                "manual": is_manual(store),
                 "flash": request.session.pop("flash", None),
                 "running": store.run_in_progress(),
                 "stats_error": store.get_flag("stats_error"),
@@ -766,6 +777,30 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
 
         threading.Thread(target=target, daemon=True).start()
         request.session["flash"] = "Статистика обновляется из PropellerAds — обновите страницу через полминуты."
+        return RedirectResponse("/admin#campaigns", status_code=303)
+
+    @app.post("/mode")
+    def set_mode(request: Request, mode: str = Form(...)):
+        if not logged_in(request):
+            return to_login()
+        manual = mode == "manual"
+        store.set_flag(MANUAL_FLAG, "1" if manual else "0")
+        request.session["flash"] = (
+            "Ручной режим: агент больше сам не запускает и не отключает кампании и не "
+            "трогает зоны — управляйте кнопками или через чат. Лимит расхода и аварийные "
+            "защиты работают." if manual else
+            "Автоматический режим: агент снова сам запускает, тестирует и отключает кампании "
+            "и чистит зоны."
+        )
+        return RedirectResponse("/admin", status_code=303)
+
+    @app.post("/niches/{niche_id}/products/{asin}/launch")
+    def launch_product_route(request: Request, niche_id: int, asin: str):
+        if not logged_in(request):
+            return to_login()
+        error = launch_product(build_deps(settings, store), niche_id, asin)
+        request.session["flash"] = (f"Реклама на {asin} не запущена: {error}" if error else
+                                    f"Кампания на {asin} создана и отправлена на модерацию.")
         return RedirectResponse("/admin#campaigns", status_code=303)
 
     @app.post("/killswitch")
