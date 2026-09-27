@@ -4,7 +4,10 @@ Deterministic on purpose (no LLM): the same search results always give
 the same ranking, and every rejection has a plain reason in the run log.
 
 A product qualifies when it has an image, a current price, and enough
-social proof (rating + review count). Qualified products are ranked by
+social proof (rating + review count). The Creators API sends no reviews to
+new accounts: then the rating/reviews read from a pasted Creator
+Connections page are used, and without those the product is judged on
+sales rank and discount alone. Qualified products are ranked by
     rating * log10(reviews)          social proof, diminishing in volume
   + discount bonus                   push traffic reacts to deals
   + sales-rank bonus                 bestsellers convert better
@@ -19,8 +22,16 @@ from amzagent.amazon.creator_connections import BUDGET_BONUS
 from amzagent.models import Product
 
 
+def _social_proof(p: Product) -> tuple[float | None, int]:
+    """(rating, reviews) from the API, else the pasted-page hint."""
+    if p.rating is not None or p.review_count:
+        return p.rating, p.review_count
+    return p.hint_rating, p.hint_reviews
+
+
 def score(product: Product) -> float:
-    s = (product.rating or 0) * math.log10(max(product.review_count, 1))
+    rating, reviews = _social_proof(product)
+    s = (rating or 0) * math.log10(max(reviews, 1))
     if product.savings_percent:
         s += min(product.savings_percent, 60) / 10
     if product.sales_rank:
@@ -38,10 +49,15 @@ def rejection_reason(product: Product, min_rating: float, min_reviews: int) -> s
         return "no image"
     if product.price is None:
         return "no price / unavailable"
-    if (product.rating or 0) < min_rating:
-        return f"rating {product.rating} < {min_rating}"
-    if product.review_count < min_reviews:
-        return f"{product.review_count} reviews < {min_reviews}"
+    rating, reviews = _social_proof(product)
+    if rating is None and not reviews:
+        # The API sends no reviews for this account and there's no hint:
+        # can't judge social proof, so rank by sales rank / discount instead.
+        return None
+    if (rating or 0) < min_rating:
+        return f"rating {rating} < {min_rating}"
+    if reviews < min_reviews:
+        return f"{reviews} reviews < {min_reviews}"
     return None
 
 

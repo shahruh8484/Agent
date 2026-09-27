@@ -137,8 +137,11 @@ def _curated_candidates(deps: Deps, niche: Niche) -> tuple[list, bool]:
         else:
             host = marketplace_host(deps.settings.amazon_country)
             for p in products:
+                meta = niche.asin_meta.get(p.asin) or {}
                 p.epc = niche.asins.get(p.asin)
-                p.cc_budget = (niche.asin_meta.get(p.asin) or {}).get("budget") or ""
+                p.cc_budget = meta.get("budget") or ""
+                p.hint_rating = meta.get("rating")
+                p.hint_reviews = int(meta.get("reviews") or 0)
                 if deps.settings.amazon_partner_tag:
                     # Same link as "Get associate link" on the accepted campaign.
                     p.url = accepted_link(host, p.asin, deps.settings.amazon_partner_tag)

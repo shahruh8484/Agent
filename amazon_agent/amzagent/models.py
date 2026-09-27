@@ -19,6 +19,11 @@ class Product(BaseModel):
     savings_percent: float | None = None
     rating: float | None = None
     review_count: int = 0
+    # Rating/reviews read from the pasted Creator Connections page, for when
+    # the API returns none (new accounts get no CustomerReviews). Used only
+    # to pick and rank products — never shown on the site.
+    hint_rating: float | None = None
+    hint_reviews: int = 0
     sales_rank: int | None = None
     category: str = ""
     # Creator Connections "Estimated EPC" ($ per click) for imported

@@ -314,3 +314,24 @@ def test_api_recovery_keeps_pages_when_the_llm_is_down(settings, store):
     assert all(c.version < COPY_VERSION for _, c in products)  # ...and due for a rewrite
     run_cycle(Deps(settings=settings, store=store, catalog=api, llm=FakeLLM()))
     assert all(c.version == COPY_VERSION for _, c in store.list_products(niche.id))
+
+
+def test_api_without_reviews_uses_pasted_ratings_but_never_shows_them(settings, store):
+    settings.amazon_partner_tag = "t-20"
+    settings.min_reviews = 300
+    niche = _import(store)
+    api = ListCatalog([make_product("B0FYZ9QQ9Z", rating=None, reviews=0),
+                       make_product("B0DZ7RZ14S", rating=None, reviews=0),
+                       make_product("B01EIG6A4Q", rating=None, reviews=0)])
+    run_cycle(Deps(settings=settings, store=store, catalog=api, llm=FakeLLM()))
+    products = [p for p, _ in store.list_products(niche.id)]
+    # The pasted page's 2,696 / 359 reviews rank and pass them; Miss Mouth's
+    # card had no rating line, so it's judged without one.
+    assert [p.asin for p in products][:2] == ["B0FYZ9QQ9Z", "B0DZ7RZ14S"]
+    assert all(not p.offline and p.image_url for p in products)
+    assert products[0].hint_rating == 4.4 and products[0].rating is None
+
+    settings.admin_password_hash = bcrypt.hashpw(b"pw", bcrypt.gensalt()).decode()
+    page = TestClient(create_app(settings, store, start_loop=False)).get(
+        "/s/top-deals/p/B0FYZ9QQ9Z").text
+    assert "4.4" not in page and "2,696" not in page  # pasted ratings stay private
