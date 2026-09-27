@@ -37,6 +37,12 @@ def parse_opportunities(text: str) -> dict[str, float | None]:
     return result
 
 
+BUDGET_RE = re.compile(r"Budget availability score\W*(high|medium|low)", re.IGNORECASE)
+# Ranking bonus by bonus-budget left: pushing a product whose bonus budget
+# is about to run out mostly earns the plain commission.
+BUDGET_BONUS = {"high": 2.0, "medium": 0.0, "low": -4.0}
+
+
 RATING_RE = re.compile(r"^\s*([1-5](?:\.\d)?)\s*(?:out of 5 stars)?\s*\(([\d,]+)\)")
 NOISE_RE = re.compile(
     r"^(recommended|accept|accepted|new opportunit|estimated epc|budget availability|"
@@ -97,7 +103,13 @@ def parse_opportunity_details(text: str) -> dict[str, dict]:
         asin = m.group(1)
         if asin not in details or (title and not details[asin]["title"]):
             details[asin] = {"title": title, "brand": brand, "rating": rating,
-                             "reviews": reviews}
+                             "reviews": reviews, "budget": ""}
+    # The budget line follows its ASIN, before the next card's ASIN.
+    for i, m in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        found = BUDGET_RE.search(text, m.end(), end)
+        if found and not details[m.group(1)]["budget"]:
+            details[m.group(1)]["budget"] = found.group(1).lower()
     return details
 
 
@@ -146,13 +158,15 @@ def offline_products(
             rejected[asin] = f"{reviews} reviews < {min_reviews}"
             continue
         # Same weights as selector.score; rating/reviews rank but are never shown.
-        rank = (rating or 4.0) * math.log10(max(reviews or 1, 1)) + min(epc or 0, 5) * 2
+        rank = ((rating or 4.0) * math.log10(max(reviews or 1, 1)) + min(epc or 0, 5) * 2
+                + BUDGET_BONUS.get(m.get("budget") or "", 0.0))
         ranked.append((rank, Product(
             asin=asin,
             title=m["title"],
             brand=m.get("brand", ""),
             url=accepted_link(host, asin, partner_tag),
             epc=epc,
+            cc_budget=m.get("budget") or "",
             offline=True,
         )))
     ranked.sort(key=lambda r: r[0], reverse=True)

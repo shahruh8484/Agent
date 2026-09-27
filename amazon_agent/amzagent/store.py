@@ -218,6 +218,8 @@ class Store:
         for asin, m in (asin_meta or {}).items():
             if m.get("title") or asin not in meta:
                 meta[asin] = m
+            elif m.get("budget"):  # a fresh budget score always wins
+                meta[asin] = {**meta[asin], "budget": m["budget"]}
         self._exec("UPDATE niches SET asins = ?, asin_meta = ? WHERE id = ?",
                    (json.dumps(merged), json.dumps(meta), niche_id))
         return len(merged)

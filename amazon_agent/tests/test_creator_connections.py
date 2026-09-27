@@ -125,7 +125,8 @@ from amzagent.amazon.creator_connections import parse_opportunity_details  # noq
 def test_parse_card_details():
     d = parse_opportunity_details(PAGE)
     assert d["B0FYZ9QQ9Z"] == {"title": "Physician's CHOICE Fiber Gummies",
-                               "brand": "Physician's CHOICE", "rating": 4.4, "reviews": 2696}
+                               "brand": "Physician's CHOICE", "rating": 4.4, "reviews": 2696,
+                               "budget": "high"}
     assert d["B0DZ7RZ14S"]["title"] == "Shark FlexStyle, Air Multi-Styler & Drying"
     assert d["B0DZ7RZ14S"]["rating"] == 4.6
 
@@ -236,3 +237,60 @@ def test_fallback_products_get_labelled_illustrations(settings, store):
     page = client.get(f"/s/top-deals/p/{drawn[0].asin}").text
     assert 'class="illu"' in page and "Illustration — not the actual product photo" in page
     assert "Illustration</span>" in client.get("/s/top-deals/").text
+
+
+BUDGET_PAGE = """UMZU
+UMZU Redwood Nitric Oxide Booster, 30 Da...
+4.3 (11,560)
+$42.74
+ASIN: B083FF74NQ
+Estimated EPC: Up to $2.50
+Budget availability score: High
+Get associate link
+Submit content link
+GoCube
+Harry Potter Chess Set Smart Electronic Boa...
+4.5 (11,108)
+$349.99
+ASIN: B0FQCJNQLC
+Estimated EPC: Up to $2.50
+Budget availability score: Medium
+Get associate link
+BodyBio
+BodyBio Butyrate Sodium- Postbiotic for Gu...
+4.3 (12,945)
+$36.99
+ASIN: B0058A9SF0
+Estimated EPC: Up to $2.50
+Budget availability score: Low
+Get associate link
+"""
+
+
+def test_budget_score_is_parsed_and_ranks_products(settings, store):
+    details = parse_opportunity_details(BUDGET_PAGE)
+    assert {a: d["budget"] for a, d in details.items()} == {
+        "B083FF74NQ": "high", "B0FQCJNQLC": "medium", "B0058A9SF0": "low"}
+
+    from amzagent.amazon.creator_connections import parse_opportunities
+    settings.amazon_partner_tag = "t-20"
+    settings.push_live = False
+    settings.campaigns_per_site = 3
+    niche = store.add_niche("Top Deals", asins=parse_opportunities(BUDGET_PAGE),
+                            asin_meta=details)
+    run_cycle(Deps(settings=settings, store=store, catalog=DeniedCatalog(), llm=FakeLLM()))
+    products = [p for p, _ in store.list_products(niche.id)]
+    # same EPC and similar reviews: high budget first, low last
+    assert [p.asin for p in products] == ["B083FF74NQ", "B0FQCJNQLC", "B0058A9SF0"]
+    assert products[-1].cc_budget == "low"
+    # the agent doesn't advertise the low-budget product on its own
+    assert {c["asin"] for c in store.list_campaigns()} == {"B083FF74NQ", "B0FQCJNQLC"}
+
+
+def test_reimport_updates_the_budget_score(store):
+    niche = store.add_niche("Top Deals", asins={"B083FF74NQ": 2.5},
+                            asin_meta={"B083FF74NQ": {"title": "UMZU", "budget": "high"}})
+    store.merge_niche_asins(niche.id, {"B083FF74NQ": None},
+                            {"B083FF74NQ": {"title": "", "budget": "low"}})
+    assert store.get_niche(niche.id).asin_meta["B083FF74NQ"] == {"title": "UMZU",
+                                                                "budget": "low"}

@@ -9,11 +9,13 @@ social proof (rating + review count). Qualified products are ranked by
   + discount bonus                   push traffic reacts to deals
   + sales-rank bonus                 bestsellers convert better
   + EPC bonus                        Creator Connections pays more per click
+  + bonus-budget score               high first, low (budget nearly gone) last
 """
 from __future__ import annotations
 
 import math
 
+from amzagent.amazon.creator_connections import BUDGET_BONUS
 from amzagent.models import Product
 
 
@@ -27,6 +29,7 @@ def score(product: Product) -> float:
     if product.epc:
         # $1 of estimated earnings per click ~ one extra star of social proof
         s += min(product.epc, 5) * 2
+    s += BUDGET_BONUS.get(product.cc_budget, 0.0)
     return round(s, 3)
 
 

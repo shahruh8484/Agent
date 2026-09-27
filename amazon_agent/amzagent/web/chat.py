@@ -63,6 +63,9 @@ SYSTEM = """Ты — автономный агент, который ведёт 
 - Статусы: active — работает; capped — пауза по лимиту; killed — отключена
   (правилом или вручную); stopped — остановлена; error — не создалась;
   dry_run — тест без отправки; creating — создаётся.
+- Creator Connections: у товара есть "bonus_budget" (high/medium/low) — сколько
+  бонусного бюджета осталось у бренда. Low агент сам не рекламирует (бонус
+  вот-вот кончится), high идут первыми.
 - Режим: авто — всё выше агент делает сам (и сам запускает новые кампании
   по лучшим товарам, по 3 на сайт); ручной — агент не запускает и не
   отключает кампании, не трогает зоны и не подбирает ниши, только следит
@@ -229,6 +232,7 @@ class ChatAgent:
         for p, copy in self.store.list_products(niche_id):
             c = latest.get(p.asin)
             out.append({"asin": p.asin, "title": p.title[:70], "epc": p.epc,
+                        "bonus_budget": p.cc_budget or None,
                         "has_texts": copy is not None,
                         "campaign": {"id": c["id"], "status": c["status"]} if c else None})
         return {"products": out}

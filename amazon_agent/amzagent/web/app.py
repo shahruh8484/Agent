@@ -576,6 +576,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             for c in store.list_campaigns(niche_id=n.id):  # newest first
                 latest.setdefault(c["asin"], c)
             items = [{"asin": p.asin, "title": p.title, "epc": p.epc, "ready": copy is not None,
+                      "budget": p.cc_budget,
                       "campaign": latest.get(p.asin)}
                      for p, copy in store.list_products(n.id)]
             niches.append({
@@ -653,8 +654,11 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                                        asins=asins, asin_meta=details).id
             total = len(asins)
         with_epc = sum(1 for v in asins.values() if v is not None)
+        low = sum(1 for a in asins if (details.get(a) or {}).get("budget") == "low")
         request.session["flash"] = (
-            f"Импортировано {len(asins)} товаров ({with_epc} с EPC), всего на сайте "
+            f"Импортировано {len(asins)} товаров ({with_epc} с EPC"
+            + (f", {low} с бюджетом Low — их агент сам не рекламирует" if low else "")
+            + "), всего на сайте "
             f"«{name}»: {total}. Агент проверяет их на Amazon — обновите страницу через минуту."
         )
         run_in_background(niche_id)

@@ -24,6 +24,9 @@ class Product(BaseModel):
     # Creator Connections "Estimated EPC" ($ per click) for imported
     # campaign products; None for products found by search.
     epc: float | None = None
+    # Creator Connections "Budget availability score": high | medium | low
+    # ("" = unknown). Low means the brand's bonus budget is nearly gone.
+    cc_budget: str = ""
     # Built from pasted Creator Connections text because the Creators API
     # was unavailable: no image, price or rating may be shown for it.
     offline: bool = False

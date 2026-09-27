@@ -115,12 +115,13 @@
   </td>
 </tr>
 {% if n.shelf %}<tr id="p{{ n.niche.id }}" hidden><td colspan="6" style="background:var(--bg)"><div class="zwrap"><table class="zones">
-<tr><th>#</th><th>Товар</th><th>ASIN</th><th class="num">EPC</th><th>Реклама</th><th></th></tr>
+<tr><th>#</th><th>Товар</th><th>ASIN</th><th class="num">EPC</th><th title="Budget availability score из Creator Connections: сколько бонусного бюджета осталось у бренда">Бюджет бонуса</th><th>Реклама</th><th></th></tr>
 {% for it in n.shelf %}{% set c = it.campaign %}
 <tr><td class="muted">{{ loop.index }}</td>
   <td style="max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="/s/{{ n.niche.slug }}/p/{{ it.asin }}" target="_blank">{{ it.title }}</a></td>
   <td>{{ it.asin }}</td>
   <td class="num">{% if it.epc %}${{ "%.2f"|format(it.epc) }}{% else %}—{% endif %}</td>
+  <td>{% if it.budget %}<span class="dot b-{{ it.budget }}"></span>{{ {"high": "High", "medium": "Medium", "low": "Low — не рекламируется"}[it.budget] }}{% else %}<span class="muted">—</span>{% endif %}</td>
   <td>{% if c %}<a href="#c{{ c.id }}">#{{ c.id }}</a> <span class="muted">{{ status_names.get(c.status, c.status) }}</span>{% else %}<span class="muted">не запускалась</span>{% endif %}</td>
   <td class="acts">{% if c and c.status in ("active", "capped", "creating", "dry_run") %}<span class="muted">идёт</span>{% elif it.ready %}<form class="inline" method="post" action="/niches/{{ n.niche.id }}/products/{{ it.asin }}/launch"><button class="sm" onclick="return confirm('Запустить рекламу на этот товар? Бюджет ${{ '%.2f'|format(settings.campaign_daily_budget) }}/день.')">Запустить рекламу</button></form>{% else %}<span class="muted">нет текстов</span>{% endif %}</td>
 </tr>{% endfor %}

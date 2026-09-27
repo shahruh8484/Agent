@@ -131,6 +131,7 @@ def _curated_candidates(deps: Deps, niche: Niche) -> tuple[list, bool]:
             host = marketplace_host(deps.settings.amazon_country)
             for p in products:
                 p.epc = niche.asins.get(p.asin)
+                p.cc_budget = (niche.asin_meta.get(p.asin) or {}).get("budget") or ""
                 if deps.settings.amazon_partner_tag:
                     # Same link as "Get associate link" on the accepted campaign.
                     p.url = accepted_link(host, p.asin, deps.settings.amazon_partner_tag)
@@ -746,6 +747,8 @@ def launch_campaigns(deps: Deps) -> None:
                 break
             if product.asin in taken or copy is None:
                 continue
+            if product.cc_budget == "low":
+                continue  # bonus budget nearly gone: not worth paid traffic
             # Cap = money spent in the last 24h by campaigns that were stopped
             # + budgets of the running ones + the new one. Unknown spend
             # never counts as zero.
