@@ -420,6 +420,12 @@ class Store:
         )
         return int(r["n"])
 
+    def campaign_visit_times(self, since: str) -> list[str]:
+        """Timestamps (oldest first) of site visits that came from our ads."""
+        rows = self._all("SELECT ts FROM events WHERE type = 'visit' AND campaign_id IS NOT NULL"
+                         " AND ts >= ? ORDER BY ts", (since,))
+        return [r["ts"] for r in rows]
+
     def events_by_zone(self, campaign_id: int, type_: str, since: str | None = None,
                        until: str | None = None) -> dict[str, int]:
         window, extra = self._window(since, until)

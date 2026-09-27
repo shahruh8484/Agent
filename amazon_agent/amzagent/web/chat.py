@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from amzagent.agent.runner import (
     KILLED,
     MANUAL_FLAG,
+    NEXT_CYCLE_FLAG,
     PAUSE_FLAG,
     STATS_ERROR_FLAG,
     build_deps,
@@ -27,6 +28,7 @@ from amzagent.agent.runner import (
     is_manual,
     launch_product,
     resume_campaign,
+    resume_eta,
     spent_today,
     stop_all,
     stop_campaign,
@@ -166,6 +168,10 @@ class ChatAgent:
             "stop_all_on": self.store.get_flag(PAUSE_FLAG) == "1",
             "spent_24h": _round(spent_today(self.store)),
             "limit_24h": s.max_daily_spend,
+            "paused_at_limit": len(self.store.list_campaigns(statuses=("capped",))),
+            "ads_resume_at": _local(resume_eta(self.store, s.max_daily_spend), s.panel_timezone),
+            "next_full_cycle_at": _local(_flag_time(self.store.get_flag(NEXT_CYCLE_FLAG)),
+                                         s.panel_timezone),
             "running_campaigns": len(running),
             "stats_error": self.store.get_flag(STATS_ERROR_FLAG) or None,
             "settings": {k: getattr(s, k) for k in EDITABLE},
@@ -341,6 +347,23 @@ class ChatAgent:
                 self.store.append_run_log(run_id, line)
             self.store.finish_run(run_id, True)
         return {"reply": text, "actions": actions}
+
+
+def _flag_time(value: str) -> datetime | None:
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _local(moment: datetime | None, tz: str) -> str | None:
+    if moment is None:
+        return None
+    try:
+        zone = ZoneInfo(tz)
+    except ZoneInfoNotFoundError:
+        zone = timezone.utc
+    return moment.astimezone(zone).strftime("%Y-%m-%d %H:%M")
 
 
 def _now_local(tz: str) -> str:

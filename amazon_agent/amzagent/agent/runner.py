@@ -62,6 +62,7 @@ ZONE_STATS_EVERY_MINUTES = 15
 TODAY_SPEND_FLAG = "spent_24h"
 TODAY_SPEND_MAX_AGE_MINUTES = 20  # stopped by the kill rule — never relaunched for that product
 PAUSE_FLAG = "paused_all"
+NEXT_CYCLE_FLAG = "next_cycle_at"  # when the background loop runs the next full cycle
 # "1" = manual mode: the agent keeps sites, stats and money safety going but
 # makes no campaign decisions (no launches, no kills by results, no zone
 # exclusions, no new niches) — the owner does that from the panel or chat.
@@ -312,6 +313,32 @@ def enforce_spend_cap(deps: Deps) -> None:
             deps.store.update_campaign(c["id"], status=ACTIVE,
                                        note="resumed: back under the 24h limit")
             deps.say(f"campaign #{c['id']} resumed: ${spent:.2f} of ${cap:.2f} spent in 24h")
+
+
+def resume_eta(store: Store, cap: float) -> datetime | None:
+    """When campaigns paused at the 24h limit should run again: the moment
+    enough of the last 24h's spend rolls out of the window. Spend is spread
+    over time like our own ad visits were (PropellerAds only gives a 24h
+    total). None if nothing is paused at the limit or it can't be told."""
+    if not store.list_campaigns(statuses=(CAPPED,)):
+        return None
+    spent = spent_today(store)
+    if spent is None:
+        return None
+    target = cap - RESUME_HEADROOM
+    now = datetime.now(timezone.utc)
+    if spent <= target:
+        return now  # the next 3-minute check resumes them
+    times = store.campaign_visit_times((now - timedelta(hours=24)).isoformat(timespec="seconds"))
+    if not times:
+        return None
+    per_visit = spent / len(times)
+    remaining = spent
+    for ts in times:
+        remaining -= per_visit
+        if remaining <= target + 1e-9:
+            return datetime.fromisoformat(ts) + timedelta(hours=24)
+    return datetime.fromisoformat(times[-1]) + timedelta(hours=24)
 
 
 def enforce_budget_cap(deps: Deps) -> None:

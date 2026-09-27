@@ -469,3 +469,40 @@ def test_manual_campaign_zones_are_pruned_even_below_the_rate(settings, store):
     run_cycle(_deps(settings, store, push))
     assert store.get_campaign(c["id"])["status"] == ACTIVE  # kept (manual)
     assert push.excluded == [(c["external_id"], ["111"])]  # dead zone cut, clicking zone kept
+
+
+def test_resume_eta_follows_when_old_spend_leaves_the_window(settings, store):
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    from amzagent.agent.runner import CAPPED, TODAY_SPEND_FLAG, resume_eta
+
+    niche = store.add_niche("earbuds")
+    cid = store.add_campaign(niche.id, "A1", CAPPED, 10)
+    now = datetime.now(timezone.utc)
+    assert resume_eta(store, 20) is None  # spend unknown
+    store.set_flag(TODAY_SPEND_FLAG, json.dumps({"at": now.isoformat(), "by_campaign": {
+        str(cid): 22.0}}))
+    # 22 visits: 11 made 20h ago, 11 made 2h ago -> $1 per visit
+    for hours_ago in [20] * 11 + [2] * 11:
+        store.log_event("visit", niche.id, "A1", cid, None)
+        ts = (now - timedelta(hours=hours_ago)).isoformat(timespec="seconds")
+        store._exec("UPDATE events SET ts = ? WHERE id = (SELECT MAX(id) FROM events)", (ts,))
+    # $22 spent, resumes at <= $19: once 3 of the 20h-old visits roll off, in ~4h
+    eta = resume_eta(store, 20)
+    assert timedelta(hours=3, minutes=58) < eta - now < timedelta(hours=4, minutes=2)
+    assert resume_eta(store, 30) <= datetime.now(timezone.utc)  # already under: right away
+    store.update_campaign(cid, status=ACTIVE)
+    assert resume_eta(store, 20) is None  # nothing paused
+
+
+def test_when_formats_panel_time():
+    from datetime import datetime, timedelta, timezone
+
+    from amzagent.web.app import when
+
+    assert when(None, "Asia/Tashkent") is None
+    assert when(datetime.now(timezone.utc), "Asia/Tashkent") == "в ближайшие минуты"
+    text = when(datetime.now(timezone.utc) + timedelta(hours=3, minutes=5, seconds=30),
+                "Asia/Tashkent")
+    assert "через 3 ч 5 мин" in text

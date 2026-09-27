@@ -39,6 +39,9 @@ from starlette.concurrency import run_in_threadpool
 from starlette.middleware.sessions import SessionMiddleware
 
 from amzagent.agent.runner import (
+    CAPPED,
+    NEXT_CYCLE_FLAG,
+    resume_eta,
     MANUAL_FLAG,
     is_manual,
     launch_product,
@@ -232,6 +235,29 @@ def _payload_images(payload: str | None) -> list[str]:
         return []
 
 
+def when(moment: datetime | None, tz_name: str) -> str | None:
+    """"15:40 (через 3 ч 5 мин)" in the panel's time zone, or None."""
+    if moment is None:
+        return None
+    try:
+        tz = ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        tz = timezone.utc
+    minutes = max(0, int((moment - datetime.now(timezone.utc)).total_seconds() // 60))
+    if minutes < 3:
+        return "в ближайшие минуты"
+    left = f"{minutes // 60} ч {minutes % 60} мин" if minutes >= 60 else f"{minutes} мин"
+    day = "" if moment.astimezone(tz).date() == datetime.now(tz).date() else " завтра"
+    return f"{moment.astimezone(tz):%H:%M}{day} (через {left})"
+
+
+def _flag_time(store: Store, key: str) -> datetime | None:
+    try:
+        return datetime.fromisoformat(store.get_flag(key))
+    except ValueError:
+        return None
+
+
 def make_localtime(tz_name: str):
     """Jinja filter: stored UTC ISO timestamp -> "26.09.2026 21:04" local."""
     try:
@@ -281,13 +307,18 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
 
     if start_loop and settings.agent_interval_hours > 0:
         def loop():
-            time.sleep(30)  # let the server come up first
+            def plan(seconds: float) -> None:
+                at = datetime.now(timezone.utc) + timedelta(seconds=seconds)
+                store.set_flag(NEXT_CYCLE_FLAG, at.isoformat(timespec="seconds"))
+                time.sleep(seconds)
+
+            plan(30)  # let the server come up first
             while True:
                 try:
                     run_cycle(build_deps(settings, store))
                 except Exception:
                     logger.exception("agent cycle crashed")
-                time.sleep(max(effective(settings, store).agent_interval_hours, 1) * 3600)
+                plan(max(effective(settings, store).agent_interval_hours, 1) * 3600)
 
         threading.Thread(target=loop, daemon=True).start()
 
@@ -580,6 +611,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "committed_today": (spent_today(store, only_stopped=True) or 0.0)
                 + store.running_daily_budget(),
                 "active_count": len(store.list_campaigns(statuses=(ACTIVE,))),
+                "capped_count": len(store.list_campaigns(statuses=(CAPPED,))),
+                "resume_at": when(resume_eta(store, eff.max_daily_spend), eff.panel_timezone),
+                "next_cycle": when(_flag_time(store, NEXT_CYCLE_FLAG), eff.panel_timezone),
             },
         )
 
