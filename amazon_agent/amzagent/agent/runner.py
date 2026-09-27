@@ -282,10 +282,15 @@ def update_site_plan(deps: Deps, niche: Niche) -> None:
     plan = deps.store.get_site_plan(niche.id)
     outdated = plan is not None and plan.version < PLAN_VERSION  # e.g. guides without FAQ
     if plan and plan.signature == signature and not outdated:
+        deps.say(f"[{niche.slug}] sections and guides up to date ({len(plan.sections)} "
+                 f"sections, built {plan.built_at[:16].replace('T', ' ')} UTC)")
         return
     if plan and plan.built_at and not outdated:
         age = datetime.now(timezone.utc) - datetime.fromisoformat(plan.built_at)
         if age < timedelta(hours=SITE_PLAN_MIN_HOURS):
+            deps.say(f"[{niche.slug}] product set changed: sections will be rebuilt after "
+                     f"{SITE_PLAN_MIN_HOURS}h since the last build (new products are in "
+                     f"More Picks until then)")
             return
     try:
         sections = group_products(deps.llm, items, niche.language)
