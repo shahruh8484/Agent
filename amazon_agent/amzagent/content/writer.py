@@ -7,6 +7,8 @@ prices in ads go stale within hours.
 """
 from __future__ import annotations
 
+import re
+
 from pydantic import ValidationError
 
 from amzagent.content.llm import LLM, LLMError, parse_json
@@ -17,8 +19,23 @@ RULES = (
     "prices, discounts, deadlines, stock levels, awards or testimonials. "
     "Never claim to have personally tested a product. Never mention a "
     "price or a percentage off. Never impersonate Amazon or say the site "
-    "is Amazon. Plain text only, no emoji, no ALL CAPS."
+    "is Amazon. Never use Amazon trademarks (Amazon, Prime, Kindle, Alexa, "
+    "Audible) in site names, taglines or ad copy, except where they are part "
+    "of a product's own name. Plain text only, no emoji, no ALL CAPS."
 )
+
+# Amazon's marks may not appear in the site's own branding (Associates
+# Operating Agreement): checked in code, not only asked of the model.
+AMAZON_MARKS = re.compile(r"\b(amazon|prime|kindle|alexa|audible)\b", re.IGNORECASE)
+
+
+def uses_amazon_marks(site: SiteCopy) -> bool:
+    return bool(AMAZON_MARKS.search(f"{site.site_title} {site.tagline}"))
+
+
+def _neutral_title(keywords: str) -> str:
+    words = [w for w in re.findall(r"[A-Za-z0-9]+", keywords) if not AMAZON_MARKS.fullmatch(w)]
+    return (" ".join(words[:3]).title() or "Top") + " Guide"
 
 SITE_SYSTEM = (
     "You write copy for a small independent product-review website that "
@@ -36,16 +53,24 @@ def write_site_copy(llm: LLM, keywords: str, language: str) -> SiteCopy:
     prompt = (
         f"Niche: {keywords}\nLanguage: {language}\n\n"
         "Return JSON with keys:\n"
-        '  "site_title": 2-4 word brand-like name for the site (not containing "Amazon"),\n'
-        '  "tagline": under 10 words,\n'
+        '  "site_title": 2-4 word brand-like name for the site (no Amazon '
+        'trademarks: not "Amazon", "Prime", "Kindle", "Alexa", "Audible"),\n'
+        '  "tagline": under 10 words, also without those words,\n'
         '  "intro": 2-3 sentences explaining the site picks well-rated '
         "products in this niche based on customer ratings and review counts."
     )
-    data = parse_json(llm.generate(SITE_SYSTEM, prompt, max_tokens=600))
-    try:
-        return SiteCopy(**data)
-    except (TypeError, ValidationError) as exc:
-        raise LLMError(f"Bad site copy from model: {exc}") from exc
+    for _ in range(2):
+        data = parse_json(llm.generate(SITE_SYSTEM, prompt, max_tokens=600))
+        try:
+            site = SiteCopy(**data)
+        except (TypeError, ValidationError) as exc:
+            raise LLMError(f"Bad site copy from model: {exc}") from exc
+        if not uses_amazon_marks(site):
+            return site
+        prompt += f'\n\n"{site.site_title}" / "{site.tagline}" uses an Amazon trademark. Pick another.'
+    site.site_title = _neutral_title(keywords)
+    site.tagline = AMAZON_MARKS.sub("", site.tagline).strip() or "Well-reviewed picks"
+    return site
 
 
 # Products per LLM call: a whole 30-product import in one reply can run

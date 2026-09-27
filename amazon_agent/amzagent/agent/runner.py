@@ -25,7 +25,7 @@ from amzagent.amazon.catalog import Catalog, CatalogError, CreatorsApiCatalog
 from amzagent.amazon.creator_connections import accepted_link, marketplace_host, offline_products
 from amzagent.config import Settings
 from amzagent.content.llm import LLM, LLMError, get_llm
-from amzagent.content.writer import write_product_copy, write_site_copy
+from amzagent.content.writer import uses_amazon_marks, write_product_copy, write_site_copy
 from amzagent.models import COPY_VERSION, Niche
 from amzagent.panel_settings import effective, save_overrides
 from amzagent.push import propeller
@@ -224,8 +224,12 @@ def refresh_niche(deps: Deps, niche: Niche) -> bool:
         deps.say(f"[{niche.slug}] copy skipped: LLM not configured")
         return True
     try:
-        if store.get_site_copy(niche.id) is None:
+        site = store.get_site_copy(niche.id)
+        if site is None or uses_amazon_marks(site):  # e.g. an old "Prime …" name
             store.set_site_copy(niche.id, write_site_copy(deps.llm, niche.keywords, niche.language))
+            if site is not None:
+                deps.say(f"[{niche.slug}] renamed the site: {site.site_title!r} used an Amazon "
+                         f"trademark")
         # New products, plus copy written before the current format
         # (e.g. without buying tips) — rewritten once.
         missing = [p for p, copy in store.list_products(niche.id)

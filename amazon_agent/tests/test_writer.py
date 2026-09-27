@@ -47,3 +47,38 @@ def test_one_failed_batch_does_not_lose_the_others():
 
     copies = write_product_copy(Flaky(), [make_product(f"P{i}") for i in range(10)], "English")
     assert set(copies) == {"P8", "P9"}
+
+
+def test_site_names_never_use_amazon_marks():
+    import json
+
+    from amzagent.content.writer import write_site_copy
+
+    class Stubborn:
+        def __init__(self, titles):
+            self.titles = list(titles)
+
+        def generate(self, system, prompt, max_tokens=0):
+            title = self.titles.pop(0)
+            tagline = "Prime deals daily" if "Prime" in title else "Deals worth a look"
+            return json.dumps({"site_title": title, "tagline": tagline,
+                               "intro": "We pick well-rated products."})
+
+    fixed = write_site_copy(Stubborn(["Prime Bargain Picks", "Bargain Nest"]), "Top Deals",
+                            "English")
+    assert fixed.site_title == "Bargain Nest"  # asked again, took the clean one
+    never = write_site_copy(Stubborn(["Prime Picks", "Prime Finds"]), "Top Deals", "English")
+    assert never.site_title == "Top Deals Guide" and "prime" not in never.tagline.lower()
+
+
+def test_an_existing_trademarked_site_name_is_replaced(settings, store):
+    from amzagent.agent.runner import Deps, run_cycle
+    from amzagent.models import SiteCopy
+    from tests.conftest import FakeCatalog
+
+    niche = store.add_niche("earbuds")
+    store.set_site_copy(niche.id, SiteCopy(site_title="Prime Bargain Picks", tagline="x",
+                                           intro="y"))
+    run_cycle(Deps(settings=settings, store=store, catalog=FakeCatalog([make_product("A1")]),
+                   llm=FakeLLM()))
+    assert store.get_site_copy(niche.id).site_title == "Sound Picks"
