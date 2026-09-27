@@ -116,3 +116,18 @@ def test_an_old_plan_without_faq_is_rebuilt(settings, store):
     llm = FakeLLM()
     update_site_plan(Deps(settings=settings, store=store, llm=llm), niche)
     assert llm.prompts and store.get_site_plan(niche.id).version >= 2
+
+
+def test_every_product_is_reachable_from_the_site_home(settings, store):
+    settings.products_per_site = 24
+    niche = _site(settings, store, n=24)  # 12 per section: more than the 8 shown
+    plan = store.get_site_plan(niche.id)
+    plan.sections[1].picks = []  # a section without a guide
+    store.set_site_plan(niche.id, plan)
+    client = TestClient(create_app(settings, store, start_loop=False))
+    home = client.get(f"/s/{niche.slug}/").text
+    for s in plan.sections:
+        assert f'href="/s/{niche.slug}/c/{s.slug}"' in home
+    plain = client.get(f"/s/{niche.slug}/c/{plan.sections[1].slug}").text
+    for asin in plan.sections[1].asins:  # all of its products, no guide needed
+        assert f"/s/{niche.slug}/p/{asin}" in plain

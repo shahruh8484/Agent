@@ -7,6 +7,8 @@
 .sect { margin:0 0 44px; scroll-margin-top:84px; }
 .sect .guide-link { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 16px; padding:14px 18px; border-radius:14px; background:var(--accent-soft); text-decoration:none; color:var(--ink); }
 .sect .guide-link b { font-size:1rem; }
+.see-all { font-weight:700; color:var(--accent-dark); text-decoration:none; }
+.see-all:hover { text-decoration:underline; }
 .sect .guide-link span { color:var(--accent-dark); font-weight:700; white-space:nowrap; }
 </style>
 {% endblock %}
@@ -27,7 +29,7 @@
   <div class="grid">
   {% for p, c in x.entries[:8] %}{% set rank = loop.index %}{% set niche_slug = niche.slug %}{% include "_card.html" %}{% endfor %}
   </div>
-  {% if x.entries|length > 8 %}<p class="meta" style="margin-top:12px">{% if s.picks %}<a href="/s/{{ niche.slug }}/c/{{ s.slug }}">See the full guide and all {{ x.entries|length }} products &rarr;</a>{% else %}and {{ x.entries|length - 8 }} more below in other picks{% endif %}</p>{% endif %}
+  {% if x.entries|length > 8 %}<p style="margin-top:14px"><a class="see-all" href="/s/{{ niche.slug }}/c/{{ s.slug }}">See all {{ x.entries|length }} {{ s.name|lower }}{% if s.picks %} and the buying guide{% endif %} &rarr;</a></p>{% endif %}
 </section>
 {% endfor %}
 {% else %}

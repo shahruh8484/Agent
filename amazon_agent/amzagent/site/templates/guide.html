@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}{{ section.guide_title }} — {{ site.site_title }}{% endblock %}
+{% block title %}{{ section.guide_title or section.name }} — {{ site.site_title }}{% endblock %}
 {% block extra_head %}
-<meta name="description" content="{{ section.intro|truncate(155) }}">
+<meta name="description" content="{{ (section.intro or site.tagline)|truncate(155) }}">
 <style>
 .crumbs { font-size:.85rem; color:var(--muted); margin-bottom:18px; }
 .crumbs a { text-decoration:none; } .crumbs a:hover { color:var(--ink); }
@@ -43,8 +43,14 @@ table.cmp .btn { white-space:nowrap; padding:9px 14px; font-size:.88rem; }
 {% endblock %}
 {% block content %}
 <div class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/s/{{ niche.slug }}/">{{ site.site_title }}</a> &rsaquo; {{ section.name }}</div>
-<h1 class="gt">{{ section.guide_title }}</h1>
-<p class="gintro">{{ section.intro }}</p>
+<h1 class="gt">{{ section.guide_title or section.name }}</h1>
+{% if section.intro %}<p class="gintro">{{ section.intro }}</p>{% endif %}
+{% if not picks %}
+<p class="meta" style="margin:0 0 20px">{{ entries|length }} products</p>
+<div class="grid">
+{% for p, c in entries %}{% set rank = loop.index %}{% set niche_slug = niche.slug %}{% include "_card.html" %}{% endfor %}
+</div>
+{% else %}
 <p class="byline">By the {{ site.site_title }} team{% if updated_on %} &middot; Updated {{ updated_on }}{% endif %} &middot; picks based on product specifications, popularity and value (<a href="/how-we-choose">how we choose</a>). We earn a commission from qualifying purchases at no extra cost to you.</p>
 
 <div class="cmp-wrap"><table class="cmp">
@@ -97,6 +103,7 @@ table.cmp .btn { white-space:nowrap; padding:9px 14px; font-size:.88rem; }
 </div>
 {% endif %}
 
+{% endif %}
 {% set other_guides = sections|rejectattr("section.slug", "equalto", section.slug)|selectattr("section.picks")|list %}
 {% if other_guides %}
 <div style="margin-top:40px"><b>More buying guides</b>
