@@ -14,6 +14,18 @@ if [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$branch")" ] && [ "${1:-
   exit 0
 fi
 
+# Don't cut off a running agent cycle: try again on the next run, but
+# never put an update off for more than an hour.
+deferred=/tmp/amzagent-update.deferred
+if [ "${1:-}" != "--force" ] && docker compose exec -T app python -m amzagent.busy >/dev/null 2>&1; then
+  [ -f "$deferred" ] || date +%s > "$deferred"
+  if [ $(( $(date +%s) - $(cat "$deferred") )) -lt 3600 ]; then
+    echo "$(date '+%F %T') agent cycle running, update postponed"
+    exit 0
+  fi
+fi
+rm -f "$deferred"
+
 echo "$(date '+%F %T') updating $(git rev-parse --short HEAD) -> $(git rev-parse --short "origin/$branch")"
 git merge -q --ff-only "origin/$branch"
 export APP_VERSION

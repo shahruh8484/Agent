@@ -595,3 +595,12 @@ def test_pace_allowance_is_an_even_share_with_a_head_start():
     assert round(pace_allowance(10, noon), 2) == round(10 * 780 / 1440, 2)  # 13h of 24
     late = datetime(2026, 9, 27, 23, 30, tzinfo=timezone.utc)
     assert pace_allowance(10, late) == 10  # capped at the budget
+
+
+def test_busy_reports_a_running_cycle(settings, store, monkeypatch):
+    import amzagent.busy as busy
+
+    monkeypatch.setattr(busy, "get_settings", lambda: settings)
+    assert busy.main() == 1
+    store.start_run(None)
+    assert busy.main() == 0
