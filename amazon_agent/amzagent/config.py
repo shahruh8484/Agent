@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     amazon_credential_version: str = "3.1"
     amazon_partner_tag: str = ""  # your Associates tracking id, e.g. mysite-20
     amazon_country: str = "US"
+    # Seconds between Creators API calls. New accounts get a low request
+    # rate; too fast gives "Rate limit exceeded".
+    amazon_throttling: float = 2.0
 
     # --- Product selection ---
     min_rating: float = 4.0

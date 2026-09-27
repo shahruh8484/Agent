@@ -294,3 +294,23 @@ def test_reimport_updates_the_budget_score(store):
                             {"B083FF74NQ": {"title": "", "budget": "low"}})
     assert store.get_niche(niche.id).asin_meta["B083FF74NQ"] == {"title": "UMZU",
                                                                 "budget": "low"}
+
+
+def test_api_recovery_keeps_pages_when_the_llm_is_down(settings, store):
+    from amzagent.content.llm import LLMError
+    from amzagent.models import COPY_VERSION
+
+    class BrokeLLM:
+        def generate(self, *a, **k):
+            raise LLMError("You have no credits remaining")
+
+    settings.amazon_partner_tag = "t-20"
+    niche = _import(store)
+    run_cycle(Deps(settings=settings, store=store, catalog=DeniedCatalog(), llm=FakeLLM()))
+    api = ListCatalog([make_product("B0FYZ9QQ9Z"), make_product("B0DZ7RZ14S")])
+    run_cycle(Deps(settings=settings, store=store, catalog=api, llm=BrokeLLM()))
+    products = store.list_products(niche.id)
+    assert products and all(c is not None for _, c in products)  # old copy still up
+    assert all(c.version < COPY_VERSION for _, c in products)  # ...and due for a rewrite
+    run_cycle(Deps(settings=settings, store=store, catalog=api, llm=FakeLLM()))
+    assert all(c.version == COPY_VERSION for _, c in store.list_products(niche.id))

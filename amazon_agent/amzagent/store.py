@@ -228,9 +228,16 @@ class Store:
                    (json.dumps(merged), json.dumps(meta), niche_id))
         return len(merged)
 
-    def clear_product_copy(self, niche_id: int, asin: str) -> None:
-        self._exec("UPDATE products SET copy = NULL WHERE niche_id = ? AND asin = ?",
-                   (niche_id, asin))
+    def mark_copy_stale(self, niche_id: int, asin: str) -> None:
+        """Have the copy rewritten on the next cycle while the old one keeps
+        the page up (version 0 is older than any COPY_VERSION)."""
+        row = self._one("SELECT copy FROM products WHERE niche_id = ? AND asin = ?",
+                        (niche_id, asin))
+        if not row or not row["copy"]:
+            return
+        copy = ProductCopy.model_validate_json(row["copy"])
+        copy.version = 0
+        self.set_product_copy(niche_id, asin, copy)
 
     def get_niche(self, niche_id: int) -> Niche | None:
         row = self._one("SELECT * FROM niches WHERE id = ?", (niche_id,))

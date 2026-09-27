@@ -19,6 +19,7 @@ Amazon's license terms this module is written around:
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any, Protocol
 
@@ -95,6 +96,25 @@ def parse_item(item: Any, fetched_at: str | None = None) -> Product | None:
     )
 
 
+# Extra waits (seconds) after the SDK's own quick retries still hit the rate
+# limit: a new account's quota refills slowly.
+RATE_LIMIT_WAITS = (10, 30, 60)
+
+
+def _call(fn, *args, **kwargs):
+    """Call the API, waiting out "Rate limit exceeded" a few times."""
+    from amazon_creatorsapi import errors
+
+    for wait in (*RATE_LIMIT_WAITS, None):
+        try:
+            return fn(*args, **kwargs)
+        except errors.TooManyRequestsError:
+            if wait is None:
+                raise
+            logger.info("Creators API rate limit, waiting %ss", wait)
+            time.sleep(wait)
+
+
 class CreatorsApiCatalog:
     def __init__(self, settings: Settings):
         if not (
@@ -113,6 +133,7 @@ class CreatorsApiCatalog:
             version=settings.amazon_credential_version,
             tag=settings.amazon_partner_tag,
             country=settings.amazon_country,
+            throttling=settings.amazon_throttling,
         )
         self._min_rating = settings.min_rating
 
@@ -126,7 +147,8 @@ class CreatorsApiCatalog:
         from amazon_creatorsapi import errors
 
         try:
-            result = self._api.search_items(
+            result = _call(
+                self._api.search_items,
                 keywords=keywords,
                 search_index=search_index or "All",
                 item_count=10,  # API maximum per call
@@ -149,7 +171,7 @@ class CreatorsApiCatalog:
         for start in range(0, len(asins), 10):  # API maximum per call
             chunk = asins[start : start + 10]
             try:
-                items = self._api.get_items(chunk)
+                items = _call(self._api.get_items, chunk)
             except errors.ItemsNotFoundError:
                 continue
             except errors.AmazonCreatorsApiError as exc:

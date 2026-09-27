@@ -198,12 +198,13 @@ def refresh_niche(deps: Deps, niche: Niche) -> bool:
 
     if not offline:
         # Copy written from a fallback card lacks the API's feature
-        # bullets: rewrite it now that real data is here.
+        # bullets: rewrite it now that real data is here — keeping the old
+        # copy (and so the page) until the new one is written.
         was_offline = {p.asin for p, _ in store.list_products(niche.id, active_only=False)
                        if p.offline}
         for p in selected:
             if p.asin in was_offline:
-                store.clear_product_copy(niche.id, p.asin)
+                store.mark_copy_stale(niche.id, p.asin)
     elif any(not p.offline for p, _ in store.list_products(niche.id)):
         # Never downgrade a site that already has full API pages.
         deps.say(f"[{niche.slug}] keeping the existing full pages from the last API fetch")

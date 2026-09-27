@@ -47,3 +47,29 @@ def test_parse_item_tolerates_missing_optional_parts():
 def test_parse_item_requires_title_and_url():
     assert parse_item(_item(detail_page_url=None)) is None
     assert parse_item(_item(item_info=None)) is None
+
+
+def test_rate_limit_is_waited_out(monkeypatch):
+    from amazon_creatorsapi import errors
+
+    import amzagent.amazon.catalog as catalog
+
+    waits = []
+    monkeypatch.setattr(catalog.time, "sleep", waits.append)
+    calls = {"n": 0}
+
+    def flaky(chunk):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise errors.TooManyRequestsError("Rate limit exceeded")
+        return ["ok"]
+
+    assert catalog._call(flaky, ["B0"]) == ["ok"]
+    assert waits == [10, 30]
+
+    def always(chunk):
+        raise errors.TooManyRequestsError("Rate limit exceeded")
+
+    import pytest
+    with pytest.raises(errors.TooManyRequestsError):
+        catalog._call(always, ["B0"])
