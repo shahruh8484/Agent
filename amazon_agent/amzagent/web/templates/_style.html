@@ -57,6 +57,11 @@ button.sm { padding:3px 8px; font-size:.78rem; border-radius:6px; }
 table.zones { border:none; border-radius:0; font-size:.78rem; }
 table.zones th { position:sticky; top:0; background:var(--card); font-size:.7rem; padding:6px 8px; }
 table.zones td { padding:4px 8px; }
+table.zones th.sortable { cursor:pointer; user-select:none; }
+table.zones th.sortable:hover { color:var(--fg); }
+table.zones th.sortable::after { content:"⇅"; opacity:.35; margin-left:4px; font-size:.9em; }
+table.zones th[data-dir="desc"]::after { content:"▼"; opacity:1; color:var(--accent); }
+table.zones th[data-dir="asc"]::after { content:"▲"; opacity:1; color:var(--accent); }
 table.zones tr.excluded td { opacity:.5; text-decoration:line-through; }
 table.zones tr.excluded td.acts { opacity:1; text-decoration:none; }
 .period { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; padding:10px 14px; margin:0 0 6px; }

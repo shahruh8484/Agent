@@ -114,7 +114,7 @@
     <form class="inline" method="post" action="/niches/{{ n.niche.id }}/delete"><button class="danger" onclick="return confirm('Удалить сайт и остановить его кампании?')">Удалить</button></form>
   </td>
 </tr>
-{% if n.shelf %}<tr id="p{{ n.niche.id }}" hidden><td colspan="6" style="background:var(--bg)"><div class="zwrap"><table class="zones">
+{% if n.shelf %}<tr id="p{{ n.niche.id }}" hidden><td colspan="6" style="background:var(--bg)"><div class="zwrap"><table class="zones" data-kind="products">
 <tr><th>#</th><th>Товар</th><th>ASIN</th><th class="num">EPC</th><th title="Budget availability score из Creator Connections: сколько бонусного бюджета осталось у бренда">Бюджет бонуса</th><th>Реклама</th><th></th></tr>
 {% for it in n.shelf %}{% set c = it.campaign %}
 <tr><td class="muted">{{ loop.index }}</td>
@@ -237,6 +237,46 @@ function toggleZones(id) {
   if (!r.hidden) open.push(id);
   try { sessionStorage.setItem("openZones", JSON.stringify(open)); } catch (e) {}
 }
+// Click a column header in a zone / product table to sort by it
+// (first click: largest first, again: smallest first). Remembered per
+// kind of table across reloads.
+function cellValue(td) {
+  var t = (td.innerText || "").trim();
+  var n = parseFloat(t.replace(/[$,%\s]/g, ""));
+  if (/^[-\d.,$%\s]+$/.test(t) && !isNaN(n)) return n;
+  return t === "—" || t === "" ? null : t.toLowerCase();
+}
+function sortTable(table, col, desc) {
+  var rows = Array.prototype.slice.call(table.rows, 1);
+  rows.sort(function (a, b) {
+    var x = cellValue(a.cells[col]), y = cellValue(b.cells[col]);
+    if (x === null) return y === null ? 0 : 1;  // empty cells always last
+    if (y === null) return -1;
+    var r = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y));
+    return desc ? -r : r;
+  });
+  rows.forEach(function (r) { table.tBodies[0].appendChild(r); });
+  Array.prototype.forEach.call(table.rows[0].cells, function (th, i) {
+    th.dataset.dir = i === col ? (desc ? "desc" : "asc") : "";
+  });
+}
+document.querySelectorAll("table.zones").forEach(function (table) {
+  var kind = table.dataset.kind || "zones";
+  Array.prototype.forEach.call(table.rows[0].cells, function (th, i) {
+    if (!th.textContent.trim()) return;  // the buttons column
+    th.classList.add("sortable");
+    th.title = "Сортировать";
+    th.addEventListener("click", function () {
+      var desc = th.dataset.dir !== "desc";
+      sortTable(table, i, desc);
+      try { sessionStorage.setItem("sort-" + kind, JSON.stringify([i, desc])); } catch (e) {}
+    });
+  });
+  try {
+    var saved = JSON.parse(sessionStorage.getItem("sort-" + kind) || "null");
+    if (saved) sortTable(table, saved[0], saved[1]);
+  } catch (e) {}
+});
 // Keep zone lists that were open across page reloads.
 openZones().forEach(function (id) {
   var r = document.getElementById("z" + id);
