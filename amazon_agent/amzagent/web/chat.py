@@ -39,7 +39,7 @@ from amzagent.store import Store
 
 logger = logging.getLogger(__name__)
 
-HISTORY_MESSAGES = 20  # earlier turns the model sees
+HISTORY_MESSAGES = 12  # earlier turns the model sees (their numbers may be stale)
 MAX_TOOL_ROUNDS = 8
 ZONE_RE = re.compile(r"^\d{1,12}$")
 
@@ -75,9 +75,21 @@ SYSTEM = """Ты — автономный агент, который ведёт 
   AGENT_INTERVAL_HOURS часов. Amazon Creators API пока может отказывать
   (AssociateNotEligible) — тогда сайт в запасном режиме без фото и цен Amazon.
 
+- «Пауза в PropellerAds»: кампания у нас active, но сама PropellerAds держит
+  её на паузе (note начинается с "PropellerAds: paused"). Частая причина —
+  исчерпан дневной бюджет кампании в PropellerAds (daily_budget, день по UTC):
+  тогда она продолжит после 00:00 UTC. Иначе агент раз в 30 минут просит
+  PropellerAds запустить её снова.
+
 Правила чата:
 - Отвечай по-русски, коротко и по делу, простыми словами. Деньги в долларах.
-- Цифры бери только из инструментов, не выдумывай. Если данных нет — скажи.
+- Ниже в каждом сообщении есть блок ТЕКУЩЕЕ СОСТОЯНИЕ — это свежие данные.
+  Прошлые сообщения чата могут быть устаревшими: если там другие цифры или
+  настройки, верь текущему состоянию.
+- На вопросы «почему реклама не идёт / остановилась» отвечай по списку
+  why_ads_not_running из текущего состояния, называя конкретные цифры.
+- Цифры бери только из состояния и инструментов, не выдумывай. Если данных
+  нет — скажи. Подробности (зоны, журнал, товары) — через инструменты.
 - Действия (стоп/возврат кампании, зоны, настройки, запуск цикла, стоп всё)
   выполняй, только когда владелец прямо об этом просит. Если просьба
   неоднозначна или действие увеличит расходы, а владелец этого явно не
@@ -176,11 +188,74 @@ class ChatAgent:
             "next_full_cycle_at": _local(_flag_time(self.store.get_flag(NEXT_CYCLE_FLAG)),
                                          s.panel_timezone),
             "running_campaigns": len(running),
+            "why_ads_not_running": self.diagnose(),
             "stats_error": self.store.get_flag(STATS_ERROR_FLAG) or None,
             "settings": {k: getattr(s, k) for k in EDITABLE},
             "agent_interval_hours": s.agent_interval_hours,
             "sites": sites,
         }
+
+    def diagnose(self) -> list[str]:
+        """Plain reasons why ads are or aren't running right now, computed
+        from the agent's own state (so the model doesn't have to guess)."""
+        s = effective(self.settings, self.store)
+        tz = s.panel_timezone
+        out: list[str] = []
+        if self.store.get_flag(PAUSE_FLAG) == "1":
+            out.append("Включён «Стоп всё»: все кампании остановлены, новые не запускаются.")
+        if not s.push_live:
+            out.append("Реклама выключена в настройках (тестовый режим): в PropellerAds "
+                       "ничего не отправляется.")
+        spent = spent_today(self.store)
+        capped = self.store.list_campaigns(statuses=("capped",))
+        if capped:
+            eta = _local(resume_eta(self.store, s.max_daily_spend), tz)
+            out.append(
+                f"{len(capped)} кампаний на паузе по суточному лимиту: за 24 ч потрачено "
+                f"${(spent or 0):.2f} при лимите ${s.max_daily_spend:.2f}. Возобновятся, когда "
+                f"расход за 24 ч опустится ниже ${s.max_daily_spend - 1:.2f}"
+                + (f" — примерно в {eta}." if eta else "."))
+        for c in self.store.list_campaigns(statuses=("active",)):
+            note = c["note"] or ""
+            if note.startswith("PropellerAds: paused"):
+                out.append(f"Кампания #{c['id']} ({c['asin']}): PropellerAds держит на паузе — "
+                           f"{note}.")
+            elif "moderation" in note:
+                out.append(f"Кампания #{c['id']} ({c['asin']}) на модерации в PropellerAds.")
+        if spent is None and s.push_live:
+            out.append("Расход за 24 ч ещё не получен из PropellerAds — новые кампании "
+                       "не запускаются, пока его нет.")
+        error = self.store.get_flag(STATS_ERROR_FLAG)
+        if error:
+            out.append(f"Статистика PropellerAds не читается: {error[:150]}")
+        if is_manual(self.store):
+            out.append("Ручной режим: агент сам новые кампании не запускает.")
+        elif spent is not None and s.push_live:
+            committed = (spent_today(self.store, only_stopped=True) or 0.0) \
+                + self.store.running_daily_budget()
+            if committed + s.campaign_daily_budget > s.max_daily_spend:
+                out.append(f"Новые кампании не запускаются: занято ${committed:.2f} из лимита "
+                           f"${s.max_daily_spend:.2f}, а новой нужно "
+                           f"${s.campaign_daily_budget:.2f}.")
+        working = [c for c in self.store.list_campaigns(statuses=("active",))
+                   if not (c["note"] or "").startswith("PropellerAds: paused")]
+        if not working and not out:
+            out.append("Работающих кампаний нет.")
+        return out or ["Ничего не мешает: кампании работают."]
+
+    def snapshot(self) -> str:
+        """Fresh state sent with every message."""
+        state = self._overview({})
+        state.pop("settings", None)
+        s = effective(self.settings, self.store)
+        state["key_settings"] = {k: getattr(s, k) for k in (
+            "max_daily_spend", "campaign_daily_budget", "push_bid_cpc", "kill_min_spend",
+            "min_amazon_rate", "max_cost_per_amazon_click", "campaigns_per_site")}
+        state["campaigns_now"] = [
+            {k: c[k] for k in ("id", "title", "status", "note", "manual_keep", "spent",
+                               "site_visits", "amazon_clicks", "to_amazon_percent")}
+            for c in self._campaigns({"only_running": True})]
+        return json.dumps(state, ensure_ascii=False, default=str)
 
     def _campaigns(self, args: dict) -> list:
         from amzagent.web.app import _campaign_rows  # the dashboard's own numbers
@@ -337,7 +412,8 @@ class ChatAgent:
 
         try:
             backend = self._backend or make_backend(s)
-            text = backend.chat(SYSTEM, history + [{"role": "user", "content": message}],
+            system = f"{SYSTEM}\n\nТЕКУЩЕЕ СОСТОЯНИЕ:\n{self.snapshot()}"
+            text = backend.chat(system, history + [{"role": "user", "content": message}],
                                 TOOLS, call)
         except Exception as exc:  # the chat must never take the panel down
             logger.exception("chat failed")
@@ -386,7 +462,7 @@ class OpenAIChat:
         import openai
 
         self._client = openai.OpenAI(api_key=settings.openai_api_key)
-        self._model = settings.openai_model
+        self._model = settings.chat_model or settings.openai_model
 
     def chat(self, system: str, messages: list[dict], tools: list[dict],
              call: Callable[[str, dict], str]) -> str:
@@ -415,7 +491,7 @@ class AnthropicChat:
         import anthropic
 
         self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-        self._model = settings.anthropic_model
+        self._model = settings.chat_model or settings.anthropic_model
 
     def chat(self, system: str, messages: list[dict], tools: list[dict],
              call: Callable[[str, dict], str]) -> str:

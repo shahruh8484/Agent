@@ -161,7 +161,7 @@
       <span class="sub">#{{ c.id }} · {{ c.asin }}{% if c.external_id %} · PA {{ c.external_id }}{% endif %}{% if c.images|length > 1 %} · {{ c.images|length }} картинки{% endif %}</span>
     </div>
   </div></td>
-  <td class="st" title="{{ c.note or '' }}"><span class="dot d-{{ c.status }}"></span>{{ status_names.get(c.status, c.status) }}{% if c.manual_keep and c.status == "active" %} · <b title="Возвращена вручную: агент не отключает её по результатам">вручную</b>{% endif %}{% if c.note %}<span class="sub">{{ c.note|replace("PropellerAds: ", "PA: ")|truncate(34) }}</span>{% endif %}</td>
+  <td class="st" title="{{ c.note or '' }}">{% if c.status == "active" and (c.note or "").startswith("PropellerAds: paused") %}<span class="dot d-capped"></span>пауза в PropellerAds{% else %}<span class="dot d-{{ c.status }}"></span>{{ status_names.get(c.status, c.status) }}{% endif %}{% if c.manual_keep and c.status == "active" %} · <b title="Возвращена вручную: агент не отключает её по результатам">вручную</b>{% endif %}{% if c.note %}<span class="sub">{{ c.note|replace("PropellerAds: ", "PA: ")|truncate(34) }}</span>{% endif %}</td>
   <td class="num">{{ "%.0f"|format(c.daily_budget) }}</td>
   <td class="num">{{ "{:,}".format(c.impressions) }}</td>
   <td class="num">{{ "{:,}".format(c.ad_clicks) }}</td>

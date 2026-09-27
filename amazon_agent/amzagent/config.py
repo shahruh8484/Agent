@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-5"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
+    # Model for the dashboard chat (it reasons over data and calls tools);
+    # empty = the same model as the site texts.
+    chat_model: str = ""
 
     # --- Push creatives ---
     # ai: an image model draws a scene per variant (needs OPENAI_API_KEY);

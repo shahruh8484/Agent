@@ -118,3 +118,31 @@ def test_chat_switches_mode_and_launches_a_product(settings, store, monkeypatch)
     assert store.get_flag(MANUAL_FLAG) == "1"
     assert any(c["asin"] == idle[0] for c in store.list_campaigns(statuses=(ACTIVE,)))
     assert len(out["actions"]) == 2 and len(push.created) == 3
+
+
+def test_diagnosis_and_fresh_state_reach_the_model(settings, store, monkeypatch):
+    from datetime import datetime, timezone
+
+    from amzagent.agent.runner import TODAY_SPEND_FLAG
+
+    push = _live(settings, store, monkeypatch)
+    a, b = store.list_campaigns(statuses=(ACTIVE,))
+    store.update_campaign(a["id"], status="capped")
+    store.update_campaign(b["id"], note="PropellerAds: paused: daily budget $10 used up today")
+    store.set_flag(TODAY_SPEND_FLAG, json.dumps({
+        "at": datetime.now(timezone.utc).isoformat(), "by_campaign": {str(a["id"]): 51.0}}))
+    agent = ChatAgent(settings, store, backend=None)
+    reasons = " ".join(agent.diagnose())
+    assert "на паузе по суточному лимиту" in reasons and "$51.00" in reasons
+    assert f"#{b['id']}" in reasons and "PropellerAds держит на паузе" in reasons
+
+    class Capture:
+        def chat(self, system, messages, tools, call):
+            self.system = system
+            return "ok"
+
+    cap = Capture()
+    ChatAgent(settings, store, backend=cap).reply("почему реклама остановилась?")
+    assert "ТЕКУЩЕЕ СОСТОЯНИЕ" in cap.system and "why_ads_not_running" in cap.system
+    assert f'"limit_24h": {settings.max_daily_spend}' in cap.system
+    assert push is not None

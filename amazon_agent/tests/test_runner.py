@@ -506,3 +506,24 @@ def test_when_formats_panel_time():
     text = when(datetime.now(timezone.utc) + timedelta(hours=3, minutes=5, seconds=30),
                 "Asia/Tashkent")
     assert "через 3 ч 5 мин" in text
+
+
+def test_network_paused_campaign_is_explained_or_resumed(settings, store):
+    from amzagent.agent.runner import sync_moderation
+
+    settings.push_live = True
+    store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    a, b = store.list_campaigns(statuses=(ACTIVE,))
+    push.statuses = {a["external_id"]: 7, b["external_id"]: 7}  # PropellerAds: paused
+    push.today_rows = [{"campaign_id": a["external_id"], "spent": 10.02}]  # budget used up
+    deps = _deps(settings, store, push)
+    sync_moderation(deps)
+    assert "daily budget $10 used up" in store.get_campaign(a["id"])["note"]
+    assert a["external_id"] not in push.started  # nothing to do until 00:00 UTC
+    assert push.started == [b["external_id"]]  # the other one: asked to play again
+    assert store.get_campaign(b["id"])["note"] == "PropellerAds: paused: asked to resume"
+    sync_moderation(deps)
+    assert push.started == [b["external_id"]]  # not again within 30 minutes
+    assert store.get_campaign(a["id"])["status"] == ACTIVE
