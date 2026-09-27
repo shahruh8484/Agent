@@ -73,3 +73,32 @@ def test_rate_limit_is_waited_out(monkeypatch):
     import pytest
     with pytest.raises(errors.TooManyRequestsError):
         catalog._call(always, ["B0"])
+
+
+def test_amazon_check_prints_fields_and_reasons(monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    import amzagent.amazon.catalog as catalog
+    import amzagent.amazon_check as check
+    from amzagent.config import Settings
+
+    item = SimpleNamespace(
+        asin="B0TEST", detail_page_url="https://www.amazon.com/dp/B0TEST?tag=t-20",
+        item_info=SimpleNamespace(title=SimpleNamespace(display_value="Smart Plug"),
+                                  by_line_info=None, features=None, classifications=None),
+        offers_v2=None, customer_reviews=None, images=None, browse_node_info=None)
+
+    class FakeApi:
+        def search_items(self, **kw):
+            return SimpleNamespace(items=[item])
+
+    class FakeCatalog:
+        def __init__(self, s):
+            self._api = FakeApi()
+
+    monkeypatch.setattr(check, "get_settings", lambda: Settings(_env_file=None))
+    monkeypatch.setattr(catalog, "CreatorsApiCatalog", FakeCatalog)
+    assert check.main(["smart", "plug"]) == 0
+    out = capsys.readouterr().out
+    assert "found: 1" in out and "B0TEST" in out and "no image" in out
+    assert "customer_reviews: None" in out
