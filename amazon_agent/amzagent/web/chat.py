@@ -76,10 +76,11 @@ SYSTEM = """Ты — автономный агент, который ведёт 
   (AssociateNotEligible) — тогда сайт в запасном режиме без фото и цен Amazon.
 
 - «Пауза в PropellerAds»: кампания у нас active, но сама PropellerAds держит
-  её на паузе (note начинается с "PropellerAds: paused"). Частая причина —
-  исчерпан дневной бюджет кампании в PropellerAds (daily_budget, день по UTC):
-  тогда она продолжит после 00:00 UTC. Иначе агент раз в 30 минут просит
-  PropellerAds запустить её снова.
+  её на паузе (note "PropellerAds: paused"). Обычно это «Daily impressions —
+  waiting for late clicks»: кампания набрала столько показов, что поздние
+  клики по ним могут превысить дневной бюджет (daily_budget), и PropellerAds
+  ждёт их, а потом сама перезапускает кампанию. Делать ничего не нужно; чтобы
+  такие паузы были реже, можно поднять бюджет кампании (campaign_daily_budget).
 
 Правила чата:
 - Отвечай по-русски, коротко и по делу, простыми словами. Деньги в долларах.
@@ -218,8 +219,10 @@ class ChatAgent:
         for c in self.store.list_campaigns(statuses=("active",)):
             note = c["note"] or ""
             if note.startswith("PropellerAds: paused"):
-                out.append(f"Кампания #{c['id']} ({c['asin']}): PropellerAds держит на паузе — "
-                           f"{note}.")
+                out.append(f"Кампания #{c['id']} ({c['asin']}): PropellerAds сама поставила её на "
+                           f"паузу — обычно «Daily impressions»: ждёт поздних кликов, чтобы "
+                           f"не превысить дневной бюджет ${c['daily_budget']:.0f}, и потом "
+                           f"сама перезапустит.")
             elif "moderation" in note:
                 out.append(f"Кампания #{c['id']} ({c['asin']}) на модерации в PropellerAds.")
         if spent is None and s.push_live:

@@ -128,13 +128,13 @@ def test_diagnosis_and_fresh_state_reach_the_model(settings, store, monkeypatch)
     push = _live(settings, store, monkeypatch)
     a, b = store.list_campaigns(statuses=(ACTIVE,))
     store.update_campaign(a["id"], status="capped")
-    store.update_campaign(b["id"], note="PropellerAds: paused: daily budget $10 used up today")
+    store.update_campaign(b["id"], note="PropellerAds: paused")
     store.set_flag(TODAY_SPEND_FLAG, json.dumps({
         "at": datetime.now(timezone.utc).isoformat(), "by_campaign": {str(a["id"]): 51.0}}))
     agent = ChatAgent(settings, store, backend=None)
     reasons = " ".join(agent.diagnose())
     assert "на паузе по суточному лимиту" in reasons and "$51.00" in reasons
-    assert f"#{b['id']}" in reasons and "PropellerAds держит на паузе" in reasons
+    assert f"#{b['id']}" in reasons and "ждёт поздних кликов" in reasons
 
     class Capture:
         def chat(self, system, messages, tools, call):

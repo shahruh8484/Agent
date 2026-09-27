@@ -63,9 +63,9 @@ TODAY_SPEND_FLAG = "spent_24h"
 TODAY_SPEND_MAX_AGE_MINUTES = 20  # stopped by the kill rule — never relaunched for that product
 PAUSE_FLAG = "paused_all"
 NEXT_CYCLE_FLAG = "next_cycle_at"
-# A campaign we run that PropellerAds reports paused: ask it to play again at
-# most this often (unless its own daily budget is used up for the day).
-NETWORK_PAUSE_RETRY_MINUTES = 30
+# A campaign we run that PropellerAds itself paused, usually "Daily
+# impressions": near its daily budget it waits for late clicks and then
+# restarts by itself.
 NETWORK_PAUSED_NOTE = "PropellerAds: paused"  # when the background loop runs the next full cycle
 # "1" = manual mode: the agent keeps sites, stats and money safety going but
 # makes no campaign decisions (no launches, no kills by results, no zone
@@ -423,7 +423,6 @@ def sync_moderation(deps: Deps) -> None:
     frees its slot and its product is not tried again."""
     if deps.push is None:
         return
-    network_paused: list[dict] = []
     for c in deps.store.list_campaigns(statuses=(ACTIVE,)):
         if not c["external_id"]:
             continue
@@ -438,51 +437,13 @@ def sync_moderation(deps: Deps) -> None:
                                        note="rejected by PropellerAds moderation")
             deps.say(f"campaign #{c['id']} ({c['asin']}) was rejected by moderation")
         elif status == propeller.API_STATUS_PAUSED:
-            network_paused.append(c)
+            # PropellerAds pauses a campaign by itself near its daily budget
+            # ("Daily impressions": waiting for late clicks) and restarts it
+            # on its own, so there's nothing to do but say so.
+            if c["note"] != NETWORK_PAUSED_NOTE:
+                deps.store.update_campaign(c["id"], note=NETWORK_PAUSED_NOTE)
         elif status is not None and f"PropellerAds: {name}" != c["note"]:
             deps.store.update_campaign(c["id"], note=f"PropellerAds: {name}")
-    if network_paused and deps.store.get_flag(PAUSE_FLAG) != "1":
-        handle_network_paused(deps, network_paused)
-
-
-def handle_network_paused(deps: Deps, campaigns: list[dict]) -> None:
-    """Campaigns we consider running but PropellerAds reports paused (e.g.
-    a resume that didn't take, or the campaign's own daily budget used up).
-    Explain which, and ask PropellerAds to play the others again."""
-    now = datetime.now(timezone.utc)
-    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    try:  # campaigns run in UTC (timezone 0), so their budget day starts at 00:00 UTC
-        rows = deps.push.stats_between([c["external_id"] for c in campaigns], midnight, now)
-        today = {r["campaign_id"]: r["spent"] for r in rows}
-    except PropellerError:
-        today = None
-    for c in campaigns:
-        spent = today.get(c["external_id"], 0.0) if today is not None else None
-        if spent is not None and spent >= c["daily_budget"] - 0.05:
-            note = (f"{NETWORK_PAUSED_NOTE}: daily budget ${c['daily_budget']:.0f} used up today "
-                    f"(${spent:.2f} since 00:00 UTC), continues after 00:00 UTC")
-            if c["note"] != note:
-                deps.store.update_campaign(c["id"], note=note)
-                deps.say(f"campaign #{c['id']}: paused by PropellerAds, its daily budget "
-                         f"${c['daily_budget']:.2f} is used up until 00:00 UTC")
-            continue
-        key = f"network_play_{c['id']}"
-        try:
-            last = datetime.fromisoformat(deps.store.get_flag(key))
-        except ValueError:
-            last = None
-        if last and now - last < timedelta(minutes=NETWORK_PAUSE_RETRY_MINUTES):
-            continue
-        deps.store.set_flag(key, now.isoformat(timespec="seconds"))
-        try:
-            deps.push.start([c["external_id"]])
-        except PropellerError as exc:
-            deps.store.update_campaign(c["id"], note=f"{NETWORK_PAUSED_NOTE}: resume refused: "
-                                                     f"{str(exc)[:200]}")
-            deps.say(f"campaign #{c['id']}: PropellerAds has it paused and refused to resume: {exc}")
-            continue
-        deps.store.update_campaign(c["id"], note=f"{NETWORK_PAUSED_NOTE}: asked to resume")
-        deps.say(f"campaign #{c['id']}: PropellerAds had it paused, asked it to resume")
 
 
 def sync_stats(deps: Deps) -> bool:
