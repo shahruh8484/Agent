@@ -1,0 +1,10 @@
+{% set p = d.product %}
+<a class="card deal" href="/s/{{ d.niche.slug }}/p/{{ p.asin }}">
+  <span class="rank top">{{ "%.0f"|format(p.savings_percent) }}% off</span>
+  <div class="media">{% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% endif %}</div>
+  {% if p.brand %}<span class="brand">{{ p.brand }}</span>{% endif %}
+  <h3>{{ p.title|truncate(80) }}</h3>
+  <span class="dealprice">{{ p.price_display }}</span>
+  <span class="meta">as of {{ p.fetched_at[:16].replace("T", " ") }} UTC</span>
+  <span class="cta">View deal &rarr;</span>
+</a>

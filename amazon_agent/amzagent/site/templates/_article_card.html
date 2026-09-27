@@ -1,0 +1,8 @@
+<a class="gcard" href="/s/{{ a.niche.slug }}/a/{{ a.article.slug }}">
+  <div class="gimg">{% if a.image %}<img src="{{ a.image }}" alt="{{ a.section.name }}" loading="lazy">{% endif %}</div>
+  <div class="gbody">
+    <span class="gcat">Advice &middot; {{ a.section.name }}</span>
+    <b>{{ a.article.title }}</b>
+    {% if a.article.summary %}<span class="gmeta">{{ a.article.summary|truncate(110) }}</span>{% endif %}
+  </div>
+</a>

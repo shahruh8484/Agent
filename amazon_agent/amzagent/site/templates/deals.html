@@ -1,0 +1,12 @@
+{% extends "root_base.html" %}
+{% block title %}Deals — {{ brand }}{% endblock %}
+{% block description %}Current discounts on products from our buying guides, refreshed several times a day.{% endblock %}
+{% block extra_head %}{% include "_hub_style.html" %}{% endblock %}
+{% block content %}
+<div class="section-head" style="margin-top:28px"><h1 style="margin:0;font-size:1.8rem">Deals right now</h1><span class="meta">{{ deals|length }} deals</span></div>
+<p class="meta" style="margin:-6px 0 24px">Products from our guides that Amazon currently shows a discount for. Prices and discounts are accurate as of the time shown and can change at any moment; the price on Amazon at the time of purchase applies.</p>
+<div class="grid">
+{% for d in deals %}{% include "_deal_card.html" %}
+{% else %}<p>No discounts on our picks at the moment. Check back later — prices are refreshed several times a day.</p>{% endfor %}
+</div>
+{% endblock %}

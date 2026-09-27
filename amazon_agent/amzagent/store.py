@@ -452,6 +452,12 @@ class Store:
                          " AND ts >= ? ORDER BY ts", (since,))
         return [r["ts"] for r in rows]
 
+    def events_by_asin(self, niche_id: int, type_: str, since: str) -> dict[str, int]:
+        rows = self._all("SELECT asin, COUNT(*) AS n FROM events WHERE niche_id = ? AND type = ?"
+                         " AND ts >= ? AND asin IS NOT NULL GROUP BY asin",
+                         (niche_id, type_, since))
+        return {r["asin"]: int(r["n"]) for r in rows}
+
     def events_by_device(self, campaign_id: int, type_: str, since: str | None = None,
                          until: str | None = None) -> dict[str, int]:
         """{device: count} for events that recorded one (mobile / desktop)."""

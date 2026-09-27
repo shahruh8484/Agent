@@ -75,6 +75,20 @@ class FaqItem(BaseModel):
     a: str
 
 
+class ArticlePart(BaseModel):
+    heading: str
+    paragraphs: list[str] = Field(default_factory=list)
+
+
+class Article(BaseModel):
+    """An advice article for a section, e.g. "How to Choose an Air Purifier"."""
+
+    slug: str
+    title: str
+    summary: str = ""
+    parts: list[ArticlePart] = Field(default_factory=list)
+
+
 class SiteSection(BaseModel):
     """A topic on a site (e.g. "Air Purifiers") with a comparison guide."""
 
@@ -87,6 +101,9 @@ class SiteSection(BaseModel):
     picks: list[GuidePick] = Field(default_factory=list)
     verdict: str = ""
     faq: list[FaqItem] = Field(default_factory=list)
+    who_for: str = ""  # who the guide is for
+    care_tips: list[str] = Field(default_factory=list)  # care and maintenance
+    article: Article | None = None  # advice article for this kind of product
 
 
 class SitePlan(BaseModel):

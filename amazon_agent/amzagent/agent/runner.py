@@ -28,7 +28,7 @@ from amzagent.config import Settings
 from amzagent.content.llm import LLM, LLMError, get_llm
 from amzagent.content.writer import uses_amazon_marks, write_product_copy, write_site_copy
 from amzagent.content.sections import OTHER as SECTIONS_OTHER
-from amzagent.content.sections import PLAN_VERSION, group_products, write_guide
+from amzagent.content.sections import PLAN_VERSION, group_products, write_article, write_guide
 from amzagent.models import COPY_VERSION, Niche, SitePlan
 from amzagent.panel_settings import effective, save_overrides
 from amzagent.push import propeller
@@ -301,6 +301,11 @@ def update_site_plan(deps: Deps, niche: Niche) -> None:
             guides += 1
         except LLMError as exc:
             deps.say(f"[{niche.slug}] guide for {section.name!r} failed: {exc}")
+            continue
+        try:
+            section.article = write_article(deps.llm, section, niche.language)
+        except LLMError as exc:
+            deps.say(f"[{niche.slug}] advice article for {section.name!r} failed: {exc}")
     deps.store.set_site_plan(niche.id, SitePlan(version=PLAN_VERSION, signature=signature,
                                                 built_at=now_iso(), sections=sections))
     deps.say(f"[{niche.slug}] organised {len(items)} products into {len(sections)} sections, "

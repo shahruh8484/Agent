@@ -303,6 +303,32 @@ def when(moment: datetime | None, tz_name: str) -> str | None:
     return f"{moment.astimezone(tz):%H:%M}{day} (через {left})"
 
 
+DEAL_MIN_SAVING = 10  # % off shown as a deal
+
+
+def pick_labels(picks: list) -> dict[str, str]:
+    """Wirecutter-style labels for a guide's picks ((pick, product, copy),
+    best first): Our pick, Runner-up, and — from current Amazon prices —
+    Budget pick (much cheaper than our pick) / Upgrade pick (much pricier)."""
+    labels: dict[str, str] = {}
+    if not picks:
+        return labels
+    top = picks[0][1]
+    labels[top.asin] = "Our pick"
+    priced = [p for _, p, _ in picks[1:] if p.price and price_is_fresh(p)]
+    if top.price and price_is_fresh(top) and priced:
+        cheap = min(priced, key=lambda p: p.price)
+        if cheap.price <= 0.7 * top.price:
+            labels[cheap.asin] = "Budget pick"
+        dear = max(priced, key=lambda p: p.price)
+        if dear.price >= 1.3 * top.price and dear.asin not in labels:
+            labels[dear.asin] = "Upgrade pick"
+    runner = next((p for _, p, _ in picks[1:] if p.asin not in labels), None)
+    if runner is not None:
+        labels[runner.asin] = "Runner-up"
+    return labels
+
+
 def _flag_time(store: Store, key: str) -> datetime | None:
     try:
         return datetime.fromisoformat(store.get_flag(key))
@@ -479,11 +505,67 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             updated_on = datetime.fromisoformat(plan.built_at).strftime("%B %Y")
         except (AttributeError, ValueError):
             updated_on = ""
+        picked = {pick.asin for pick, _, _ in picks}
+        considered = [(p, c) for p, c in found["entries"] if p.asin not in picked]
         return SITE_TEMPLATES.TemplateResponse(
             request, "guide.html",
             site_ctx(request, niche, copy, section=found["section"], entries=found["entries"],
-                     picks=picks, sections=sections, updated_on=updated_on),
+                     picks=picks, sections=sections, updated_on=updated_on,
+                     labels=pick_labels(picks), considered=considered),
         )
+
+    @app.get("/s/{slug}/a/{article_slug}", response_class=HTMLResponse)
+    def article_page(request: Request, slug: str, article_slug: str):
+        niche, copy = site_or_404(slug)
+        products = [(p, c) for p, c in store.list_products(niche.id) if c]
+        sections = site_sections(niche.id, products)
+        found = next((x for x in sections if x["section"].article
+                      and x["section"].article.slug == article_slug), None)
+        if found is None:
+            raise HTTPException(404)
+        return SITE_TEMPLATES.TemplateResponse(
+            request, "article.html",
+            site_ctx(request, niche, copy, section=found["section"],
+                     article=found["section"].article, top=found["entries"][:4],
+                     sections=sections),
+        )
+
+    def all_sites() -> list[dict]:
+        """Every live site with its products and sections (best first)."""
+        out = []
+        for n in store.list_niches():
+            site_copy = store.get_site_copy(n.id)
+            if not n.enabled or site_copy is None:
+                continue
+            listed = [(p, c) for p, c in store.list_products(n.id) if c]
+            if listed:
+                out.append({"niche": n, "site": site_copy, "listed": listed,
+                            "sections": site_sections(n.id, listed)})
+        return out
+
+    def deals_of(sites: list[dict], limit: int) -> list[dict]:
+        """Products Amazon currently shows a discount for (fresh prices only)."""
+        deals = [{"niche": s["niche"], "product": p, "copy": c}
+                 for s in sites for p, c in s["listed"]
+                 if (p.savings_percent or 0) >= DEAL_MIN_SAVING and price_is_fresh(p)]
+        deals.sort(key=lambda d: -(d["product"].savings_percent or 0))
+        return deals[:limit]
+
+    def articles_of(sites: list[dict]) -> list[dict]:
+        return [{"niche": s["niche"], "section": x["section"], "article": x["section"].article,
+                 "image": next((p.image_url for p, _ in x["entries"] if p.image_url), "")}
+                for s in sites for x in s["sections"] if x["section"].article]
+
+    @app.get("/deals", response_class=HTMLResponse)
+    def deals_page(request: Request):
+        return SITE_TEMPLATES.TemplateResponse(
+            request, "deals.html",
+            public_ctx(request, deals=deals_of(all_sites(), 120), price_is_fresh=price_is_fresh))
+
+    @app.get("/advice", response_class=HTMLResponse)
+    def advice_index(request: Request):
+        return SITE_TEMPLATES.TemplateResponse(
+            request, "advice_index.html", public_ctx(request, articles=articles_of(all_sites())))
 
     @app.get("/s/{slug}")
     def site_home_redirect(slug: str):
@@ -571,7 +653,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
     def sitemap():
         base = settings.public_base_url()
         urls = [f"{base}/"] + [f"{base}{p}" for p in (
-            "/about", "/how-we-choose", "/contact", "/privacy", "/terms",
+            "/deals", "/advice", "/about", "/how-we-choose", "/contact", "/privacy", "/terms",
             "/affiliate-disclosure")]
         for n in store.list_niches():
             if not n.enabled or store.get_site_copy(n.id) is None:
@@ -580,6 +662,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             plan = store.get_site_plan(n.id)
             urls += [f"{base}/s/{n.slug}/c/{s.slug}" for s in (plan.sections if plan else [])
                      if s.picks]
+            urls += [f"{base}/s/{n.slug}/a/{s.article.slug}"
+                     for s in (plan.sections if plan else []) if s.article]
             urls += [f"{base}/s/{n.slug}/p/{p.asin}"
                      for p, c in store.list_products(n.id) if c]
         body = "".join(f"<url><loc>{escape(u)}</loc></url>" for u in urls)
@@ -671,27 +755,25 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
 
     @app.get("/", response_class=HTMLResponse)
     def hub(request: Request):
-        """Public home page: every live site with a few of its products."""
-        sites = []
-        for n in store.list_niches():
-            copy = store.get_site_copy(n.id)
-            if not n.enabled or copy is None:
-                continue
-            listed = [(p, c) for p, c in store.list_products(n.id) if c]
-            if not listed:
-                continue
-            sections = site_sections(n.id, listed)
+        """Public home page: guides (most read first), deals, advice, top picks."""
+        sites = all_sites()
+        week = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat(timespec="seconds")
+        for site in sites:
+            visits = store.events_by_asin(site["niche"].id, "visit", week)
             guides = []
-            for x in sections:
+            for x in site["sections"]:
                 s = x["section"]
                 if s.picks:
                     lead = next((p for p, _ in x["entries"] if p.image_url), x["entries"][0][0])
                     guides.append({"section": s, "count": len(x["entries"]),
-                                   "compared": len(s.picks), "image": lead.image_url})
-            sites.append({"niche": n, "site": copy, "listed": listed, "top": listed[:8],
-                          "guides": guides, "sections": sections})
+                                   "compared": len(s.picks), "image": lead.image_url,
+                                   "reads": sum(visits.get(p.asin, 0) for p, _ in x["entries"])})
+            guides.sort(key=lambda g: -g["reads"])  # most read first
+            site.update(top=site["listed"][:8], guides=guides)
         return SITE_TEMPLATES.TemplateResponse(
-            request, "hub.html", public_ctx(request, sites=sites))
+            request, "hub.html",
+            public_ctx(request, sites=sites, deals=deals_of(sites, 8),
+                       articles=articles_of(sites)[:6], price_is_fresh=price_is_fresh))
 
     @app.get("/admin", response_class=HTMLResponse)
     def dashboard(request: Request, period: str | None = None, date_from: str | None = None,

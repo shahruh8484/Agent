@@ -1,0 +1,12 @@
+{% extends "root_base.html" %}
+{% block title %}Buying advice — {{ brand }}{% endblock %}
+{% block description %}Practical advice on choosing and using everyday products: what to look for, common mistakes and running costs.{% endblock %}
+{% block extra_head %}{% include "_hub_style.html" %}{% endblock %}
+{% block content %}
+<div class="section-head" style="margin-top:28px"><h1 style="margin:0;font-size:1.8rem">Buying advice</h1></div>
+<p class="meta" style="margin:-6px 0 24px">What to look for before you buy — general advice, no brand deals.</p>
+<div class="guides">
+{% for a in articles %}{% include "_article_card.html" %}
+{% else %}<p>Advice articles are being written. Check back soon.</p>{% endfor %}
+</div>
+{% endblock %}

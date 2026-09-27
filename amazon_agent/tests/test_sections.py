@@ -140,3 +140,43 @@ def test_hub_shows_guides_top_picks_categories_and_method(settings, store):
     assert "Buying guides" in hub and "picks compared" in hub
     assert "Top picks right now" in hub and f"/s/{niche.slug}/p/A5" in hub
     assert "Browse by category" in hub and 'href="/how-we-choose"' in hub
+
+
+def test_pick_labels_follow_current_prices():
+    from amzagent.models import GuidePick
+    from amzagent.web.app import pick_labels
+
+    def pick(asin, price):
+        return (GuidePick(asin=asin), make_product(asin, price=price), None)
+
+    labels = pick_labels([pick("TOP", 100), pick("TWO", 95), pick("CHEAP", 50),
+                          pick("PRICEY", 180)])
+    assert labels == {"TOP": "Our pick", "CHEAP": "Budget pick", "PRICEY": "Upgrade pick",
+                      "TWO": "Runner-up"}
+    assert pick_labels([pick("A", 100), pick("B", 90)]) == {"A": "Our pick", "B": "Runner-up"}
+
+
+def test_guides_articles_deals_and_hub_blocks(settings, store):
+    niche = _site(settings, store)
+    plan = store.get_site_plan(niche.id)
+    first = plan.sections[0]
+    assert first.article and first.who_for and first.care_tips
+    # one product on sale, with a fresh price
+    p, c = store.get_product(niche.id, first.asins[0])
+    p.savings_percent = 25
+    store.update_product_data(niche.id, p)
+    client = TestClient(create_app(settings, store, start_loop=False))
+
+    guide = client.get(f"/s/{niche.slug}/c/{first.slug}").text
+    for text in ("Our pick", "Who this is for", "How we picked", "Care and maintenance",
+                 "don't physically test", f"/s/{niche.slug}/a/{first.article.slug}"):
+        assert text in guide
+    article = client.get(f"/s/{niche.slug}/a/{first.article.slug}").text
+    assert "How to Choose Earbuds" in article and "Battery" in article
+    assert client.get(f"/s/{niche.slug}/a/nope").status_code == 404
+    assert "How to Choose Earbuds" in client.get("/advice").text
+    deals = client.get("/deals").text
+    assert "25% off" in deals and "as of" in deals
+    hub = client.get("/").text
+    assert "Deals right now" in hub and "Advice" in hub and 'href="/deals"' in hub
+    assert f"/s/{niche.slug}/a/{first.article.slug}" in client.get("/sitemap.xml").text

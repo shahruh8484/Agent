@@ -12,7 +12,15 @@ import re
 
 from amzagent.content.llm import LLM, LLMError, parse_json
 from amzagent.content.writer import AMAZON_MARKS, RULES
-from amzagent.models import FaqItem, GuidePick, Product, ProductCopy, SiteSection
+from amzagent.models import (
+    Article,
+    ArticlePart,
+    FaqItem,
+    GuidePick,
+    Product,
+    ProductCopy,
+    SiteSection,
+)
 
 SYSTEM = (
     "You organise and write buying guides for an independent product-review "
@@ -22,7 +30,9 @@ OTHER = "More Picks"
 MIN_SECTION = 2  # smaller groups go to "More Picks"
 MAX_SECTIONS = 12
 GUIDE_PRODUCTS = 8  # products compared in one guide
-PLAN_VERSION = 2  # bump when guides gain fields: older plans are rebuilt (2: FAQ)
+# Bump when guides gain fields: older plans are rebuilt once.
+# 2: FAQ. 3: who it's for, care tips, advice article.
+PLAN_VERSION = 3
 
 
 def slugify(text: str) -> str:
@@ -97,7 +107,11 @@ def write_guide(llm: LLM, section: SiteSection, products: dict[str, tuple[Produc
         '  "verdict": 2 sentences summing up which pick suits whom,\n'
         '  "faq": 3-4 questions shoppers commonly ask about choosing or using this '
         'kind of product, as [{"q": "...", "a": "2-3 sentence answer"}] — general '
-        "advice, no claims about specific models, no prices."
+        "advice, no claims about specific models, no prices,\n"
+        '  "who_for": 2 sentences on who should buy this kind of product and who '
+        "probably doesn't need one,\n"
+        '  "care_tips": 3-4 short tips on using and looking after this kind of '
+        "product (cleaning, filters, storage, safety) — general advice only."
     )
     data = parse_json(llm.generate(SYSTEM, prompt, max_tokens=3000))
     if not isinstance(data, dict):
@@ -121,4 +135,43 @@ def write_guide(llm: LLM, section: SiteSection, products: dict[str, tuple[Produc
     section.faq = [FaqItem(q=str(f["q"])[:200], a=str(f["a"])[:600])
                    for f in data.get("faq") or []
                    if isinstance(f, dict) and f.get("q") and f.get("a")][:5]
+    section.who_for = str(data.get("who_for", ""))[:500]
+    section.care_tips = [str(t)[:300] for t in data.get("care_tips") or []
+                         if isinstance(t, str)][:5]
     return section
+
+
+def write_article(llm: LLM, section: SiteSection, language: str) -> Article:
+    """A general advice article about this kind of product (no model claims)."""
+    prompt = (
+        f"TASK: write an advice article.\nTopic: choosing and using {section.name}\n"
+        f"Language: {language}\n\n"
+        "Write a practical explainer a shopper would read before buying, like a "
+        "consumer magazine's advice column. General knowledge about this kind of "
+        "product only: no specific brands or models, no prices, no statistics or "
+        "test results you can't be sure of, no claims of hands-on testing.\n"
+        "Return JSON with keys:\n"
+        '  "title": e.g. "How to Choose an Air Purifier for Your Home" (no Amazon '
+        "trademarks),\n"
+        '  "summary": 1-2 sentences,\n'
+        '  "parts": 4-6 sections as [{"heading": "...", "paragraphs": ["...", "..."]}], '
+        "each with 1-3 short paragraphs (e.g. what to look for, sizes and types, "
+        "common mistakes, care and running costs)."
+    )
+    data = parse_json(llm.generate(SYSTEM, prompt, max_tokens=3000))
+    if not isinstance(data, dict):
+        raise LLMError("Expected a JSON object for the article")
+    parts = []
+    for part in data.get("parts") or []:
+        if isinstance(part, dict) and part.get("heading"):
+            paragraphs = [str(x)[:1200] for x in part.get("paragraphs") or [] if str(x).strip()]
+            if paragraphs:
+                parts.append(ArticlePart(heading=str(part["heading"])[:120],
+                                         paragraphs=paragraphs[:4]))
+    title = str(data.get("title", "")).strip()
+    if not parts or not title:
+        raise LLMError("Article has no title or sections")
+    if AMAZON_MARKS.search(title):
+        title = f"How to Choose {section.name}"
+    return Article(slug=slugify(title)[:80], title=title[:140],
+                   summary=str(data.get("summary", ""))[:400], parts=parts[:6])

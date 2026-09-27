@@ -31,6 +31,11 @@ table.cmp .btn { white-space:nowrap; padding:9px 14px; font-size:.88rem; }
 .pick .acts { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
 .pick .ghost { display:inline-block; padding:9px 14px; border-radius:10px; border:1px solid var(--line); text-decoration:none; font-weight:600; font-size:.9rem; color:var(--ink); }
 .verdict { border-left:4px solid var(--accent); padding:6px 0 6px 18px; margin:28px 0 40px; font-size:1.02rem; }
+.lbl { display:inline-block; font-size:.72rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; padding:4px 9px; border-radius:6px; background:var(--ink); color:#fff; margin:0 6px 6px 0; }
+.whofor, .howpicked, .care, .considered { max-width:820px; margin:0 0 32px; }
+.whofor h2, .howpicked h2, .care h2, .considered h2 { font-size:1.25rem; margin:0 0 10px; }
+.care ul, .considered ul { margin:0; padding-left:20px; display:grid; gap:7px; }
+.readmore { margin:-12px 0 28px; font-size:.95rem; }
 .faq { margin:0 0 40px; }
 .faq h2 { font-size:1.25rem; margin:0 0 12px; }
 .faq details { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:0 0 10px; }
@@ -52,14 +57,16 @@ table.cmp .btn { white-space:nowrap; padding:9px 14px; font-size:.88rem; }
 </div>
 {% else %}
 <p class="byline">By the {{ site.site_title }} team{% if updated_on %} &middot; Updated {{ updated_on }}{% endif %} &middot; picks based on product specifications, popularity and value (<a href="/how-we-choose">how we choose</a>). We earn a commission from qualifying purchases at no extra cost to you.</p>
+{% if section.who_for %}<div class="whofor"><h2>Who this is for</h2><p>{{ section.who_for }}</p></div>{% endif %}
+{% if section.article %}<p class="readmore">New to {{ section.name|lower }}? Read our advice: <a href="/s/{{ niche.slug }}/a/{{ section.article.slug }}">{{ section.article.title }}</a></p>{% endif %}
 
 <div class="cmp-wrap"><table class="cmp">
-  <tr><th></th><th>Product</th><th>Best for</th><th>Highlights</th><th></th></tr>
+  <tr><th></th><th>Product</th><th>Our take</th><th>Highlights</th><th></th></tr>
   {% for pick, p, c in picks %}
   <tr>
     <td>{% if p.image_url %}<img class="pimg" src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% endif %}</td>
     <td><a class="pname" href="/s/{{ niche.slug }}/p/{{ p.asin }}">{{ p.title|truncate(70) }}</a>{% if p.brand %}<div class="meta">{{ p.brand }}</div>{% endif %}</td>
-    <td>{% if pick.best_for %}<span class="bf">{{ pick.best_for }}</span>{% endif %}</td>
+    <td>{% if labels.get(p.asin) %}<span class="lbl">{{ labels[p.asin] }}</span>{% endif %}{% if pick.best_for %}<span class="bf">{{ pick.best_for }}</span>{% endif %}</td>
     <td>{% if p.features %}<ul>{% for f in p.features[:2] %}<li>{{ f|truncate(80) }}</li>{% endfor %}</ul>{% endif %}</td>
     <td><a class="btn" href="/go/{{ niche.slug }}/{{ p.asin }}" rel="nofollow sponsored noopener" target="_blank">Check price on Amazon</a></td>
   </tr>
@@ -70,12 +77,15 @@ table.cmp .btn { white-space:nowrap; padding:9px 14px; font-size:.88rem; }
 <div class="choose"><h2>How to choose</h2><ol>{% for t in section.how_to_choose %}<li>{{ t }}</li>{% endfor %}</ol></div>
 {% endif %}
 
+<div class="howpicked"><h2>How we picked</h2>
+<p>We compared the {{ entries|length }} {{ section.name|lower }} on our site using each product's listed features and specifications, how popular it is with buyers and what it offers for the price — then chose the ones that suit the most people, plus alternatives for tighter budgets or specific needs. We don't physically test products; <a href="/how-we-choose">here's our full method</a>, including how commissions affect what we show.</p></div>
+
 <div class="section-head"><h2>Our picks in detail</h2></div>
 {% for pick, p, c in picks %}
 <article class="pick">
   <div>{% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% endif %}</div>
   <div>
-    <span class="num">#{{ loop.index }}{% if pick.best_for %} &middot; {{ pick.best_for }}{% endif %}</span>
+    <span class="num">{{ labels.get(p.asin) or "#" ~ loop.index }}{% if pick.best_for %} &middot; {{ pick.best_for }}{% endif %}</span>
     <h3><a href="/s/{{ niche.slug }}/p/{{ p.asin }}">{{ p.title }}</a></h3>
     <p>{{ pick.blurb or c.summary }}</p>
     <div class="acts">
@@ -88,6 +98,17 @@ table.cmp .btn { white-space:nowrap; padding:9px 14px; font-size:.88rem; }
 
 {% if section.verdict %}<div class="verdict"><b>The bottom line:</b> {{ section.verdict }}</div>{% endif %}
 
+{% if section.care_tips %}
+<div class="care"><h2>Care and maintenance</h2><ul>{% for t in section.care_tips %}<li>{{ t }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+{% if considered %}
+<div class="considered"><h2>Other products we considered</h2>
+<p class="meta">Also available on our site — worth a look if our picks don't fit your needs.</p>
+<ul>{% for p, c in considered[:12] %}<li><a href="/s/{{ niche.slug }}/p/{{ p.asin }}">{{ p.title|truncate(90) }}</a></li>{% endfor %}</ul>
+{% if considered|length > 12 %}<p class="meta">and {{ considered|length - 12 }} more below.</p>{% endif %}</div>
+{% endif %}
+
 {% if section.faq %}
 <section class="faq">
   <h2>Frequently asked questions</h2>
@@ -96,7 +117,7 @@ table.cmp .btn { white-space:nowrap; padding:9px 14px; font-size:.88rem; }
 {% endif %}
 
 {% if entries|length > picks|length %}
-<div class="section-head"><h2>More {{ section.name|lower }}</h2></div>
+<div class="section-head"><h2>All other {{ section.name|lower }}</h2></div>
 <div class="grid">
 {% set picked = picks|map(attribute=1)|map(attribute="asin")|list %}
 {% for p, c in entries %}{% if p.asin not in picked %}{% set rank = none %}{% set niche_slug = niche.slug %}{% include "_card.html" %}{% endif %}{% endfor %}

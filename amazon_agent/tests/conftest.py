@@ -51,6 +51,10 @@ class FakeLLM:
             half = max(2, len(asins) // 2)
             return json.dumps([{"name": "Earbuds", "asins": asins[:half]},
                                {"name": "Chargers", "asins": asins[half:]}])
+        if prompt.startswith("TASK: write an advice article"):
+            return json.dumps({"title": "How to Choose Earbuds", "summary": "What matters.",
+                               "parts": [{"heading": "Fit", "paragraphs": ["Try tips."]},
+                                         {"heading": "Battery", "paragraphs": ["Check hours."]}]})
         if prompt.startswith("TASK: write a buying guide"):
             asins = [line.split("asin: ")[1] for line in prompt.splitlines() if "asin: " in line]
             return json.dumps({
@@ -59,7 +63,8 @@ class FakeLLM:
                 "picks": [{"asin": a, "best_for": "Best for commuting", "blurb": f"About {a}."}
                           for a in asins],
                 "verdict": "Pick the first one.",
-                "faq": [{"q": "How loud are they?", "a": "Check the noise rating."}]})
+                "faq": [{"q": "How loud are they?", "a": "Check the noise rating."}],
+                "who_for": "Anyone who commutes.", "care_tips": ["Clean the tips weekly."]})
         if "site_title" in prompt:
             return json.dumps({"site_title": "Sound Picks", "tagline": "Top rated audio",
                                "intro": "We pick well-rated products."})

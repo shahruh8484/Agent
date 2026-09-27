@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ article.title }} — {{ site.site_title }}{% endblock %}
+{% block extra_head %}
+<meta name="description" content="{{ article.summary|truncate(155) }}">
+<style>
+.crumbs { font-size:.85rem; color:var(--muted); margin-bottom:18px; }
+.crumbs a { text-decoration:none; }
+.art { max-width:760px; }
+.art h1 { font-size:clamp(1.6rem,3.6vw,2.3rem); line-height:1.2; letter-spacing:-.015em; margin:6px 0 12px; }
+.art .kicker { font-size:.78rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-dark); }
+.art .dek { font-size:1.12rem; color:var(--muted); margin:0 0 10px; }
+.art .byline { font-size:.85rem; color:var(--muted); margin:0 0 28px; }
+.art h2 { font-size:1.3rem; margin:30px 0 10px; }
+.art p { font-size:1.04rem; line-height:1.7; margin:0 0 14px; }
+.cta-box { background:var(--accent-soft); border-radius:16px; padding:20px 22px; margin:34px 0; }
+.cta-box b { display:block; font-size:1.05rem; margin-bottom:6px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/advice">Advice</a> &rsaquo; {{ section.name }}</div>
+<article class="art">
+  <span class="kicker">Advice &middot; {{ section.name }}</span>
+  <h1>{{ article.title }}</h1>
+  {% if article.summary %}<p class="dek">{{ article.summary }}</p>{% endif %}
+  <p class="byline">By the {{ site.site_title }} team &middot; general buying advice, <a href="/how-we-choose">how we work</a></p>
+  {% for part in article.parts %}
+    <h2>{{ part.heading }}</h2>
+    {% for para in part.paragraphs %}<p>{{ para }}</p>{% endfor %}
+    {% if loop.index == 2 and section.picks %}
+    <div class="cta-box"><b>Ready to compare?</b>See our side-by-side guide: <a href="/s/{{ niche.slug }}/c/{{ section.slug }}">{{ section.guide_title }}</a></div>
+    {% endif %}
+  {% endfor %}
+</article>
+{% if top %}
+<section style="margin-top:44px">
+  <div class="section-head"><h2>Popular {{ section.name|lower }}</h2>{% if section.picks %}<a href="/s/{{ niche.slug }}/c/{{ section.slug }}">Compare them &rarr;</a>{% endif %}</div>
+  <div class="grid">{% for p, c in top %}{% set rank = none %}{% set niche_slug = niche.slug %}{% include "_card.html" %}{% endfor %}</div>
+</section>
+{% endif %}
+{% endblock %}
