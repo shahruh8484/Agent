@@ -131,3 +131,12 @@ def test_every_product_is_reachable_from_the_site_home(settings, store):
     plain = client.get(f"/s/{niche.slug}/c/{plan.sections[1].slug}").text
     for asin in plan.sections[1].asins:  # all of its products, no guide needed
         assert f"/s/{niche.slug}/p/{asin}" in plain
+
+
+def test_hub_shows_guides_top_picks_categories_and_method(settings, store):
+    niche = _site(settings, store)
+    client = TestClient(create_app(settings, store, start_loop=False))
+    hub = client.get("/").text
+    assert "Buying guides" in hub and "picks compared" in hub
+    assert "Top picks right now" in hub and f"/s/{niche.slug}/p/A5" in hub
+    assert "Browse by category" in hub and 'href="/how-we-choose"' in hub

@@ -677,11 +677,19 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             copy = store.get_site_copy(n.id)
             if not n.enabled or copy is None:
                 continue
-            products = [p for p, c in store.list_products(n.id) if c][:4]
-            plan = store.get_site_plan(n.id)
-            guides = [s for s in (plan.sections if plan else []) if s.picks]
-            if products:
-                sites.append({"niche": n, "site": copy, "products": products, "guides": guides})
+            listed = [(p, c) for p, c in store.list_products(n.id) if c]
+            if not listed:
+                continue
+            sections = site_sections(n.id, listed)
+            guides = []
+            for x in sections:
+                s = x["section"]
+                if s.picks:
+                    lead = next((p for p, _ in x["entries"] if p.image_url), x["entries"][0][0])
+                    guides.append({"section": s, "count": len(x["entries"]),
+                                   "compared": len(s.picks), "image": lead.image_url})
+            sites.append({"niche": n, "site": copy, "listed": listed, "top": listed[:8],
+                          "guides": guides, "sections": sections})
         return SITE_TEMPLATES.TemplateResponse(
             request, "hub.html", public_ctx(request, sites=sites))
 

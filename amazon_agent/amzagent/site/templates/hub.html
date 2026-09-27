@@ -1,6 +1,31 @@
 {% extends "root_base.html" %}
-{% block title %}{{ brand }} — top rated product picks{% endblock %}
-{% block description %}Buying guides and product comparisons across categories: popular, well-reviewed picks compared side by side.{% endblock %}
+{% block title %}{{ brand }} — buying guides and product comparisons{% endblock %}
+{% block description %}Buying guides and side-by-side comparisons of popular products across categories: features, who each pick suits and what to look for.{% endblock %}
+{% block extra_head %}
+<style>
+.block { margin:0 0 52px; }
+.guides { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:18px; }
+.gcard { display:grid; grid-template-rows:170px auto; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; text-decoration:none; color:var(--ink); transition:transform .15s ease, box-shadow .15s ease; }
+.gcard:hover { transform:translateY(-3px); box-shadow:0 2px 4px rgba(20,20,20,.05), 0 14px 32px rgba(20,20,20,.1); }
+.gcard .gimg { background:#fff; display:grid; place-items:center; padding:12px; border-bottom:1px solid var(--line); }
+.gcard .gimg img { max-height:146px; max-width:100%; object-fit:contain; }
+.gcard .gbody { padding:14px 16px 16px; display:grid; gap:6px; }
+.gcard .gcat { font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-dark); }
+.gcard b { font-size:1.02rem; line-height:1.3; }
+.gcard .gmeta { font-size:.85rem; color:var(--muted); }
+.cats { display:flex; flex-wrap:wrap; gap:10px; }
+.cats a { font-size:.92rem; font-weight:600; text-decoration:none; padding:9px 16px; border-radius:99px; background:var(--surface); border:1px solid var(--line); color:var(--ink); }
+.cats a:hover { border-color:var(--accent); color:var(--accent-dark); }
+.cats a span { color:var(--muted); font-weight:400; }
+.method { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
+.method div { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px; }
+.method b { display:block; margin-bottom:6px; }
+.method span { color:var(--muted); font-size:.93rem; }
+.sitehead { margin:0 0 22px; }
+.sitehead h2 { margin:0 0 4px; font-size:1.6rem; letter-spacing:-.01em; }
+.sitehead h2 a { color:var(--ink); text-decoration:none; }
+</style>
+{% endblock %}
 {% block hero %}
 <section class="hero"><div class="wrap">
   <h1>Buying guides that compare the best picks</h1>
@@ -10,15 +35,51 @@
 {% endblock %}
 {% block content %}
 {% for s in sites %}
-  <section style="margin-bottom:44px">
-    <div class="section-head"><h2><a href="/s/{{ s.niche.slug }}/" style="text-decoration:none">{{ s.site.site_title }}</a></h2><a href="/s/{{ s.niche.slug }}/">See all picks &rarr;</a></div>
-    <p class="meta" style="margin:-8px 0 16px">{{ s.site.tagline }}</p>
-    {% if s.guides %}<div style="display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px">{% for g in s.guides %}<a href="/s/{{ s.niche.slug }}/c/{{ g.slug }}" style="font-size:.88rem;font-weight:600;text-decoration:none;padding:7px 14px;border-radius:99px;background:var(--surface);border:1px solid var(--line);color:var(--ink)">{{ g.name }} guide</a>{% endfor %}</div>{% endif %}
-    <div class="grid">
-    {% for p in s.products %}{% set c = none %}{% set rank = loop.index %}{% set niche_slug = s.niche.slug %}{% include "_card.html" %}{% endfor %}
+  {% if sites|length > 1 %}
+  <div class="sitehead"><h2><a href="/s/{{ s.niche.slug }}/">{{ s.site.site_title }}</a></h2><p class="meta">{{ s.site.tagline }}</p></div>
+  {% endif %}
+
+  {% if s.guides %}
+  <section class="block">
+    <div class="section-head"><h2>Buying guides</h2><span class="meta">{{ s.guides|length }} guides</span></div>
+    <div class="guides">
+    {% for g in s.guides %}
+      <a class="gcard" href="/s/{{ s.niche.slug }}/c/{{ g.section.slug }}">
+        <div class="gimg">{% if g.image %}<img src="{{ g.image }}" alt="{{ g.section.name }}" loading="lazy">{% endif %}</div>
+        <div class="gbody">
+          <span class="gcat">{{ g.section.name }}</span>
+          <b>{{ g.section.guide_title }}</b>
+          <span class="gmeta">{{ g.compared }} picks compared &middot; {{ g.count }} products</span>
+        </div>
+      </a>
+    {% endfor %}
     </div>
   </section>
+  {% endif %}
+
+  <section class="block">
+    <div class="section-head"><h2>Top picks right now</h2><a href="/s/{{ s.niche.slug }}/">See all {{ s.listed|length }} products &rarr;</a></div>
+    <div class="grid">
+    {% for p, c in s.top %}{% set rank = loop.index %}{% set niche_slug = s.niche.slug %}{% include "_card.html" %}{% endfor %}
+    </div>
+  </section>
+
+  {% if s.sections|length > 1 %}
+  <section class="block">
+    <div class="section-head"><h2>Browse by category</h2></div>
+    <div class="cats">{% for x in s.sections %}<a href="/s/{{ s.niche.slug }}/c/{{ x.section.slug }}">{{ x.section.name }} <span>{{ x.entries|length }}</span></a>{% endfor %}</div>
+  </section>
+  {% endif %}
 {% else %}
   <p>New product guides are being prepared. Check back soon.</p>
 {% endfor %}
+
+<section class="block">
+  <div class="section-head"><h2>How we choose</h2><a href="/how-we-choose">Our full method &rarr;</a></div>
+  <div class="method">
+    <div><b>Compared side by side</b><span>Products are grouped by what they're for, so every guide compares like with like — features, who each suits and what to look for.</span></div>
+    <div><b>Fresh product data</b><span>Names, photos, features, prices and availability come from Amazon's product data and are refreshed several times a day.</span></div>
+    <div><b>Honest about how we earn</b><span>We earn a commission on qualifying purchases at no extra cost to you, and we explain how that affects what we show.</span></div>
+  </div>
+</section>
 {% endblock %}
