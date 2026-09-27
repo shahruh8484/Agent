@@ -152,6 +152,20 @@ docker compose up -d --build
 3. Поставьте `PUSH_LIVE=true` и перезапустите: `docker compose up -d`.
    Тестовые кампании будут закрыты, и агент запустит настоящие.
 
+### Автообновление
+
+Один раз на сервере:
+
+```bash
+cd ~/Agent/amazon_agent && git pull && bash deploy/install-autoupdate.sh
+```
+
+После этого сервер каждые 5 минут проверяет GitHub и, если вышла новая
+версия, сам скачивает её и пересобирает агента (`deploy/autoupdate.sh`).
+Версия и время обновления видны в панели рядом с заголовком, журнал —
+`/var/log/amzagent-update.log`. Отключить: `crontab -e` и удалить строку
+с `autoupdate.sh`.
+
 Локально без Docker:
 
 ```bash

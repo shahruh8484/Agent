@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import threading
 import time
@@ -296,6 +297,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                start_loop: bool = True) -> FastAPI:
     settings = settings or get_settings()
     TEMPLATES.env.filters["localtime"] = make_localtime(settings.panel_timezone)
+    TEMPLATES.env.globals["app_version"] = os.environ.get("APP_VERSION", "dev")
     store = store or Store(settings.data_dir)
     media_root = (Path(settings.data_dir) / "media").resolve()
     network_cache: dict = {}

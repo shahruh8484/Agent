@@ -7,7 +7,7 @@
 {% set status_names = {"active":"активна","capped":"пауза: лимит","dry_run":"тест","killed":"отключена агентом","stopped":"остановлена","error":"ошибка","creating":"создаётся"} %}
 
 <div class="row" style="justify-content:space-between">
-  <h1>Amazon агент</h1>
+  <h1>Amazon агент <span class="muted" style="font-size:.72rem;font-weight:400" title="Версия агента: коммит и время, когда он появился на GitHub">версия {{ app_version }}</span></h1>
   <div class="row">
     <form class="mode" method="post" action="/mode" title="Авто — агент сам запускает, тестирует и отключает кампании и зоны. Ручной — только вы (кнопки и чат); лимит и защиты работают в обоих режимах.">
       <span class="muted">Режим:</span>
