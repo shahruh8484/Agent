@@ -87,6 +87,42 @@ class Article(BaseModel):
     title: str
     summary: str = ""
     parts: list[ArticlePart] = Field(default_factory=list)
+    topic: str = "choose"  # sections.ARTICLE_TOPICS key
+
+
+class VersusRow(BaseModel):
+    aspect: str
+    a: str
+    b: str
+
+
+class Versus(BaseModel):
+    """A head-to-head of a section's two best products ("X vs Y")."""
+
+    slug: str
+    title: str
+    a: str  # ASIN
+    b: str  # ASIN
+    intro: str = ""
+    rows: list[VersusRow] = Field(default_factory=list)
+    choose_a: str = ""
+    choose_b: str = ""
+    verdict: str = ""
+
+
+class CollectionItem(BaseModel):
+    asin: str
+    blurb: str = ""
+
+
+class Collection(BaseModel):
+    """A gift or seasonal list across sections, e.g. "Gifts Under $50"."""
+
+    slug: str
+    title: str
+    intro: str = ""
+    max_price: float | None = None  # items above it (at today's price) are hidden
+    items: list[CollectionItem] = Field(default_factory=list)
 
 
 class SiteSection(BaseModel):
@@ -103,7 +139,13 @@ class SiteSection(BaseModel):
     faq: list[FaqItem] = Field(default_factory=list)
     who_for: str = ""  # who the guide is for
     care_tips: list[str] = Field(default_factory=list)  # care and maintenance
-    article: Article | None = None  # advice article for this kind of product
+    article: Article | None = None  # main advice article ("how to choose")
+    more_articles: list[Article] = Field(default_factory=list)  # mistakes, care …
+    versus: Versus | None = None
+
+    @property
+    def all_articles(self) -> list[Article]:
+        return ([self.article] if self.article else []) + self.more_articles
 
 
 class SitePlan(BaseModel):
@@ -111,6 +153,9 @@ class SitePlan(BaseModel):
 
     version: int = 0  # plans older than sections.PLAN_VERSION are rebuilt
     signature: str = ""  # which products it was built for
+    asins: list[str] = Field(default_factory=list)  # the products it was built for
+    collections: list[Collection] = Field(default_factory=list)
+    collections_key: str = ""  # season + week they were built for
     built_at: str = ""
     sections: list[SiteSection] = Field(default_factory=list)
 

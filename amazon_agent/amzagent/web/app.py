@@ -306,6 +306,20 @@ def when(moment: datetime | None, tz_name: str) -> str | None:
 DEAL_MIN_SAVING = 10  # % off shown as a deal
 
 
+def collection_items(col, by_asin: dict) -> list:
+    """(item, product, copy) of a gift list still on the site — and, for a
+    budget list, still under its budget at today's (fresh) price."""
+    out = []
+    for item in col.items:
+        if item.asin not in by_asin:
+            continue
+        p, c = by_asin[item.asin]
+        if col.max_price and not (p.price and price_is_fresh(p) and p.price <= col.max_price):
+            continue
+        out.append((item, p, c))
+    return out
+
+
 def pick_labels(picks: list) -> dict[str, str]:
     """Wirecutter-style labels for a guide's picks ((pick, product, copy),
     best first): Our pick, Runner-up, and — from current Amazon prices —
@@ -519,16 +533,46 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         niche, copy = site_or_404(slug)
         products = [(p, c) for p, c in store.list_products(niche.id) if c]
         sections = site_sections(niche.id, products)
-        found = next((x for x in sections if x["section"].article
-                      and x["section"].article.slug == article_slug), None)
+        found = next(((x, a) for x in sections for a in x["section"].all_articles
+                      if a.slug == article_slug), None)
         if found is None:
             raise HTTPException(404)
+        x, article = found
         return SITE_TEMPLATES.TemplateResponse(
             request, "article.html",
-            site_ctx(request, niche, copy, section=found["section"],
-                     article=found["section"].article, top=found["entries"][:4],
-                     sections=sections),
+            site_ctx(request, niche, copy, section=x["section"], article=article,
+                     top=x["entries"][:4], sections=sections),
         )
+
+    @app.get("/s/{slug}/vs/{vs_slug}", response_class=HTMLResponse)
+    def versus_page(request: Request, slug: str, vs_slug: str):
+        niche, copy = site_or_404(slug)
+        products = [(p, c) for p, c in store.list_products(niche.id) if c]
+        by_asin = {p.asin: (p, c) for p, c in products}
+        sections = site_sections(niche.id, products)
+        found = next((x["section"] for x in sections
+                      if x["section"].versus and x["section"].versus.slug == vs_slug), None)
+        if found is None or found.versus.a not in by_asin or found.versus.b not in by_asin:
+            raise HTTPException(404)
+        return SITE_TEMPLATES.TemplateResponse(
+            request, "versus.html",
+            site_ctx(request, niche, copy, section=found, vs=found.versus,
+                     a=by_asin[found.versus.a], b=by_asin[found.versus.b]),
+        )
+
+    @app.get("/s/{slug}/g/{collection_slug}", response_class=HTMLResponse)
+    def collection_page(request: Request, slug: str, collection_slug: str):
+        niche, copy = site_or_404(slug)
+        plan = store.get_site_plan(niche.id)
+        found = next((c for c in (plan.collections if plan else [])
+                      if c.slug == collection_slug), None)
+        if found is None:
+            raise HTTPException(404)
+        by_asin = {p.asin: (p, c) for p, c in store.list_products(niche.id) if c}
+        items = collection_items(found, by_asin)
+        return SITE_TEMPLATES.TemplateResponse(
+            request, "collection.html",
+            site_ctx(request, niche, copy, collection=found, items=items))
 
     def all_sites() -> list[dict]:
         """Every live site with its products and sections (best first)."""
@@ -552,9 +596,42 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         return deals[:limit]
 
     def articles_of(sites: list[dict]) -> list[dict]:
-        return [{"niche": s["niche"], "section": x["section"], "article": x["section"].article,
-                 "image": next((p.image_url for p, _ in x["entries"] if p.image_url), "")}
-                for s in sites for x in s["sections"] if x["section"].article]
+        out = []
+        for s in sites:
+            for x in s["sections"]:
+                image = next((p.image_url for p, _ in x["entries"] if p.image_url), "")
+                out += [{"niche": s["niche"], "section": x["section"], "article": a,
+                         "image": image} for a in x["section"].all_articles]
+        return out
+
+    def versus_of(sites: list[dict]) -> list[dict]:
+        out = []
+        for s in sites:
+            by_asin = {p.asin: p for p, _ in s["listed"]}
+            for x in s["sections"]:
+                v = x["section"].versus
+                if v and v.a in by_asin and v.b in by_asin:
+                    out.append({"niche": s["niche"], "vs": v, "a": by_asin[v.a],
+                                "b": by_asin[v.b]})
+        return out
+
+    def collections_of(sites: list[dict]) -> list[dict]:
+        out = []
+        for s in sites:
+            plan = store.get_site_plan(s["niche"].id)
+            by_asin = {p.asin: (p, c) for p, c in s["listed"]}
+            for col in (plan.collections if plan else []):
+                items = collection_items(col, by_asin)
+                if len(items) >= 3:
+                    out.append({"niche": s["niche"], "collection": col, "count": len(items),
+                                "image": next((p.image_url for _, p, _ in items if p.image_url),
+                                              "")})
+        return out
+
+    @app.get("/gifts", response_class=HTMLResponse)
+    def gifts_page(request: Request):
+        return SITE_TEMPLATES.TemplateResponse(
+            request, "gifts.html", public_ctx(request, collections=collections_of(all_sites())))
 
     @app.get("/deals", response_class=HTMLResponse)
     def deals_page(request: Request):
@@ -653,7 +730,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
     def sitemap():
         base = settings.public_base_url()
         urls = [f"{base}/"] + [f"{base}{p}" for p in (
-            "/deals", "/advice", "/about", "/how-we-choose", "/contact", "/privacy", "/terms",
+            "/deals", "/advice", "/gifts", "/about", "/how-we-choose", "/contact", "/privacy", "/terms",
             "/affiliate-disclosure")]
         for n in store.list_niches():
             if not n.enabled or store.get_site_copy(n.id) is None:
@@ -662,8 +739,11 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             plan = store.get_site_plan(n.id)
             urls += [f"{base}/s/{n.slug}/c/{s.slug}" for s in (plan.sections if plan else [])
                      if s.picks]
-            urls += [f"{base}/s/{n.slug}/a/{s.article.slug}"
-                     for s in (plan.sections if plan else []) if s.article]
+            for s in (plan.sections if plan else []):
+                urls += [f"{base}/s/{n.slug}/a/{a.slug}" for a in s.all_articles]
+                if s.versus:
+                    urls.append(f"{base}/s/{n.slug}/vs/{s.versus.slug}")
+            urls += [f"{base}/s/{n.slug}/g/{c.slug}" for c in (plan.collections if plan else [])]
             urls += [f"{base}/s/{n.slug}/p/{p.asin}"
                      for p, c in store.list_products(n.id) if c]
         body = "".join(f"<url><loc>{escape(u)}</loc></url>" for u in urls)
@@ -773,7 +853,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         return SITE_TEMPLATES.TemplateResponse(
             request, "hub.html",
             public_ctx(request, sites=sites, deals=deals_of(sites, 8),
-                       articles=articles_of(sites)[:6], price_is_fresh=price_is_fresh))
+                       articles=articles_of(sites)[:6], versus=versus_of(sites)[:6],
+                       collections=collections_of(sites), price_is_fresh=price_is_fresh))
 
     @app.get("/admin", response_class=HTMLResponse)
     def dashboard(request: Request, period: str | None = None, date_from: str | None = None,

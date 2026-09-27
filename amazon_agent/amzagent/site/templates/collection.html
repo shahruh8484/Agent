@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ collection.title }} — {{ site.site_title }}{% endblock %}
+{% block extra_head %}
+<meta name="description" content="{{ collection.intro|truncate(155) }}">
+<style>
+.crumbs { font-size:.85rem; color:var(--muted); margin-bottom:18px; } .crumbs a { text-decoration:none; }
+h1.ct { font-size:clamp(1.5rem,3.4vw,2.2rem); letter-spacing:-.015em; margin:0 0 10px; }
+.cintro { font-size:1.06rem; max-width:780px; }
+.byline { font-size:.85rem; color:var(--muted); margin:0 0 26px; }
+.gift { display:grid; grid-template-columns:150px minmax(0,1fr); gap:20px; background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:18px; margin:0 0 16px; }
+.gift img { width:150px; height:150px; object-fit:contain; background:#fff; border-radius:10px; }
+.gift h2 { margin:4px 0 8px; font-size:1.08rem; line-height:1.3; } .gift h2 a { color:var(--ink); text-decoration:none; }
+.gift .num { font-size:.78rem; font-weight:800; color:var(--accent-dark); letter-spacing:.06em; }
+.gift .price { font-weight:800; } .gift .price small { font-weight:400; color:var(--muted); font-size:.75rem; }
+.gift .btn { margin-top:10px; display:inline-block; }
+@media (max-width:640px) { .gift { grid-template-columns:1fr; } .gift img { width:100%; height:200px; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/gifts">Gift guides</a> &rsaquo; {{ collection.title }}</div>
+<h1 class="ct">{{ collection.title }}</h1>
+<p class="cintro">{{ collection.intro }}</p>
+<p class="byline">By the {{ site.site_title }} team &middot; picked from our buying guides{% if collection.max_price %}, under ${{ "%.0f"|format(collection.max_price) }} at today's prices{% endif %}</p>
+{% for item, p, c in items %}
+<article class="gift">
+  <div>{% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% endif %}</div>
+  <div>
+    <span class="num">#{{ loop.index }}</span>
+    <h2><a href="/s/{{ niche.slug }}/p/{{ p.asin }}">{{ p.title|truncate(100) }}</a></h2>
+    <p>{{ item.blurb or c.summary }}</p>
+    {% if price_is_fresh(p) %}<div class="price">{{ p.price_display }} <small>as of {{ p.fetched_at[:16].replace("T", " ") }} UTC; the price on Amazon at purchase applies</small></div>{% endif %}
+    <a class="btn" href="/go/{{ niche.slug }}/{{ p.asin }}" rel="nofollow sponsored noopener" target="_blank">Check price on Amazon &rarr;</a>
+  </div>
+</article>
+{% else %}<p>This list is being refreshed. Check back soon.</p>{% endfor %}
+{% endblock %}

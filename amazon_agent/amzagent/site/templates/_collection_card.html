@@ -1,0 +1,8 @@
+<a class="gcard" href="/s/{{ g.niche.slug }}/g/{{ g.collection.slug }}">
+  <div class="gimg">{% if g.image %}<img src="{{ g.image }}" alt="{{ g.collection.title }}" loading="lazy">{% endif %}</div>
+  <div class="gbody">
+    <span class="gcat">Gift guide</span>
+    <b>{{ g.collection.title }}</b>
+    <span class="gmeta">{{ g.count }} ideas</span>
+  </div>
+</a>

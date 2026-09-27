@@ -1,0 +1,7 @@
+<a class="gcard" href="/s/{{ v.niche.slug }}/vs/{{ v.vs.slug }}">
+  <div class="gimg vsimg">{% if v.a.image_url %}<img src="{{ v.a.image_url }}" alt="" loading="lazy">{% endif %}<span>vs</span>{% if v.b.image_url %}<img src="{{ v.b.image_url }}" alt="" loading="lazy">{% endif %}</div>
+  <div class="gbody">
+    <span class="gcat">Head to head</span>
+    <b>{{ v.vs.title }}</b>
+  </div>
+</a>

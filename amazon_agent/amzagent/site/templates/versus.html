@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ vs.title }} — {{ site.site_title }}{% endblock %}
+{% block extra_head %}
+<meta name="description" content="{{ vs.intro|truncate(155) }}">
+<style>
+.crumbs { font-size:.85rem; color:var(--muted); margin-bottom:18px; } .crumbs a { text-decoration:none; }
+h1.vt { font-size:clamp(1.5rem,3.4vw,2.2rem); line-height:1.2; letter-spacing:-.015em; margin:0 0 12px; }
+.vintro { font-size:1.06rem; max-width:780px; }
+.byline { font-size:.85rem; color:var(--muted); margin:0 0 26px; }
+.duel { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:0 0 28px; }
+.side { background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:18px; display:grid; gap:10px; align-content:start; }
+.side img { width:100%; height:200px; object-fit:contain; background:#fff; border-radius:10px; }
+.side h2 { font-size:1.05rem; margin:0; line-height:1.3; } .side h2 a { color:var(--ink); text-decoration:none; }
+.vs-wrap { overflow-x:auto; background:var(--surface); border:1px solid var(--line); border-radius:16px; margin:0 0 28px; }
+table.vs { width:100%; border-collapse:collapse; min-width:520px; }
+table.vs th, table.vs td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; font-size:.93rem; vertical-align:top; }
+table.vs th { font-size:.75rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+table.vs td:first-child { font-weight:700; width:22%; }
+.choose2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:0 0 28px; }
+.choose2 div { background:var(--accent-soft); border-radius:14px; padding:18px; }
+.verdict { border-left:4px solid var(--accent); padding:6px 0 6px 18px; margin:0 0 30px; }
+@media (max-width:700px) { .duel, .choose2 { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+{% block content %}
+{% set pa, ca = a %}{% set pb, cb = b %}
+<div class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/s/{{ niche.slug }}/c/{{ section.slug }}">{{ section.name }}</a> &rsaquo; Comparison</div>
+<h1 class="vt">{{ vs.title }}</h1>
+<p class="vintro">{{ vs.intro }}</p>
+<p class="byline">By the {{ site.site_title }} team &middot; compared on the products' listed features (<a href="/how-we-choose">how we work</a>)</p>
+<div class="duel">
+  {% for p in (pa, pb) %}
+  <div class="side">
+    {% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy">{% endif %}
+    <h2><a href="/s/{{ niche.slug }}/p/{{ p.asin }}">{{ p.title|truncate(90) }}</a></h2>
+    <a class="btn block" href="/go/{{ niche.slug }}/{{ p.asin }}" rel="nofollow sponsored noopener" target="_blank">Check price on Amazon &rarr;</a>
+  </div>
+  {% endfor %}
+</div>
+<div class="vs-wrap"><table class="vs">
+  <tr><th></th><th>{{ pa.brand or "First" }}</th><th>{{ pb.brand or "Second" }}</th></tr>
+  {% for r in vs.rows %}<tr><td>{{ r.aspect }}</td><td>{{ r.a }}</td><td>{{ r.b }}</td></tr>{% endfor %}
+</table></div>
+<div class="choose2">
+  <div><b>Choose the {{ pa.brand or "first" }} if…</b><p>{{ vs.choose_a }}</p></div>
+  <div><b>Choose the {{ pb.brand or "second" }} if…</b><p>{{ vs.choose_b }}</p></div>
+</div>
+{% if vs.verdict %}<div class="verdict"><b>The bottom line:</b> {{ vs.verdict }}</div>{% endif %}
+{% if section.picks %}<p>See every option in our guide: <a href="/s/{{ niche.slug }}/c/{{ section.slug }}">{{ section.guide_title }}</a></p>{% endif %}
+{% endblock %}

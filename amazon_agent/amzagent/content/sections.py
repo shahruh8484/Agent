@@ -15,11 +15,15 @@ from amzagent.content.writer import AMAZON_MARKS, RULES
 from amzagent.models import (
     Article,
     ArticlePart,
+    Collection,
+    CollectionItem,
     FaqItem,
     GuidePick,
     Product,
     ProductCopy,
     SiteSection,
+    Versus,
+    VersusRow,
 )
 
 SYSTEM = (
@@ -31,8 +35,34 @@ MIN_SECTION = 2  # smaller groups go to "More Picks"
 MAX_SECTIONS = 12
 GUIDE_PRODUCTS = 8  # products compared in one guide
 # Bump when guides gain fields: older plans are rebuilt once.
-# 2: FAQ. 3: who it's for, care tips, advice article.
-PLAN_VERSION = 3
+# 2: FAQ. 3: who it's for, care tips, advice article. 4: more articles,
+# head-to-heads, gift and seasonal collections.
+PLAN_VERSION = 4
+
+# Advice articles per section: the key is part of the prompt's topic.
+ARTICLE_TOPICS = {
+    "choose": "choosing and using {name}",
+    "mistakes": "common mistakes people make when buying and using {name}, and how to avoid them",
+    "care": "how to look after {name} and get the most out of them over the years",
+}
+
+GIFT_BUDGETS = (25, 50, 100)
+
+# US shopping seasons: month -> (key, title idea, what the list is about).
+SEASONS = {
+    1: ("new-year", "New Year, Fresh Start", "home organisation and good-habit picks"),
+    2: ("valentines", "Valentine's Day Gift Ideas", "thoughtful gifts for a partner"),
+    3: ("spring", "Spring Refresh Essentials", "spring cleaning and home refresh picks"),
+    4: ("spring", "Spring Refresh Essentials", "spring cleaning and home refresh picks"),
+    5: ("mothers-day", "Mother's Day Gift Ideas", "gifts for mom"),
+    6: ("fathers-day", "Father's Day Gift Ideas", "gifts for dad"),
+    7: ("summer", "Summer Travel and Outdoor Essentials", "travel, car and outdoor picks"),
+    8: ("back-to-school", "Back to School Essentials", "dorm, study and commute picks"),
+    9: ("fall", "Fall Home Refresh", "cosy home, air quality and seasonal comfort picks"),
+    10: ("fall", "Fall Home Refresh", "cosy home, air quality and seasonal comfort picks"),
+    11: ("holiday", "Holiday Gift Guide", "gifts for everyone on the list"),
+    12: ("holiday", "Holiday Gift Guide", "gifts for everyone on the list"),
+}
 
 
 def slugify(text: str) -> str:
@@ -141,10 +171,12 @@ def write_guide(llm: LLM, section: SiteSection, products: dict[str, tuple[Produc
     return section
 
 
-def write_article(llm: LLM, section: SiteSection, language: str) -> Article:
+def write_article(llm: LLM, section: SiteSection, language: str,
+                  topic: str = "choose") -> Article:
     """A general advice article about this kind of product (no model claims)."""
+    subject = ARTICLE_TOPICS.get(topic, ARTICLE_TOPICS["choose"]).format(name=section.name.lower())
     prompt = (
-        f"TASK: write an advice article.\nTopic: choosing and using {section.name}\n"
+        f"TASK: write an advice article.\nTopic: {subject}\n"
         f"Language: {language}\n\n"
         "Write a practical explainer a shopper would read before buying, like a "
         "consumer magazine's advice column. General knowledge about this kind of "
@@ -174,4 +206,71 @@ def write_article(llm: LLM, section: SiteSection, language: str) -> Article:
     if AMAZON_MARKS.search(title):
         title = f"How to Choose {section.name}"
     return Article(slug=slugify(title)[:80], title=title[:140],
-                   summary=str(data.get("summary", ""))[:400], parts=parts[:6])
+                   summary=str(data.get("summary", ""))[:400], parts=parts[:6], topic=topic)
+
+
+def _facts(p: Product) -> str:
+    return (f"- asin: {p.asin}\n  title: {p.title}\n  brand: {p.brand}\n"
+            f"  features: {'; '.join(p.features[:6]) or 'n/a'}")
+
+
+def write_versus(llm: LLM, section: SiteSection, a: Product, b: Product,
+                 language: str) -> Versus:
+    """Head-to-head of two products, only from their listed features."""
+    prompt = (
+        f"TASK: write a head-to-head comparison.\nSection: {section.name}\nLanguage: {language}\n"
+        "Products:\n" + _facts(a) + "\n" + _facts(b) + "\n\n"
+        "Compare ONLY what the titles and features say; where a feature isn't listed "
+        'for one product, write "not listed". No prices, no ratings, no testing claims.\n'
+        "Return JSON with keys:\n"
+        '  "intro": 2 sentences,\n'
+        '  "rows": 4-6 aspects as [{"aspect": "...", "a": "...", "b": "..."}] (short cells),\n'
+        '  "choose_a": 1-2 sentences "Choose the first if ...",\n'
+        '  "choose_b": 1-2 sentences "Choose the second if ...",\n'
+        '  "verdict": 2 sentences.'
+    )
+    data = parse_json(llm.generate(SYSTEM, prompt, max_tokens=2000))
+    if not isinstance(data, dict):
+        raise LLMError("Expected a JSON object for the comparison")
+    rows = [VersusRow(aspect=str(r["aspect"])[:60], a=str(r.get("a", ""))[:160],
+                      b=str(r.get("b", ""))[:160])
+            for r in data.get("rows") or [] if isinstance(r, dict) and r.get("aspect")][:6]
+    if not rows:
+        raise LLMError("Comparison has no rows")
+    short = [(p.brand or p.title.split()[0]).strip() + " " + " ".join(p.title.split()[1:3])
+             for p in (a, b)]
+    title = f"{short[0]} vs {short[1]}: Which Should You Buy?"
+    return Versus(slug=slugify(f"{a.asin}-vs-{b.asin}"), title=AMAZON_MARKS.sub("", title)[:140],
+                  a=a.asin, b=b.asin, intro=str(data.get("intro", ""))[:500], rows=rows,
+                  choose_a=str(data.get("choose_a", ""))[:400],
+                  choose_b=str(data.get("choose_b", ""))[:400],
+                  verdict=str(data.get("verdict", ""))[:500])
+
+
+def write_collection(llm: LLM, title: str, about: str, candidates: list[Product],
+                     language: str, pick: int = 10, max_price: float | None = None,
+                     choose: bool = False) -> Collection:
+    """A gift/seasonal list: blurbs for `candidates` (best first), or — with
+    `choose` — the model picks the `pick` that fit `about` best."""
+    task = (f"Pick the {pick} products that best fit the theme and write a line for each."
+            if choose else "Write a line for each product.")
+    prompt = (
+        f"TASK: write a gift list.\nTitle: {title}\nTheme: {about}\nLanguage: {language}\n"
+        "Products:\n" + "\n".join(_facts(p) for p in candidates) + "\n\n" + task + "\n"
+        "No prices, no ratings, no testing claims; only facts from the features.\n"
+        'Return JSON: {"intro": "2 sentences", "items": [{"asin": "...", '
+        '"blurb": "1 sentence on who it suits as a gift"}]}'
+    )
+    data = parse_json(llm.generate(SYSTEM, prompt, max_tokens=2500))
+    if not isinstance(data, dict):
+        raise LLMError("Expected a JSON object for the gift list")
+    known = {p.asin for p in candidates}
+    items, seen = [], set()
+    for entry in data.get("items") or []:
+        if isinstance(entry, dict) and entry.get("asin") in known and entry["asin"] not in seen:
+            seen.add(entry["asin"])
+            items.append(CollectionItem(asin=entry["asin"], blurb=str(entry.get("blurb", ""))[:300]))
+    if len(items) < 3:
+        raise LLMError("Gift list has too few items")
+    return Collection(slug=slugify(title), title=title, intro=str(data.get("intro", ""))[:500],
+                      max_price=max_price, items=items[:pick])

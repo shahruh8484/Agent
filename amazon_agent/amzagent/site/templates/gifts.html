@@ -1,0 +1,12 @@
+{% extends "root_base.html" %}
+{% block title %}Gift guides — {{ brand }}{% endblock %}
+{% block description %}Gift ideas by budget and season, picked from our buying guides.{% endblock %}
+{% block extra_head %}{% include "_hub_style.html" %}{% endblock %}
+{% block content %}
+<div class="section-head" style="margin-top:28px"><h1 style="margin:0;font-size:1.8rem">Gift guides</h1></div>
+<p class="meta" style="margin:-6px 0 24px">Ideas by budget and season, picked from our buying guides. Budget lists follow today's prices.</p>
+<div class="guides">
+{% for g in collections %}{% include "_collection_card.html" %}
+{% else %}<p>Gift guides are being prepared. Check back soon.</p>{% endfor %}
+</div>
+{% endblock %}

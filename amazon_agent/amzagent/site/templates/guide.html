@@ -58,7 +58,7 @@ table.cmp .btn { white-space:nowrap; padding:9px 14px; font-size:.88rem; }
 {% else %}
 <p class="byline">By the {{ site.site_title }} team{% if updated_on %} &middot; Updated {{ updated_on }}{% endif %} &middot; picks based on product specifications, popularity and value (<a href="/how-we-choose">how we choose</a>). We earn a commission from qualifying purchases at no extra cost to you.</p>
 {% if section.who_for %}<div class="whofor"><h2>Who this is for</h2><p>{{ section.who_for }}</p></div>{% endif %}
-{% if section.article %}<p class="readmore">New to {{ section.name|lower }}? Read our advice: <a href="/s/{{ niche.slug }}/a/{{ section.article.slug }}">{{ section.article.title }}</a></p>{% endif %}
+{% if section.all_articles or section.versus %}<p class="readmore">{% if section.all_articles %}Advice: {% for a in section.all_articles %}<a href="/s/{{ niche.slug }}/a/{{ a.slug }}">{{ a.title }}</a>{% if not loop.last %} &middot; {% endif %}{% endfor %}{% endif %}{% if section.versus %}{% if section.all_articles %}<br>{% endif %}Head to head: <a href="/s/{{ niche.slug }}/vs/{{ section.versus.slug }}">{{ section.versus.title }}</a>{% endif %}</p>{% endif %}
 
 <div class="cmp-wrap"><table class="cmp">
   <tr><th></th><th>Product</th><th>Our take</th><th>Highlights</th><th></th></tr>

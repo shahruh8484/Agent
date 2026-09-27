@@ -59,6 +59,20 @@
   <p>New product guides are being prepared. Check back soon.</p>
 {% endfor %}
 
+{% if collections %}
+<section class="block">
+  <div class="section-head"><h2>Gift guides</h2><a href="/gifts">All gift guides &rarr;</a></div>
+  <div class="guides">{% for g in collections %}{% include "_collection_card.html" %}{% endfor %}</div>
+</section>
+{% endif %}
+
+{% if versus %}
+<section class="block">
+  <div class="section-head"><h2>Head to head</h2></div>
+  <div class="guides">{% for v in versus %}{% include "_versus_card.html" %}{% endfor %}</div>
+</section>
+{% endif %}
+
 {% if articles %}
 <section class="block">
   <div class="section-head"><h2>Advice</h2><a href="/advice">All advice &rarr;</a></div>

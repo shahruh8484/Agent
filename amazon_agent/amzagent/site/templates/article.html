@@ -31,6 +31,12 @@
     {% endif %}
   {% endfor %}
 </article>
+{% set others = section.all_articles|rejectattr("slug", "equalto", article.slug)|list %}
+{% if others or section.versus %}
+<section style="margin-top:36px;max-width:760px"><b>More on {{ section.name|lower }}</b>
+<ul>{% for a in others %}<li><a href="/s/{{ niche.slug }}/a/{{ a.slug }}">{{ a.title }}</a></li>{% endfor %}
+{% if section.versus %}<li><a href="/s/{{ niche.slug }}/vs/{{ section.versus.slug }}">{{ section.versus.title }}</a></li>{% endif %}</ul></section>
+{% endif %}
 {% if top %}
 <section style="margin-top:44px">
   <div class="section-head"><h2>Popular {{ section.name|lower }}</h2>{% if section.picks %}<a href="/s/{{ niche.slug }}/c/{{ section.slug }}">Compare them &rarr;</a>{% endif %}</div>

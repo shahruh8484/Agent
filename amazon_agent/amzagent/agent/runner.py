@@ -29,7 +29,17 @@ from amzagent.config import Settings
 from amzagent.content.llm import LLM, LLMError, get_llm
 from amzagent.content.writer import uses_amazon_marks, write_product_copy, write_site_copy
 from amzagent.content.sections import OTHER as SECTIONS_OTHER
-from amzagent.content.sections import PLAN_VERSION, group_products, write_article, write_guide
+from amzagent.content.sections import (
+    ARTICLE_TOPICS,
+    PLAN_VERSION,
+    SEASONS,
+    GIFT_BUDGETS,
+    group_products,
+    write_article,
+    write_collection,
+    write_guide,
+    write_versus,
+)
 from amzagent.models import COPY_VERSION, Niche, SitePlan
 from amzagent.panel_settings import effective, save_overrides
 from amzagent.push import propeller
@@ -267,38 +277,64 @@ def refresh_niche(deps: Deps, niche: Niche) -> bool:
 
 CHECK_LOG_DAYS = 3  # 3-minute check entries are kept this long in the journal
 SITE_PLAN_MIN_HOURS = 12  # rebuild sections/guides at most this often
+REBUILD_MIN_ADDED = 5  # ...and only when this many products were added
+REBUILD_MIN_REMOVED_SHARE = 0.10  # ...or this share of them is gone
+REBUILD_MIN_REMOVED = 3  # (and at least this many)
+NEW_ARTICLES_PER_RUN = 12  # advice articles written per cycle (the rest next time)
 
 
 def update_site_plan(deps: Deps, niche: Niche) -> None:
-    """Group the site's products into sections with buying guides. Rebuilt
-    when the product set changed (at most every SITE_PLAN_MIN_HOURS; until
-    then new products show under "More Picks")."""
+    """Group the site's products into sections with buying guides and
+    head-to-heads, keep advice articles and gift lists filled. Sections are
+    rebuilt when the product set changed noticeably (at most every
+    SITE_PLAN_MIN_HOURS); until then new products show under "More Picks".
+    Advice articles are kept across rebuilds and written a few per cycle."""
     if deps.llm is None:
         return
     items = [(p, c) for p, c in deps.store.list_products(niche.id) if c]
     if len(items) < 4:
         return  # too few to be worth sections
-    signature = hashlib.sha1(",".join(sorted(p.asin for p, _ in items)).encode()).hexdigest()
+    current = {p.asin for p, _ in items}
+    signature = hashlib.sha1(",".join(sorted(current)).encode()).hexdigest()
     plan = deps.store.get_site_plan(niche.id)
-    outdated = plan is not None and plan.version < PLAN_VERSION  # e.g. guides without FAQ
-    if plan and plan.signature == signature and not outdated:
+    if plan is None or plan.version < PLAN_VERSION:
+        plan = build_site_plan(deps, niche, items, signature, previous=plan)
+    elif plan.signature != signature:
+        built = set(plan.asins)
+        added, removed = len(current - built), len(built - current)
+        big = (added >= REBUILD_MIN_ADDED
+               or removed >= max(REBUILD_MIN_REMOVED, REBUILD_MIN_REMOVED_SHARE * len(built)))
+        age = datetime.now(timezone.utc) - datetime.fromisoformat(plan.built_at)
+        if big and age >= timedelta(hours=SITE_PLAN_MIN_HOURS):
+            plan = build_site_plan(deps, niche, items, signature, previous=plan)
+        elif big:
+            deps.say(f"[{niche.slug}] {added} products added, {removed} gone: sections will be "
+                     f"rebuilt {SITE_PLAN_MIN_HOURS}h after the last build (new products are "
+                     f"in More Picks until then)")
+        else:
+            deps.say(f"[{niche.slug}] sections up to date ({added} added, {removed} gone: "
+                     f"small change)")
+    else:
         deps.say(f"[{niche.slug}] sections and guides up to date ({len(plan.sections)} "
                  f"sections, built {plan.built_at[:16].replace('T', ' ')} UTC)")
+    if plan is None:
         return
-    if plan and plan.built_at and not outdated:
-        age = datetime.now(timezone.utc) - datetime.fromisoformat(plan.built_at)
-        if age < timedelta(hours=SITE_PLAN_MIN_HOURS):
-            deps.say(f"[{niche.slug}] product set changed: sections will be rebuilt after "
-                     f"{SITE_PLAN_MIN_HOURS}h since the last build (new products are in "
-                     f"More Picks until then)")
-            return
+    changed = fill_articles(deps, niche, plan)
+    changed = update_collections(deps, niche, plan, [p for p, _ in items]) or changed
+    if changed:
+        deps.store.set_site_plan(niche.id, plan)
+
+
+def build_site_plan(deps: Deps, niche: Niche, items: list, signature: str,
+                    previous: SitePlan | None) -> SitePlan | None:
     try:
         sections = group_products(deps.llm, items, niche.language)
     except LLMError as exc:
         deps.say(f"[{niche.slug}] sections failed: {exc}")
-        return
+        return previous
+    old = {s.slug: s for s in (previous.sections if previous else [])}
     by_asin = {p.asin: (p, c) for p, c in items}
-    guides = 0
+    guides = versus = 0
     for section in sections:
         if section.name == SECTIONS_OTHER:
             continue
@@ -308,14 +344,110 @@ def update_site_plan(deps: Deps, niche: Niche) -> None:
         except LLMError as exc:
             deps.say(f"[{niche.slug}] guide for {section.name!r} failed: {exc}")
             continue
-        try:
-            section.article = write_article(deps.llm, section, niche.language)
-        except LLMError as exc:
-            deps.say(f"[{niche.slug}] advice article for {section.name!r} failed: {exc}")
-    deps.store.set_site_plan(niche.id, SitePlan(version=PLAN_VERSION, signature=signature,
-                                                built_at=now_iso(), sections=sections))
+        before = old.get(section.slug)
+        if before:  # advice doesn't depend on the product set: keep it
+            section.article, section.more_articles = before.article, before.more_articles
+        if len(section.picks) >= 2:
+            a, b = section.picks[0].asin, section.picks[1].asin
+            if before and before.versus and (before.versus.a, before.versus.b) == (a, b):
+                section.versus = before.versus
+            else:
+                try:
+                    section.versus = write_versus(deps.llm, section, by_asin[a][0],
+                                                  by_asin[b][0], niche.language)
+                    versus += 1
+                except LLMError as exc:
+                    deps.say(f"[{niche.slug}] comparison for {section.name!r} failed: {exc}")
+    plan = SitePlan(version=PLAN_VERSION, signature=signature, asins=sorted(by_asin),
+                    built_at=now_iso(), sections=sections,
+                    collections=previous.collections if previous else [],
+                    collections_key=previous.collections_key if previous else "")
+    deps.store.set_site_plan(niche.id, plan)
     deps.say(f"[{niche.slug}] organised {len(items)} products into {len(sections)} sections, "
-             f"{guides} buying guides")
+             f"{guides} buying guides, {versus} new head-to-heads")
+    return plan
+
+
+def fill_articles(deps: Deps, niche: Niche, plan: SitePlan) -> bool:
+    """Write missing advice articles, NEW_ARTICLES_PER_RUN at a time."""
+    budget, written = NEW_ARTICLES_PER_RUN, 0
+    for topic in ARTICLE_TOPICS:  # every section's "choose" first, then the rest
+        for section in plan.sections:
+            if budget <= 0 or not section.picks:
+                continue
+            have = {a.topic for a in section.all_articles}
+            if topic in have:
+                continue
+            try:
+                article = write_article(deps.llm, section, niche.language, topic)
+            except LLMError as exc:
+                deps.say(f"[{niche.slug}] {topic} article for {section.name!r} failed: {exc}")
+                budget -= 1
+                continue
+            if topic == "choose":
+                section.article = article
+            else:
+                section.more_articles.append(article)
+            budget -= 1
+            written += 1
+    if written:
+        left = sum(len(ARTICLE_TOPICS) - len(s.all_articles) for s in plan.sections if s.picks)
+        deps.say(f"[{niche.slug}] wrote {written} advice articles"
+                 + (f", {left} left for the next cycles" if left else ""))
+    return written > 0
+
+
+def update_collections(deps: Deps, niche: Niche, plan: SitePlan, products: list) -> bool:
+    """Gift lists by budget and a seasonal list, rebuilt weekly or when the
+    season changes."""
+    now = datetime.now(timezone.utc)
+    season_key, season_title, season_about = SEASONS[now.month]
+    key = f"{season_key}-{now.isocalendar()[1]}"
+    if plan.collections_key == key:
+        return False
+    fresh = {p.asin: p for p in products if p.price and _price_fresh(p)}
+    ranked = [fresh[a] for s in plan.sections for a in s.asins if a in fresh]
+    # Round-robin over sections so one category doesn't fill a whole list.
+    by_section = [[fresh[a] for a in s.asins if a in fresh] for s in plan.sections]
+    mixed, seen = [], set()
+    while any(by_section):
+        for queue in by_section:
+            if queue:
+                p = queue.pop(0)
+                if p.asin not in seen:
+                    seen.add(p.asin)
+                    mixed.append(p)
+    collections = []
+    for budget in GIFT_BUDGETS:
+        candidates = [p for p in mixed if p.price <= budget][:10]
+        if len(candidates) < 3:
+            continue
+        try:
+            collections.append(write_collection(
+                deps.llm, f"Gift Ideas Under ${budget}",
+                f"useful, well-liked gifts that cost less than ${budget}", candidates,
+                niche.language, max_price=budget))
+        except LLMError as exc:
+            deps.say(f"[{niche.slug}] gift list under ${budget} failed: {exc}")
+    if len(ranked) >= 4:
+        try:
+            collections.append(write_collection(deps.llm, season_title, season_about,
+                                                mixed[:40], niche.language, choose=True))
+        except LLMError as exc:
+            deps.say(f"[{niche.slug}] seasonal list failed: {exc}")
+    if not collections:
+        return False
+    plan.collections, plan.collections_key = collections, key
+    deps.say(f"[{niche.slug}] made {len(collections)} gift and seasonal lists")
+    return True
+
+
+def _price_fresh(p) -> bool:
+    try:
+        fetched = datetime.fromisoformat(p.fetched_at)
+    except (TypeError, ValueError):
+        return False
+    return datetime.now(timezone.utc) - fetched < timedelta(hours=24)
 
 
 def illustrate_products(deps: Deps, niche: Niche) -> int:

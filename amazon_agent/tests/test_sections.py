@@ -180,3 +180,56 @@ def test_guides_articles_deals_and_hub_blocks(settings, store):
     hub = client.get("/").text
     assert "Deals right now" in hub and "Advice" in hub and 'href="/deals"' in hub
     assert f"/s/{niche.slug}/a/{first.article.slug}" in client.get("/sitemap.xml").text
+
+
+def test_more_articles_head_to_heads_and_gift_lists(settings, store):
+    niche = _site(settings, store)
+    plan = store.get_site_plan(niche.id)
+    first = plan.sections[0]
+    assert {a.topic for a in first.all_articles} == {"choose", "mistakes", "care"}
+    assert first.versus and first.versus.a == first.picks[0].asin
+    assert any(c.title == "Gift Ideas Under $50" for c in plan.collections)  # $29.99 items
+    assert any(c.title in ("Fall Home Refresh", "Holiday Gift Guide", "Back to School Essentials",
+                           "Summer Travel and Outdoor Essentials", "New Year, Fresh Start",
+                           "Valentine's Day Gift Ideas", "Spring Refresh Essentials",
+                           "Mother's Day Gift Ideas", "Father's Day Gift Ideas")
+               for c in plan.collections)
+    client = TestClient(create_app(settings, store, start_loop=False))
+    vs = client.get(f"/s/{niche.slug}/vs/{first.versus.slug}").text
+    assert "Choose the" in vs and "Battery" in vs and "Check price on Amazon" in vs
+    gift = next(c for c in plan.collections if c.max_price == 50)
+    page = client.get(f"/s/{niche.slug}/g/{gift.slug}").text
+    assert "Gift Ideas Under $50" in page and "A gift:" in page
+    assert "Gift Ideas Under $50" in client.get("/gifts").text
+    hub = client.get("/").text
+    assert "Gift guides" in hub and "Head to head" in hub and 'href="/gifts"' in hub
+    guide = client.get(f"/s/{niche.slug}/c/{first.slug}").text
+    assert f"/s/{niche.slug}/vs/{first.versus.slug}" in guide
+    for a in first.all_articles:
+        assert client.get(f"/s/{niche.slug}/a/{a.slug}").status_code == 200
+    assert f"/s/{niche.slug}/g/{gift.slug}" in client.get("/sitemap.xml").text
+
+
+def test_budget_list_hides_items_that_got_pricier(settings, store):
+    niche = _site(settings, store)
+    plan = store.get_site_plan(niche.id)
+    gift = next(c for c in plan.collections if c.max_price == 50)
+    p, _ = store.get_product(niche.id, gift.items[0].asin)
+    p.price = 80.0
+    store.update_product_data(niche.id, p)
+    client = TestClient(create_app(settings, store, start_loop=False))
+    page = client.get(f"/s/{niche.slug}/g/{gift.slug}").text
+    assert f"/s/{niche.slug}/p/{p.asin}" not in page
+
+
+def test_small_product_changes_dont_rebuild_everything(settings, store):
+    niche = _site(settings, store)
+    plan = store.get_site_plan(niche.id)
+    plan.asins = plan.asins + ["GONE1"]  # one product dropped since the build
+    plan.signature = "old"
+    plan.built_at = "2020-01-01T00:00:00+00:00"
+    store.set_site_plan(niche.id, plan)
+    llm = FakeLLM()
+    deps = Deps(settings=settings, store=store, llm=llm)
+    update_site_plan(deps, niche)
+    assert llm.prompts == [] and any("small change" in line for line in deps.log)
