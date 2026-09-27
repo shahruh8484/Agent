@@ -149,8 +149,8 @@
 {% macro money(v) %}{{ "$%.2f"|format(v) if v is not none else "—" }}{% endmacro %}
 {% macro profit(v) %}{% if v is none %}—{% elif v >= 0 %}<span class="pos">+${{ "%.2f"|format(v) }}</span>{% else %}<span class="neg">−${{ "%.2f"|format(-v) }}</span>{% endif %}{% endmacro %}
 {% macro pct(v) %}{{ "%.2f%%"|format(v * 100) if v is not none else "—" }}{% endmacro %}
-{% set live = campaigns|selectattr("status", "in", ["active", "capped", "dry_run", "creating", "error"])|list %}
-{% set done = campaigns|rejectattr("status", "in", ["active", "capped", "dry_run", "creating", "error"])|list %}
+{% set live = campaigns|selectattr("status", "in", ["active", "capped", "dry_run", "creating"])|list %}
+{% set done = campaigns|rejectattr("status", "in", ["active", "capped", "dry_run", "creating"])|list %}
 
 {% macro camp_rows(rows) %}
 {% for c in rows %}
@@ -214,7 +214,7 @@
 </tbody>
 {% if done %}
 <tbody>
-<tr class="group" onclick="toggleDone()"><td colspan="11"><span id="done-arrow">▸</span> Остановленные и отключённые ({{ done|length }})</td></tr>
+<tr class="group" onclick="toggleDone()"><td colspan="11"><span id="done-arrow">▸</span> Остановленные, отключённые и с ошибкой ({{ done|length }})</td></tr>
 </tbody>
 <tbody id="done" hidden>
 {{ camp_rows(done) }}
