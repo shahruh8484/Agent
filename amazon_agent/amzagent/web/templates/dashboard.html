@@ -187,8 +187,7 @@
       <td>{{ z.zone }}</td>
       <td class="num">{{ "{:,}".format(z.impressions) }}</td><td class="num">{{ "{:,}".format(z.clicks) }}</td><td class="num">{{ pct(z.ctr) }}</td>
       <td class="num">{{ money(z.spent) }}</td><td class="num">{{ z.visits }}</td><td class="num">{{ z.amazon }}</td><td class="num">{{ money(z.cost_per_amazon) }}</td>
-      <td class="acts">{% if z.excluded %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/zones/{{ z.zone }}/include"><button class="sm">Включить</button></form>
-          {% else %}<form class="inline" method="post" action="/campaigns/{{ c.id }}/zones/{{ z.zone }}/exclude"><button class="sm danger">Отключить</button></form>{% endif %}</td>
+      <td class="acts"><form class="inline" method="post" action="/campaigns/{{ c.id }}/zones/{{ z.zone }}/{{ 'include' if z.excluded else 'exclude' }}" onsubmit="return zoneToggle(event, this)">{% if z.excluded %}<button class="sm">Включить</button>{% else %}<button class="sm danger">Отключить</button>{% endif %}</form></td>
     </tr>
     {% endfor %}
   </table></div>
@@ -227,9 +226,44 @@ function toggleRow(id) {
   var r = document.getElementById(id);
   if (r) r.hidden = !r.hidden;
 }
+function openZones() {
+  try { return JSON.parse(sessionStorage.getItem("openZones") || "[]"); } catch (e) { return []; }
+}
 function toggleZones(id) {
   var r = document.getElementById("z" + id);
-  if (r) r.hidden = !r.hidden;
+  if (!r) return;
+  r.hidden = !r.hidden;
+  var open = openZones().filter(function (x) { return x !== id; });
+  if (!r.hidden) open.push(id);
+  try { sessionStorage.setItem("openZones", JSON.stringify(open)); } catch (e) {}
+}
+// Keep zone lists that were open across page reloads.
+openZones().forEach(function (id) {
+  var r = document.getElementById("z" + id);
+  if (r) r.hidden = false;
+});
+// Exclude / include a zone without reloading the page.
+function zoneToggle(e, form) {
+  e.preventDefault();
+  var btn = form.querySelector("button"), row = form.closest("tr");
+  var excluding = /\/exclude$/.test(form.action);
+  btn.disabled = true; btn.textContent = "…";
+  fetch(form.action, {method: "POST", headers: {"X-Requested-With": "fetch"}})
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.error) throw new Error(d.error);
+      row.classList.toggle("excluded", excluding);
+      form.action = form.action.replace(excluding ? /exclude$/ : /include$/,
+                                        excluding ? "include" : "exclude");
+      btn.textContent = excluding ? "Включить" : "Отключить";
+      btn.classList.toggle("danger", !excluding);
+    })
+    .catch(function (err) {
+      alert("Не удалось изменить зону: " + err.message);
+      btn.textContent = excluding ? "Отключить" : "Включить";
+    })
+    .finally(function () { btn.disabled = false; });
+  return false;
 }
 function toggleDone() {
   var b = document.getElementById("done");

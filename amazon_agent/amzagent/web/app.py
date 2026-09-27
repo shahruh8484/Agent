@@ -774,6 +774,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         deps = build_deps(settings, store)
         error = (exclude_zone(deps, campaign_id, zone) if action == "exclude"
                  else include_zone(deps, campaign_id, zone))
+        if request.headers.get("x-requested-with") == "fetch":  # the button, no reload
+            return JSONResponse({"ok": not error, "error": error})
         verb = "отключена" if action == "exclude" else "снова включена"
         request.session["flash"] = (
             f"Кампания #{campaign_id}: не удалось изменить зону {zone} — {error}" if error

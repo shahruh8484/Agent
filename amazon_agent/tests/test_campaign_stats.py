@@ -67,6 +67,11 @@ def test_dashboard_lists_stats_and_zones_and_toggles_a_zone(settings, store, mon
     page = client.post(f"/campaigns/{c['id']}/zones/777/include").text
     assert "снова включена" in page and push.replaced == [(c["external_id"], [])]
     assert client.post(f"/campaigns/{c['id']}/zones/abc/exclude").status_code == 400
+    # the button uses fetch: JSON back, no redirect
+    r = client.post(f"/campaigns/{c['id']}/zones/777/exclude",
+                    headers={"X-Requested-With": "fetch"})
+    assert r.json() == {"ok": True, "error": None}
+    assert push.excluded[-1] == (c["external_id"], ["777"])
 
 
 def _with_push(deps, push):
