@@ -17,7 +17,9 @@ fi
 echo "$(date '+%F %T') updating $(git rev-parse --short HEAD) -> $(git rev-parse --short "origin/$branch")"
 git merge -q --ff-only "origin/$branch"
 export APP_VERSION
-APP_VERSION="$(git log -1 --format='%h от %cd' --date=format:'%d.%m %H:%M')"
+# Commit time in the panel's time zone (PANEL_TIMEZONE in .env, else Tashkent).
+tz=$(grep -E '^PANEL_TIMEZONE=' .env 2>/dev/null | cut -d= -f2- | tr -d "\"' " || true)
+APP_VERSION="$(TZ="${tz:-Asia/Tashkent}" git log -1 --format='%h от %cd' --date=format-local:'%d.%m %H:%M')"
 docker compose up -d --build
 docker image prune -f >/dev/null
 echo "$(date '+%F %T') done: $APP_VERSION"
