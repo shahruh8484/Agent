@@ -474,10 +474,15 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         by_asin = {p.asin: (p, c) for p, c in found["entries"]}
         picks = [(pick, *by_asin[pick.asin]) for pick in found["section"].picks
                  if pick.asin in by_asin]
+        plan = store.get_site_plan(niche.id)
+        try:
+            updated_on = datetime.fromisoformat(plan.built_at).strftime("%B %Y")
+        except (AttributeError, ValueError):
+            updated_on = ""
         return SITE_TEMPLATES.TemplateResponse(
             request, "guide.html",
             site_ctx(request, niche, copy, section=found["section"], entries=found["entries"],
-                     picks=picks, sections=sections),
+                     picks=picks, sections=sections, updated_on=updated_on),
         )
 
     @app.get("/s/{slug}")
@@ -526,6 +531,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         ("/privacy", "privacy.html"),
         ("/terms", "terms.html"),
         ("/affiliate-disclosure", "disclosure.html"),
+        ("/how-we-choose", "how_we_choose.html"),
     ):
         def page(request: Request, _template: str = template):
             return SITE_TEMPLATES.TemplateResponse(request, _template, public_ctx(request))
@@ -565,7 +571,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
     def sitemap():
         base = settings.public_base_url()
         urls = [f"{base}/"] + [f"{base}{p}" for p in (
-            "/about", "/contact", "/privacy", "/terms", "/affiliate-disclosure")]
+            "/about", "/how-we-choose", "/contact", "/privacy", "/terms",
+            "/affiliate-disclosure")]
         for n in store.list_niches():
             if not n.enabled or store.get_site_copy(n.id) is None:
                 continue

@@ -31,6 +31,11 @@ table.cmp .btn { white-space:nowrap; padding:9px 14px; font-size:.88rem; }
 .pick .acts { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
 .pick .ghost { display:inline-block; padding:9px 14px; border-radius:10px; border:1px solid var(--line); text-decoration:none; font-weight:600; font-size:.9rem; color:var(--ink); }
 .verdict { border-left:4px solid var(--accent); padding:6px 0 6px 18px; margin:28px 0 40px; font-size:1.02rem; }
+.faq { margin:0 0 40px; }
+.faq h2 { font-size:1.25rem; margin:0 0 12px; }
+.faq details { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:0 0 10px; }
+.faq summary { font-weight:700; cursor:pointer; }
+.faq p { margin:10px 0 0; }
 .others { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
 .others a { font-size:.88rem; font-weight:600; text-decoration:none; padding:7px 14px; border-radius:99px; background:var(--surface); border:1px solid var(--line); color:var(--ink); }
 @media (max-width:640px) { .pick { grid-template-columns:1fr; } .pick img { width:100%; height:200px; } }
@@ -40,7 +45,7 @@ table.cmp .btn { white-space:nowrap; padding:9px 14px; font-size:.88rem; }
 <div class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/s/{{ niche.slug }}/">{{ site.site_title }}</a> &rsaquo; {{ section.name }}</div>
 <h1 class="gt">{{ section.guide_title }}</h1>
 <p class="gintro">{{ section.intro }}</p>
-<p class="byline">By the {{ site.site_title }} team &middot; picks based on product specifications, popularity and value. We earn a commission from qualifying purchases at no extra cost to you.</p>
+<p class="byline">By the {{ site.site_title }} team{% if updated_on %} &middot; Updated {{ updated_on }}{% endif %} &middot; picks based on product specifications, popularity and value (<a href="/how-we-choose">how we choose</a>). We earn a commission from qualifying purchases at no extra cost to you.</p>
 
 <div class="cmp-wrap"><table class="cmp">
   <tr><th></th><th>Product</th><th>Best for</th><th>Highlights</th><th></th></tr>
@@ -50,7 +55,7 @@ table.cmp .btn { white-space:nowrap; padding:9px 14px; font-size:.88rem; }
     <td><a class="pname" href="/s/{{ niche.slug }}/p/{{ p.asin }}">{{ p.title|truncate(70) }}</a>{% if p.brand %}<div class="meta">{{ p.brand }}</div>{% endif %}</td>
     <td>{% if pick.best_for %}<span class="bf">{{ pick.best_for }}</span>{% endif %}</td>
     <td>{% if p.features %}<ul>{% for f in p.features[:2] %}<li>{{ f|truncate(80) }}</li>{% endfor %}</ul>{% endif %}</td>
-    <td><a class="btn" href="/go/{{ niche.slug }}/{{ p.asin }}" rel="nofollow sponsored noopener" target="_blank">Check price</a></td>
+    <td><a class="btn" href="/go/{{ niche.slug }}/{{ p.asin }}" rel="nofollow sponsored noopener" target="_blank">Check price on Amazon</a></td>
   </tr>
   {% endfor %}
 </table></div>
@@ -76,6 +81,13 @@ table.cmp .btn { white-space:nowrap; padding:9px 14px; font-size:.88rem; }
 {% endfor %}
 
 {% if section.verdict %}<div class="verdict"><b>The bottom line:</b> {{ section.verdict }}</div>{% endif %}
+
+{% if section.faq %}
+<section class="faq">
+  <h2>Frequently asked questions</h2>
+  {% for f in section.faq %}<details{% if loop.first %} open{% endif %}><summary>{{ f.q }}</summary><p>{{ f.a }}</p></details>{% endfor %}
+</section>
+{% endif %}
 
 {% if entries|length > picks|length %}
 <div class="section-head"><h2>More {{ section.name|lower }}</h2></div>

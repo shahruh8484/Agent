@@ -93,3 +93,26 @@ def test_one_site_gives_the_whole_domain_its_name(settings, store):
     store.set_site_copy(store.list_niches()[-1].id,
                         SiteCopy(site_title="Charge Hub", tagline="t", intro="i"))
     assert "Example</a>" in client.get("/").text  # back to the domain name
+
+
+def test_guides_have_faq_date_and_amazon_labelled_buttons(settings, store):
+    niche = _site(settings, store)
+    first = store.get_site_plan(niche.id).sections[0]
+    client = TestClient(create_app(settings, store, start_loop=False))
+    guide = client.get(f"/s/{niche.slug}/c/{first.slug}").text
+    assert "Frequently asked questions" in guide and "How loud are they?" in guide
+    assert "Updated " in guide and 'href="/how-we-choose"' in guide
+    assert ">Check price</a>" not in guide  # every Amazon button says so
+    page = client.get("/how-we-choose").text
+    assert "brand-funded commission" in page
+    assert "cannot pay to be listed" not in client.get("/affiliate-disclosure").text
+
+
+def test_an_old_plan_without_faq_is_rebuilt(settings, store):
+    niche = _site(settings, store)
+    plan = store.get_site_plan(niche.id)
+    plan.version = 1
+    store.set_site_plan(niche.id, plan)
+    llm = FakeLLM()
+    update_site_plan(Deps(settings=settings, store=store, llm=llm), niche)
+    assert llm.prompts and store.get_site_plan(niche.id).version >= 2

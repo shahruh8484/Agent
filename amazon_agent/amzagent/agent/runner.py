@@ -28,7 +28,7 @@ from amzagent.config import Settings
 from amzagent.content.llm import LLM, LLMError, get_llm
 from amzagent.content.writer import uses_amazon_marks, write_product_copy, write_site_copy
 from amzagent.content.sections import OTHER as SECTIONS_OTHER
-from amzagent.content.sections import group_products, write_guide
+from amzagent.content.sections import PLAN_VERSION, group_products, write_guide
 from amzagent.models import COPY_VERSION, Niche, SitePlan
 from amzagent.panel_settings import effective, save_overrides
 from amzagent.push import propeller
@@ -263,9 +263,10 @@ def update_site_plan(deps: Deps, niche: Niche) -> None:
         return  # too few to be worth sections
     signature = hashlib.sha1(",".join(sorted(p.asin for p, _ in items)).encode()).hexdigest()
     plan = deps.store.get_site_plan(niche.id)
-    if plan and plan.signature == signature:
+    outdated = plan is not None and plan.version < PLAN_VERSION  # e.g. guides without FAQ
+    if plan and plan.signature == signature and not outdated:
         return
-    if plan and plan.built_at:
+    if plan and plan.built_at and not outdated:
         age = datetime.now(timezone.utc) - datetime.fromisoformat(plan.built_at)
         if age < timedelta(hours=SITE_PLAN_MIN_HOURS):
             return
@@ -284,8 +285,8 @@ def update_site_plan(deps: Deps, niche: Niche) -> None:
             guides += 1
         except LLMError as exc:
             deps.say(f"[{niche.slug}] guide for {section.name!r} failed: {exc}")
-    deps.store.set_site_plan(niche.id, SitePlan(signature=signature, built_at=now_iso(),
-                                                sections=sections))
+    deps.store.set_site_plan(niche.id, SitePlan(version=PLAN_VERSION, signature=signature,
+                                                built_at=now_iso(), sections=sections))
     deps.say(f"[{niche.slug}] organised {len(items)} products into {len(sections)} sections, "
              f"{guides} buying guides")
 

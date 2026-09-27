@@ -58,7 +58,8 @@ class FakeLLM:
                 "how_to_choose": ["Check fit", "Check battery"],
                 "picks": [{"asin": a, "best_for": "Best for commuting", "blurb": f"About {a}."}
                           for a in asins],
-                "verdict": "Pick the first one."})
+                "verdict": "Pick the first one.",
+                "faq": [{"q": "How loud are they?", "a": "Check the noise rating."}]})
         if "site_title" in prompt:
             return json.dumps({"site_title": "Sound Picks", "tagline": "Top rated audio",
                                "intro": "We pick well-rated products."})

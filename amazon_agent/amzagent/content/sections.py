@@ -12,7 +12,7 @@ import re
 
 from amzagent.content.llm import LLM, LLMError, parse_json
 from amzagent.content.writer import AMAZON_MARKS, RULES
-from amzagent.models import GuidePick, Product, ProductCopy, SiteSection
+from amzagent.models import FaqItem, GuidePick, Product, ProductCopy, SiteSection
 
 SYSTEM = (
     "You organise and write buying guides for an independent product-review "
@@ -22,6 +22,7 @@ OTHER = "More Picks"
 MIN_SECTION = 2  # smaller groups go to "More Picks"
 MAX_SECTIONS = 12
 GUIDE_PRODUCTS = 8  # products compared in one guide
+PLAN_VERSION = 2  # bump when guides gain fields: older plans are rebuilt (2: FAQ)
 
 
 def slugify(text: str) -> str:
@@ -93,7 +94,10 @@ def write_guide(llm: LLM, section: SiteSection, products: dict[str, tuple[Produc
         '  "how_to_choose": 4-5 practical tips for choosing ANY product of this kind,\n'
         '  "picks": one object per product, in the same order: {"asin", "best_for": '
         '"Best for ..." under 8 words, "blurb": 1-2 sentences from its features},\n'
-        '  "verdict": 2 sentences summing up which pick suits whom.'
+        '  "verdict": 2 sentences summing up which pick suits whom,\n'
+        '  "faq": 3-4 questions shoppers commonly ask about choosing or using this '
+        'kind of product, as [{"q": "...", "a": "2-3 sentence answer"}] — general '
+        "advice, no claims about specific models, no prices."
     )
     data = parse_json(llm.generate(SYSTEM, prompt, max_tokens=3000))
     if not isinstance(data, dict):
@@ -114,4 +118,7 @@ def write_guide(llm: LLM, section: SiteSection, products: dict[str, tuple[Produc
     section.how_to_choose = [str(t)[:300] for t in data.get("how_to_choose") or []][:6]
     section.picks = picks
     section.verdict = str(data.get("verdict", ""))[:600]
+    section.faq = [FaqItem(q=str(f["q"])[:200], a=str(f["a"])[:600])
+                   for f in data.get("faq") or []
+                   if isinstance(f, dict) and f.get("q") and f.get("a")][:5]
     return section

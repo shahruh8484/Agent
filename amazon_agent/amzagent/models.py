@@ -70,6 +70,11 @@ class GuidePick(BaseModel):
     blurb: str = ""  # 1-2 sentences, from the product's own features
 
 
+class FaqItem(BaseModel):
+    q: str
+    a: str
+
+
 class SiteSection(BaseModel):
     """A topic on a site (e.g. "Air Purifiers") with a comparison guide."""
 
@@ -81,11 +86,13 @@ class SiteSection(BaseModel):
     how_to_choose: list[str] = Field(default_factory=list)
     picks: list[GuidePick] = Field(default_factory=list)
     verdict: str = ""
+    faq: list[FaqItem] = Field(default_factory=list)
 
 
 class SitePlan(BaseModel):
     """How a site's products are grouped into sections, and their guides."""
 
+    version: int = 0  # plans older than sections.PLAN_VERSION are rebuilt
     signature: str = ""  # which products it was built for
     built_at: str = ""
     sections: list[SiteSection] = Field(default_factory=list)

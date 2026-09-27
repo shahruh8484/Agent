@@ -1,0 +1,32 @@
+{% extends "root_base.html" %}
+{% block title %}How We Choose Products — {{ brand }}{% endblock %}
+{% block extra_head %}{% include "_legal_style.html" %}{% endblock %}
+{% block content %}
+<article class="doc">
+<h1>How we choose products</h1>
+<p class="updated">Last updated: {{ updated }}</p>
+<p>{{ brand }} publishes buying guides that compare popular products side by side. This page explains where the products come from, how we pick and order them, and how our pages are written — so you can judge our recommendations for yourself.</p>
+
+<h2>Where the products come from</h2>
+<p>Every product we feature is sold on Amazon.com. Product names, photos, prices, availability and feature lists come directly from Amazon's official product data for affiliates, and prices are refreshed several times a day. A price is only shown together with the time it was checked; the price on Amazon at the moment you buy always applies.</p>
+
+<h2>What we look at</h2>
+<ul>
+  <li><b>Popularity and customer feedback.</b> How well a product sells and, where available, how highly buyers rate it and how many have reviewed it.</li>
+  <li><b>Features and value.</b> What the product offers for its price compared with similar products.</li>
+  <li><b>Availability.</b> Products that are out of stock or no longer sold drop off our pages.</li>
+  <li><b>Commission.</b> How much we may earn per sale. Some brands take part in Amazon programs that pay a higher, brand-funded commission, and those products may be featured more prominently. No brand can pay us directly for a place, write or edit our content, or review it before publication.</li>
+</ul>
+
+<h2>How our guides are organised</h2>
+<p>Products are grouped by what they're for — for example air purifiers or car accessories — so each guide compares like with like. Each guide has a comparison table, tips on what to look for when choosing, a short write-up of every pick and a summary of which pick suits whom.</p>
+
+<h2>How our pages are written</h2>
+<p>Summaries, pros and cons, comparisons and buying tips are written with the help of AI and are based only on each product's listed features and general knowledge of the product category. We do not physically test products, we don't publish invented specifications, prices or deadlines, and we don't claim hands-on experience we don't have. Always check the full details on Amazon before you buy.</p>
+
+<h2>Corrections</h2>
+<p>If something on our site looks wrong or out of date, please <a href="/contact">let us know</a> — we fix errors as soon as we can.</p>
+
+<p>See also our <a href="/affiliate-disclosure">Affiliate Disclosure</a>.</p>
+</article>
+{% endblock %}
