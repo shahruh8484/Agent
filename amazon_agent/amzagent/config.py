@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     min_rating: float = 4.0
     min_reviews: int = 100
     products_per_site: int = 12
+    # Sites imported from Creator Connections: the list is hand-picked, so
+    # the shelf is bigger (best ones by rating, reviews and EPC).
+    import_site_size: int = 30
     # The agent keeps at least this many sites running, picking the niches
     # itself (LLM ideas, checked against the live Amazon catalog). 0 = only
     # the niches you add by hand.

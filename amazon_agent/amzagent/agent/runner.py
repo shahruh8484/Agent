@@ -63,7 +63,6 @@ TODAY_SPEND_FLAG = "spent_24h"
 TODAY_SPEND_MAX_AGE_MINUTES = 20  # stopped by the kill rule — never relaunched for that product
 PAUSE_FLAG = "paused_all"
 SEARCH_PAGES = 2  # 10 items per page
-CURATED_SITE_SIZE = 30
 
 
 @dataclass
@@ -136,8 +135,8 @@ def refresh_niche(deps: Deps, niche: Niche) -> bool:
         deps.say(f"[{niche.slug}] skipped: Amazon API not configured")
         return False
 
-    # An imported list was already hand-picked, so it gets a bigger shelf.
-    limit = max(s.products_per_site, CURATED_SITE_SIZE) if niche.asins else s.products_per_site
+    # An imported list was already hand-picked, so it gets its own (bigger) shelf.
+    limit = s.import_site_size if niche.asins else s.products_per_site
     candidates: list = []
     offline = False
     if niche.asins:

@@ -170,6 +170,16 @@ def test_fallback_builds_site_from_pasted_page(settings, store):
         .headers["location"].endswith("tag=screensoundlo-20")
 
 
+def test_import_site_size_limits_the_shelf(settings, store):
+    settings.amazon_partner_tag = "screensoundlo-20"
+    settings.min_reviews = 300
+    settings.import_site_size = 2
+    niche = _import(store)
+    run_cycle(Deps(settings=settings, store=store, catalog=DeniedCatalog(), llm=FakeLLM()))
+    # the best two of the three that qualify
+    assert [p.asin for p, _ in store.list_products(niche.id)] == ["B0FYZ9QQ9Z", "B0DZ7RZ14S"]
+
+
 def test_api_recovery_replaces_fallback_pages(settings, store):
     settings.amazon_partner_tag = "t-20"
     niche = _import(store)

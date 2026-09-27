@@ -29,6 +29,7 @@ EDITABLE: dict[str, tuple[type, float | None, float | None]] = {
     "zone_min_spend": (float, 0, 10_000),
     "push_creatives": (str, None, None),
     "auto_niches": (int, 0, 50),
+    "import_site_size": (int, 1, 500),
 }
 
 COUNTRIES_RE = re.compile(r"^[a-z]{2}(,[a-z]{2})*$")
