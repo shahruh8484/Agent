@@ -37,7 +37,7 @@ GUIDE_PRODUCTS = 8  # products compared in one guide
 # Bump when guides gain fields: older plans are rebuilt once.
 # 2: FAQ. 3: who it's for, care tips, advice article. 4: more articles,
 # head-to-heads, gift and seasonal collections.
-PLAN_VERSION = 4
+PLAN_VERSION = 5
 
 # Advice articles per section: the key is part of the prompt's topic.
 ARTICLE_TOPICS = {
@@ -78,9 +78,14 @@ def group_products(llm: LLM, items: list[tuple[Product, ProductCopy]],
         f"TASK: group products into site sections.\nLanguage: {language}\n"
         "Products (ASIN | type | title):\n" + "\n".join(lines) + "\n\n"
         f"Group them into 3-{MAX_SECTIONS} topical sections a shopper would browse, "
-        "e.g. \"Air Purifiers\", \"Car Accessories\", \"Kitchen Gadgets\". Each section "
+        "e.g. \"Air Purifiers\", \"Car Accessories\", \"Sinus Care\". Each section "
         f"needs at least {MIN_SECTION} products; put odd ones out in no section. Section "
         "names: 1-3 words, plural, no brand names, no Amazon trademarks.\n"
+        "A product goes into a section only if a shopper would look for it there by "
+        "what the product is and where it is used: a sinus rinse is health care, not a "
+        "kitchen item; a phone mount is a car accessory. No catch-all sections such as "
+        "\"Gadgets\", \"Essentials\" or \"Home Products\" - leave a product out rather "
+        "than force it into a section where it doesn't belong.\n"
         'Return a JSON array: [{"name": "...", "asins": ["...", ...]}, ...]'
     )
     data = parse_json(llm.generate(SYSTEM, prompt, max_tokens=4000))
