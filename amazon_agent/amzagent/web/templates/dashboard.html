@@ -123,7 +123,7 @@
   <td class="num">{% if it.epc %}${{ "%.2f"|format(it.epc) }}{% else %}—{% endif %}</td>
   <td>{% if it.budget %}<span class="dot b-{{ it.budget }}"></span>{{ {"high": "High", "medium": "Medium", "low": "Low — не рекламируется"}[it.budget] }}{% else %}<span class="muted">—</span>{% endif %}</td>
   <td>{% if c %}<a href="#c{{ c.id }}">#{{ c.id }}</a> <span class="muted">{{ status_names.get(c.status, c.status) }}</span>{% else %}<span class="muted">не запускалась</span>{% endif %}</td>
-  <td class="acts">{% if c and c.status in ("active", "capped", "creating", "dry_run") %}<span class="muted">идёт</span>{% elif it.ready %}<form class="inline" method="post" action="/niches/{{ n.niche.id }}/products/{{ it.asin }}/launch"><button class="sm" onclick="return confirm('Запустить рекламу на этот товар? Бюджет ${{ '%.2f'|format(settings.campaign_daily_budget) }}/день.')">Запустить рекламу</button></form>{% else %}<span class="muted">нет текстов</span>{% endif %}</td>
+  <td class="acts">{% if c and c.status in ("active", "capped", "creating", "dry_run") %}<span class="muted">{{ {"active": "работает", "capped": "на паузе до освобождения лимита", "creating": "создаётся", "dry_run": "тест"}[c.status] }}</span>{% elif it.ready %}<form class="inline" method="post" action="/niches/{{ n.niche.id }}/products/{{ it.asin }}/launch"><button class="sm" onclick="return confirm('Запустить рекламу на этот товар? Бюджет ${{ '%.2f'|format(settings.campaign_daily_budget) }}/день.')">Запустить рекламу</button></form>{% else %}<span class="muted">нет текстов</span>{% endif %}</td>
 </tr>{% endfor %}
 </table></div></td></tr>{% endif %}
 {% else %}<tr><td colspan="6" class="muted">Пока нет сайтов — добавьте нишу выше.</td></tr>{% endfor %}
