@@ -661,8 +661,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             if not n.enabled or copy is None:
                 continue
             products = [p for p, c in store.list_products(n.id) if c][:4]
+            plan = store.get_site_plan(n.id)
+            guides = [s for s in (plan.sections if plan else []) if s.picks]
             if products:
-                sites.append({"niche": n, "site": copy, "products": products})
+                sites.append({"niche": n, "site": copy, "products": products, "guides": guides})
         return SITE_TEMPLATES.TemplateResponse(
             request, "hub.html", public_ctx(request, sites=sites))
 

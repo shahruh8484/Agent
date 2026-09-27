@@ -70,6 +70,7 @@ def test_site_pages_show_sections_and_guides(settings, store):
     product = client.get(f"/s/{niche.slug}/p/{first.asins[0]}").text
     assert f'/s/{niche.slug}/c/{first.slug}">Earbuds</a>' in product  # breadcrumb
     assert f"/s/{niche.slug}/c/{first.slug}" in client.get("/sitemap.xml").text
+    assert f"/s/{niche.slug}/c/{first.slug}" in client.get("/").text  # hub links the guides
 
 
 def test_new_products_show_under_more_picks_until_the_plan_is_rebuilt(settings, store):

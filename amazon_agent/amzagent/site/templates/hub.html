@@ -1,11 +1,11 @@
 {% extends "root_base.html" %}
 {% block title %}{{ brand }} — top rated product picks{% endblock %}
-{% block description %}Hand-picked, top rated products across categories, chosen by customer ratings and reviews.{% endblock %}
+{% block description %}Buying guides and product comparisons across categories: popular, well-reviewed picks compared side by side.{% endblock %}
 {% block hero %}
 <section class="hero"><div class="wrap">
-  <h1>The best-rated products, picked for you</h1>
-  <p>We rank products by what real customers say — ratings, review counts and sales — so you can skip the endless scrolling.</p>
-  <div class="chips"><span class="chip">&#10003; Ranked by ratings &amp; reviews</span><span class="chip">&#10003; Refreshed daily</span><span class="chip">&#10003; Independent picks</span></div>
+  <h1>Buying guides that compare the best picks</h1>
+  <p>We group popular, well-reviewed products by what they're for and compare them side by side — features, who each one suits and what to look for — so you can skip the endless scrolling.</p>
+  <div class="chips"><span class="chip">&#10003; Side-by-side comparisons</span><span class="chip">&#10003; Prices refreshed daily</span><span class="chip">&#10003; Independent picks</span></div>
 </div></section>
 {% endblock %}
 {% block content %}
@@ -13,6 +13,7 @@
   <section style="margin-bottom:44px">
     <div class="section-head"><h2><a href="/s/{{ s.niche.slug }}/" style="text-decoration:none">{{ s.site.site_title }}</a></h2><a href="/s/{{ s.niche.slug }}/">See all picks &rarr;</a></div>
     <p class="meta" style="margin:-8px 0 16px">{{ s.site.tagline }}</p>
+    {% if s.guides %}<div style="display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px">{% for g in s.guides %}<a href="/s/{{ s.niche.slug }}/c/{{ g.slug }}" style="font-size:.88rem;font-weight:600;text-decoration:none;padding:7px 14px;border-radius:99px;background:var(--surface);border:1px solid var(--line);color:var(--ink)">{{ g.name }} guide</a>{% endfor %}</div>{% endif %}
     <div class="grid">
     {% for p in s.products %}{% set c = none %}{% set rank = loop.index %}{% set niche_slug = s.niche.slug %}{% include "_card.html" %}{% endfor %}
     </div>
