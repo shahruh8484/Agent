@@ -401,15 +401,25 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             raise HTTPException(404)
         return niche, copy
 
-    brand = settings.site_name or (
+    domain_brand = settings.site_name or (
         settings.domain.split(".")[0].title() if settings.domain else "Top Picks"
     )
     domain = settings.domain or "this site"
 
+    def current_brand() -> str:
+        """One name for the whole domain: SITE_NAME if set, else — with a
+        single live site — that site's own title, so the home page, legal
+        pages and the site itself don't carry two different names."""
+        if settings.site_name:
+            return settings.site_name
+        titles = [c.site_title for n in store.list_niches() if n.enabled
+                  for c in [store.get_site_copy(n.id)] if c]
+        return titles[0] if len(titles) == 1 else domain_brand
+
     def public_ctx(request: Request, **extra) -> dict:
         return {
             "request": request,
-            "brand": brand,
+            "brand": current_brand(),
             "domain": domain,
             "contact_email": settings.contact_email,
             "updated": LEGAL_PAGES_UPDATED,
@@ -580,7 +590,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             '<stop offset="0" stop-color="#e8590c"/><stop offset="1" stop-color="#f59f00"/>'
             '</linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#g)"/>'
             '<text x="32" y="44" font-family="Arial,sans-serif" font-size="36" '
-            f'font-weight="700" fill="#fff" text-anchor="middle">{escape(brand[:1])}</text></svg>',
+            f'font-weight="700" fill="#fff" text-anchor="middle">{escape(current_brand()[:1])}</text></svg>',
             media_type="image/svg+xml",
         )
 

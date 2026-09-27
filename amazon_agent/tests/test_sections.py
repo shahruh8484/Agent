@@ -81,3 +81,15 @@ def test_new_products_show_under_more_picks_until_the_plan_is_rebuilt(settings, 
     client = TestClient(create_app(settings, store, start_loop=False))
     home = client.get(f"/s/{niche.slug}/").text
     assert 'href="#more-picks"' in home
+
+
+def test_one_site_gives_the_whole_domain_its_name(settings, store):
+    _site(settings, store)
+    client = TestClient(create_app(settings, store, start_loop=False))
+    assert "Sound Picks</a>" in client.get("/").text  # hub header uses the site's title
+    assert "Sound Picks is a participant" in client.get("/privacy").text
+    store.add_niche("chargers")  # a second site with a title of its own would differ
+    from amzagent.models import SiteCopy
+    store.set_site_copy(store.list_niches()[-1].id,
+                        SiteCopy(site_title="Charge Hub", tagline="t", intro="i"))
+    assert "Example</a>" in client.get("/").text  # back to the domain name
