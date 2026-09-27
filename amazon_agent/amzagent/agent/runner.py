@@ -869,8 +869,9 @@ def launch_campaigns(deps: Deps) -> None:
             committed = committed or 0.0
             if live and committed + s.campaign_daily_budget > s.max_daily_spend:
                 deps.say(
-                    f"launch paused: daily cap ${s.max_daily_spend:.2f} reached "
-                    f"(${committed:.2f} spent in 24h or committed)"
+                    f"launch paused: no room under the daily cap — ${committed:.2f} of "
+                    f"${s.max_daily_spend:.2f} taken in 24h, a new campaign needs "
+                    f"${s.campaign_daily_budget:.2f}"
                 )
                 return
 
