@@ -40,6 +40,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.middleware.sessions import SessionMiddleware
 
 from amzagent.agent.runner import (
+    committed_24h,
     CAPPED,
     NEXT_CYCLE_FLAG,
     resume_eta,
@@ -630,8 +631,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "messages": store.list_messages(20),
                 "running_budget": store.running_daily_budget(),
                 "spent_today": spent_today(store),
-                "committed_today": (spent_today(store, only_stopped=True) or 0.0)
-                + store.running_daily_budget(),
+                "committed_today": committed_24h(store) or 0.0,
                 "active_count": len(store.list_campaigns(statuses=(ACTIVE,))),
                 "capped_count": len(store.list_campaigns(statuses=(CAPPED,))),
                 "resume_at": when(resume_eta(store, eff.max_daily_spend), eff.panel_timezone),

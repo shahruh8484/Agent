@@ -23,6 +23,7 @@ from amzagent.agent.runner import (
     STATS_ERROR_FLAG,
     build_deps,
     change_settings,
+    committed_24h,
     exclude_zone,
     include_zone,
     is_manual,
@@ -237,8 +238,7 @@ class ChatAgent:
         if is_manual(self.store):
             out.append("Ручной режим: агент сам новые кампании не запускает.")
         elif spent is not None and s.push_live:
-            committed = (spent_today(self.store, only_stopped=True) or 0.0) \
-                + self.store.running_daily_budget()
+            committed = committed_24h(self.store) or 0.0
             if committed + s.campaign_daily_budget > s.max_daily_spend:
                 out.append(f"Новые кампании не запускаются: занято ${committed:.2f} из лимита "
                            f"${s.max_daily_spend:.2f}, а новой нужно "

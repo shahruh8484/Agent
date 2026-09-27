@@ -521,3 +521,34 @@ def test_network_paused_campaign_is_marked_not_forced(settings, store):
     c = store.get_campaign(a["id"])
     assert c["status"] == ACTIVE and c["note"] == "PropellerAds: paused"
     assert push.started == []  # PropellerAds restarts it by itself
+
+
+def test_committed_counts_a_running_campaigns_real_24h_spend(settings, store):
+    import json
+    from datetime import datetime, timezone
+
+    from amzagent.agent.runner import TODAY_SPEND_FLAG, committed_24h
+
+    niche = store.add_niche("earbuds")
+    running = store.add_campaign(niche.id, "A1", ACTIVE, 10)
+    fresh = store.add_campaign(niche.id, "A2", ACTIVE, 10)
+    stopped = store.add_campaign(niche.id, "A3", KILLED, 10)
+    assert committed_24h(store) is None  # unknown spend is never zero
+    store.set_flag(TODAY_SPEND_FLAG, json.dumps({
+        "at": datetime.now(timezone.utc).isoformat(),
+        "by_campaign": {str(running): 18.42, str(fresh): 2.0, str(stopped): 31.5}}))
+    # 31.50 stopped + 18.42 (spent more than its $10 budget) + 10 (budget > $2 spent)
+    assert committed_24h(store) == 31.5 + 18.42 + 10
+
+
+def test_stopped_campaigns_keep_getting_late_spend(settings, store):
+    settings.push_live = True
+    store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    store.update_campaign(c["id"], status=KILLED, spend=6.18)
+    push.spend_rows = [{"campaign_id": c["external_id"], "spent": 6.9}]  # late clicks
+    run_cycle(_deps(settings, store, push))
+    assert store.get_campaign(c["id"])["spend"] == 6.9
+    assert store.get_campaign(c["id"])["status"] == KILLED

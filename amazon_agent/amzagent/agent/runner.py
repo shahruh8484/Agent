@@ -56,6 +56,7 @@ VISITS_PER_PAID_CLICK = 0.85
 STATS_OK_FLAG = "stats_ok_at"
 STATS_ERROR_FLAG = "stats_error"
 ZONE_STATS_FLAG = "zone_stats_at"
+STATS_KEEP_DAYS = 30  # stopped campaigns keep getting their late spend synced this long
 # Per-zone stats are the heaviest statistics call; totals are enough for
 # the 3-minute kill/limit checks, so zones are pulled less often.
 ZONE_STATS_EVERY_MINUTES = 15
@@ -449,11 +450,20 @@ def sync_moderation(deps: Deps) -> None:
 def sync_stats(deps: Deps) -> bool:
     """Pull impressions / clicks / spend per campaign and per zone from
     PropellerAds into the store (what the dashboard shows and the kill and
-    zone rules read). Returns False if the stats could not be read."""
-    active = [c for c in deps.store.list_campaigns(statuses=(ACTIVE,)) if c["external_id"]]
-    if not active or deps.push is None:
+    zone rules read). Returns False if the stats could not be read.
+
+    Stopped campaigns from the last STATS_KEEP_DAYS are included: PropellerAds
+    books late clicks for up to an hour after a stop, and a campaign paused
+    at the limit still has spend to catch up on."""
+    if deps.push is None:
         return True
-    by_external = {c["external_id"]: c for c in active}
+    cutoff = datetime.now(timezone.utc) - timedelta(days=STATS_KEEP_DAYS)
+    tracked = [c for c in deps.store.list_campaigns()
+               if c["external_id"] and c["status"] != DRY_RUN
+               and datetime.fromisoformat(c["created_at"]) > cutoff]
+    if not tracked:
+        return True
+    by_external = {c["external_id"]: c for c in tracked}
     try:
         totals = deps.push.spend(list(by_external), days=365)
     except PropellerError as exc:
@@ -509,10 +519,8 @@ def sync_today_spend(deps: Deps) -> None:
     deps.store.set_flag(TODAY_SPEND_FLAG, json.dumps({"at": now_iso(), "by_campaign": spent}))
 
 
-def spent_today(store: Store, only_stopped: bool = False) -> float | None:
-    """Spend over the last 24h (optionally only by campaigns no longer
-    running). None if it hasn't been read recently: callers must then treat
-    the budget as unknown, never as zero."""
+def _spend_24h_by_campaign(store: Store) -> dict[str, float] | None:
+    """{campaign id: spend over the last 24h}, or None if not read recently."""
     try:
         data = json.loads(store.get_flag(TODAY_SPEND_FLAG, "{}"))
         at = datetime.fromisoformat(data["at"])
@@ -520,7 +528,31 @@ def spent_today(store: Store, only_stopped: bool = False) -> float | None:
         return None
     if datetime.now(timezone.utc) - at > timedelta(minutes=TODAY_SPEND_MAX_AGE_MINUTES):
         return None
-    by_campaign = data.get("by_campaign", {})
+    return {k: float(v) for k, v in data.get("by_campaign", {}).items()}
+
+
+def committed_24h(store: Store) -> float | None:
+    """What the 24h limit must count as taken: last-24h spend of campaigns
+    no longer running, plus for each running one the larger of its
+    last-24h spend and its daily budget (a 24h window can span two of its
+    budget days). None if the 24h spend isn't known."""
+    by_campaign = _spend_24h_by_campaign(store)
+    if by_campaign is None:
+        return None
+    running = store.list_campaigns(statuses=(ACTIVE,))
+    ids = {str(c["id"]) for c in running}
+    stopped = sum(v for k, v in by_campaign.items() if k not in ids)
+    return stopped + sum(max(c["daily_budget"], by_campaign.get(str(c["id"]), 0.0))
+                         for c in running)
+
+
+def spent_today(store: Store, only_stopped: bool = False) -> float | None:
+    """Spend over the last 24h (optionally only by campaigns no longer
+    running). None if it hasn't been read recently: callers must then treat
+    the budget as unknown, never as zero."""
+    by_campaign = _spend_24h_by_campaign(store)
+    if by_campaign is None:
+        return None
     if only_stopped:
         active = {str(c["id"]) for c in store.list_campaigns(statuses=(ACTIVE,))}
         by_campaign = {k: v for k, v in by_campaign.items() if k not in active}
@@ -616,8 +648,7 @@ def resume_campaign(deps: Deps, campaign_id: int) -> str | None:
         return "PropellerAds не подключён или реклама выключена в настройках"
     # Same rule as launching: spent in 24h by stopped campaigns + running
     # budgets + this one's budget must fit under the limit.
-    stopped_spend = spent_today(deps.store, only_stopped=True)
-    committed = (stopped_spend or 0.0) + deps.store.running_daily_budget()
+    committed = committed_24h(deps.store) or 0.0
     if committed + c["daily_budget"] > deps.settings.max_daily_spend:
         return (f"не хватает дневного лимита: занято ${committed:.2f} из "
                 f"${deps.settings.max_daily_spend:.2f} (поднимите лимит в настройках)")
@@ -762,11 +793,11 @@ def launch_campaigns(deps: Deps) -> None:
             # Cap = money spent in the last 24h by campaigns that were stopped
             # + budgets of the running ones + the new one. Unknown spend
             # never counts as zero.
-            stopped_spend = spent_today(store, only_stopped=True)
-            if live and stopped_spend is None:
+            committed = committed_24h(store)
+            if live and committed is None:
                 deps.say("launch paused: last-24h spend unknown (PropellerAds stats not read)")
                 return
-            committed = (stopped_spend or 0.0) + store.running_daily_budget()
+            committed = committed or 0.0
             if live and committed + s.campaign_daily_budget > s.max_daily_spend:
                 deps.say(
                     f"launch paused: daily cap ${s.max_daily_spend:.2f} reached "
@@ -825,10 +856,9 @@ def launch_product(deps: Deps, niche_id: int, asin: str) -> str | None:
     if s.push_live:
         if deps.push is None:
             return "PropellerAds не подключён"
-        stopped_spend = spent_today(store, only_stopped=True)
-        if stopped_spend is None:
+        committed = committed_24h(store)
+        if committed is None:
             return "расход за 24 ч ещё не получен из PropellerAds — попробуйте через пару минут"
-        committed = stopped_spend + store.running_daily_budget()
         if committed + s.campaign_daily_budget > s.max_daily_spend:
             return (f"не хватает дневного лимита: занято ${committed:.2f} из "
                     f"${s.max_daily_spend:.2f} (поднимите лимит в настройках)")
