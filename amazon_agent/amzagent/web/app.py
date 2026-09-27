@@ -566,6 +566,12 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         if not logged_in(request):
             return to_login()
         eff = effective(settings, store)
+        # The chosen period sticks (in the session) across button presses,
+        # which all redirect back to a bare /admin.
+        if period or date_from or date_to:
+            request.session["period"] = [period, date_from, date_to]
+        else:
+            period, date_from, date_to = request.session.get("period") or [None, None, None]
         chosen = parse_period(period, date_from, date_to, eff.panel_timezone)
         net, net_zones, period_error = ({}, {}, "")
         if not chosen.is_all:

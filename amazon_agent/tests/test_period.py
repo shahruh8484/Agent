@@ -62,5 +62,22 @@ def test_dashboard_period_uses_network_window_and_site_events(settings, store, m
     assert "Итого за" in page and "$0.12" in page and ">123<" in page
     assert "$9.99" not in page  # all-time numbers not mixed in
     assert len(calls) == 2
-    all_time = client.get("/admin").text
+    all_time = client.get("/admin?period=all").text
     assert "$9.99" in all_time and "Итого за всё время" in all_time
+
+
+def test_chosen_period_survives_redirects(settings, store):
+    import bcrypt
+    from fastapi.testclient import TestClient
+
+    from amzagent.web.app import create_app
+
+    settings.admin_password_hash = bcrypt.hashpw(b"pw", bcrypt.gensalt()).decode()
+    client = TestClient(create_app(settings, store, start_loop=False))
+    client.post("/login", data={"username": "admin", "password": "pw"})
+    client.get("/admin?period=today")
+    page = client.post("/stats/refresh").text  # redirects to a bare /admin
+    assert 'class="preset on" href="/admin?period=today' in page
+    page = client.get("/admin?period=all").text
+    assert 'class="preset on" href="/admin?period=all' in page
+    assert 'class="preset on" href="/admin?period=all' in client.get("/admin").text
