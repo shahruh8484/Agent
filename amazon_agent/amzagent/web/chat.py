@@ -442,7 +442,7 @@ class ChatAgent:
         self.store.add_chat("assistant", text)
         lines = [f"чат: {a}" for a in actions] + deps.log
         if lines:
-            run_id = self.store.start_run(None)
+            run_id = self.store.start_run(None, kind="chat")
             for line in lines:
                 self.store.append_run_log(run_id, line)
             self.store.finish_run(run_id, True)

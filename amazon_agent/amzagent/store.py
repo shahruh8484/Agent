@@ -147,6 +147,18 @@ class Store:
                               ("manual_keep", "INTEGER NOT NULL DEFAULT 0")):
                 if col not in cols:
                     self._db.execute(f"ALTER TABLE campaigns ADD COLUMN {col} {decl}")
+            # Run kind (added later): cycle = full agent cycle, check = the
+            # 3-minute campaign check, chat = actions taken from the chat.
+            cols = {r[1] for r in self._db.execute("PRAGMA table_info(runs)")}
+            if "kind" not in cols:
+                self._db.execute("ALTER TABLE runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'cycle'")
+                # Sort the existing rows: chat actions start with "чат:";
+                # the 3-minute checks have no site ("[slug]") or discovery lines.
+                self._db.execute("UPDATE runs SET kind = 'chat' WHERE log LIKE 'чат:%'")
+                self._db.execute(
+                    "UPDATE runs SET kind = 'check' WHERE kind = 'cycle' AND niche_id IS NULL"
+                    " AND log NOT LIKE '%[%]%' AND log NOT LIKE '%niche discovery%'"
+                    " AND log NOT LIKE '%прервано%'")
             # Visitor device on events (added later): mobile | desktop.
             cols = {r[1] for r in self._db.execute("PRAGMA table_info(events)")}
             if "device" not in cols:
@@ -484,13 +496,18 @@ class Store:
 
     # --- runs + flags -----------------------------------------------------
 
-    def start_run(self, niche_id: int | None) -> int:
+    def start_run(self, niche_id: int | None, kind: str = "cycle") -> int:
         """Open a run row that the dashboard shows live while it fills."""
         cur = self._exec(
-            "INSERT INTO runs (ts, niche_id, ok, log) VALUES (?, ?, ?, '')",
-            (now_iso(), niche_id, RUN_IN_PROGRESS),
+            "INSERT INTO runs (ts, niche_id, ok, log, kind) VALUES (?, ?, ?, '', ?)",
+            (now_iso(), niche_id, RUN_IN_PROGRESS, kind),
         )
         return cur.lastrowid
+
+    def prune_runs(self, kind: str, days: int) -> None:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds")
+        self._exec("DELETE FROM runs WHERE kind = ? AND ts < ? AND ok != ?",
+                   (kind, cutoff, RUN_IN_PROGRESS))
 
     def append_run_log(self, run_id: int, line: str) -> None:
         self._exec(
@@ -508,10 +525,17 @@ class Store:
                    ("(прервано перезапуском сервера)", RUN_IN_PROGRESS))
 
     def run_in_progress(self) -> bool:
-        return self._one("SELECT 1 FROM runs WHERE ok = ?", (RUN_IN_PROGRESS,)) is not None
+        return self._one("SELECT 1 FROM runs WHERE ok = ? AND kind = 'cycle'",
+                         (RUN_IN_PROGRESS,)) is not None
 
-    def list_runs(self, limit: int = 20) -> list[dict]:
-        return [dict(r) for r in self._all("SELECT * FROM runs ORDER BY id DESC LIMIT ?", (limit,))]
+    def list_runs(self, limit: int = 20, kinds: tuple[str, ...] | None = None) -> list[dict]:
+        if kinds:
+            marks = ",".join("?" * len(kinds))
+            rows = self._all(f"SELECT * FROM runs WHERE kind IN ({marks}) ORDER BY id DESC LIMIT ?",
+                             (*kinds, limit))
+        else:
+            rows = self._all("SELECT * FROM runs ORDER BY id DESC LIMIT ?", (limit,))
+        return [dict(r) for r in rows]
 
     # --- contact form -----------------------------------------------------
 

@@ -91,6 +91,21 @@ class Deps:
     log: list[str] = field(default_factory=list)
     run_id: int | None = None
 
+    def say_once(self, key: str, msg: str, every: timedelta = timedelta(hours=1)) -> None:
+        """Like say, but a message that keeps repeating (e.g. "launch paused"
+        every 3 minutes) reaches the journal at most once per `every`."""
+        flag = f"said:{key}"
+        try:
+            last = datetime.fromisoformat(self.store.get_flag(flag))
+        except ValueError:
+            last = None
+        now = datetime.now(timezone.utc)
+        if last and now - last < every:
+            logger.info(msg)
+            return
+        self.store.set_flag(flag, now.isoformat(timespec="seconds"))
+        self.say(msg)
+
     def say(self, msg: str) -> None:
         logger.info(msg)
         self.log.append(msg)
@@ -249,6 +264,7 @@ def refresh_niche(deps: Deps, niche: Niche) -> bool:
     return True
 
 
+CHECK_LOG_DAYS = 3  # 3-minute check entries are kept this long in the journal
 SITE_PLAN_MIN_HOURS = 12  # rebuild sections/guides at most this often
 
 
@@ -914,11 +930,13 @@ def launch_campaigns(deps: Deps) -> None:
             # never counts as zero.
             committed = committed_24h(store)
             if live and committed is None:
-                deps.say("launch paused: last-24h spend unknown (PropellerAds stats not read)")
+                deps.say_once("launch-unknown",
+                              "launch paused: last-24h spend unknown (PropellerAds stats not read)")
                 return
             committed = committed or 0.0
             if live and committed + s.campaign_daily_budget > s.max_daily_spend:
-                deps.say(
+                deps.say_once(
+                    "launch-cap",
                     f"launch paused: no room under the daily cap — ${committed:.2f} of "
                     f"${s.max_daily_spend:.2f} taken in 24h, a new campaign needs "
                     f"${s.campaign_daily_budget:.2f}"
@@ -1076,7 +1094,8 @@ def manage_campaigns(deps: Deps) -> None:
         # Can't judge spend: never launch more, and stop what runs once the
         # outage outlasts STATS_BLIND_MINUTES.
         stop_if_flying_blind(deps)
-        deps.say("launch skipped: PropellerAds stats unavailable")
+        deps.say_once("launch-no-stats", "launch skipped: PropellerAds stats unavailable",
+                      timedelta(minutes=30))
         return
     manual = is_manual(deps.store)
     apply_kill_rules(deps, by_results=not manual)
@@ -1141,10 +1160,11 @@ def quick_check(deps: Deps) -> bool:
     finally:
         _run_lock.release()
     if deps.log:
-        run_id = deps.store.start_run(None)
+        run_id = deps.store.start_run(None, kind="check")
         for line in deps.log:
             deps.store.append_run_log(run_id, line)
         deps.store.finish_run(run_id, True)
+        deps.store.prune_runs("check", CHECK_LOG_DAYS)
     return True
 
 

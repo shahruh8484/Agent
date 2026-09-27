@@ -335,6 +335,13 @@ function toggleDone() {
 </details>
 {% else %}<p class="muted">Агент ещё не запускался.</p>{% endfor %}
 
+{% if checks %}
+<details class="card" style="margin:14px 0 8px">
+  <summary>Проверки кампаний каждые 3 минуты — последние {{ checks|length }} <span class="muted">(пауза/возобновление, отключения, зоны; хранятся 3 дня)</span></summary>
+  {% for r in checks %}<div style="margin-top:8px"><b style="font-size:.85rem">{{ r.ts|localtime }}</b><pre style="margin-top:2px">{{ r.log }}</pre></div>{% endfor %}
+</details>
+{% endif %}
+
 <h2>Правила агента</h2>
 <div class="card muted">
   Отбор: рейтинг ≥ {{ settings.min_rating }}, отзывов ≥ {{ settings.min_reviews }}, до {{ settings.products_per_site }} товаров на сайт.<br>

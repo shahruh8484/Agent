@@ -604,3 +604,26 @@ def test_busy_reports_a_running_cycle(settings, store, monkeypatch):
     assert busy.main() == 1
     store.start_run(None)
     assert busy.main() == 0
+
+
+def test_quick_checks_go_to_their_own_journal_and_repeats_are_muted(settings, store):
+    from amzagent.agent.runner import quick_check
+
+    settings.push_live = True
+    settings.max_daily_spend = 10  # room for exactly one campaign
+    store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    cycle_log = store.list_runs(1, kinds=("cycle",))[0]["log"]
+    assert cycle_log.count("no room under the daily cap") == 1
+    assert quick_check(_deps(settings, store, push))
+    assert quick_check(_deps(settings, store, push))
+    assert store.list_runs(10, kinds=("check",)) == []  # the same news isn't repeated
+
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    store.update_campaign(c["id"], status=KILLED)  # something new happens
+    push.statuses = {c["external_id"]: 3}
+    store.update_campaign(c["id"], status=ACTIVE)
+    quick_check(_deps(settings, store, push))  # rejected by moderation -> logged
+    checks = store.list_runs(10, kinds=("check",))
+    assert len(checks) == 1 and "rejected by moderation" in checks[0]["log"]
