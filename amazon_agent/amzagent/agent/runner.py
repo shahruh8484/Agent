@@ -27,7 +27,7 @@ from amzagent.config import Settings
 from amzagent.content.llm import LLM, LLMError, get_llm
 from amzagent.content.writer import write_product_copy, write_site_copy
 from amzagent.models import COPY_VERSION, Niche
-from amzagent.panel_settings import effective
+from amzagent.panel_settings import effective, save_overrides
 from amzagent.push import propeller
 from amzagent.push.ai_creatives import (
     IMAGE_RULES,
@@ -319,6 +319,26 @@ def enforce_budget_cap(deps: Deps) -> None:
         if deps.store.running_daily_budget() <= cap:
             return
         stop_campaign(deps, c, STOPPED, f"over the daily cap of ${cap:.2f}")
+
+
+def change_settings(settings: Settings, store: Store, values: dict) -> str:
+    """Save validated panel overrides and apply what must follow at once
+    (new budget on running campaigns, stop campaigns over a lowered cap).
+    Returns a note in Russian for the owner."""
+    before = effective(settings, store)
+    save_overrides(store, values)
+    after = effective(settings, store)
+    note = "Настройки сохранены."
+    if after.campaign_daily_budget != before.campaign_daily_budget:
+        n = apply_daily_budget(build_deps(settings, store), after.campaign_daily_budget)
+        note += f" Бюджет ${after.campaign_daily_budget:.2f}/день применён к {n} кампаниям."
+    if after.max_daily_spend < store.running_daily_budget():
+        enforce_budget_cap(build_deps(settings, store))
+        note += " Лишние кампании остановлены, чтобы уложиться в новый лимит."
+    if before.push_live and not after.push_live:
+        note += (" Новые кампании больше не запускаются; уже работающие продолжают — "
+                 "остановить их можно кнопкой «Стоп всё».")
+    return note
 
 
 def apply_daily_budget(deps: Deps, budget: float) -> int:

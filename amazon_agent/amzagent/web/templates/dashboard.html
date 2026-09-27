@@ -238,4 +238,70 @@ function toggleDone() {
   Отключение: после ${{ "%.2f"|format(settings.kill_min_spend) }} расхода{% if settings.min_amazon_rate %}, если на Amazon перешло меньше {{ settings.min_amazon_rate }}% посетителей{% endif %}{% if settings.max_cost_per_amazon_click %}{{ " или" if settings.min_amazon_rate else "," }} если переход на Amazon дороже ${{ "%.2f"|format(settings.max_cost_per_amazon_click) }}{% endif %}. У прошедших тест кампаний зоны без переходов на Amazon (после {{ settings.zone_min_visits }} визитов или ${{ "%.2f"|format(settings.zone_min_spend) }}) отключаются, зоны с переходами остаются.
 </div>
 
+<button class="chat-fab" id="chat-fab" onclick="chatOpen(true)">💬 Чат с агентом</button>
+<div class="chat-box" id="chat-box" hidden>
+  <div class="chat-head"><span>💬 Чат с агентом</span>
+    <button class="sm" onclick="chatClear()" title="Очистить историю">Очистить</button>
+    <button class="sm" onclick="chatOpen(false)" aria-label="Закрыть">✕</button></div>
+  <div class="chat-log" id="chat-log"></div>
+  <form class="chat-form" onsubmit="chatSend(event)">
+    <textarea id="chat-input" placeholder="Спросите или попросите агента…" maxlength="2000"></textarea>
+    <button class="primary" id="chat-send">➤</button>
+  </form>
+</div>
+<script>
+var chatLoaded = false;
+function chatAdd(role, text) {
+  var d = document.createElement("div");
+  d.className = "msg " + role; d.textContent = text;
+  var log = document.getElementById("chat-log");
+  log.appendChild(d); log.scrollTop = log.scrollHeight;
+  return d;
+}
+function chatOpen(open) {
+  document.getElementById("chat-box").hidden = !open;
+  document.getElementById("chat-fab").hidden = open;
+  try { localStorage.setItem("chatOpen", open ? "1" : ""); } catch (e) {}
+  if (open && !chatLoaded) {
+    chatLoaded = true;
+    fetch("/chat/history").then(function (r) { return r.json(); }).then(function (d) {
+      (d.messages || []).forEach(function (m) { chatAdd(m.role, m.content); });
+      if (!(d.messages || []).length) chatAdd("note", "Спросите агента о кампаниях, расходах, зонах — или попросите что-то сделать.");
+    });
+  }
+  if (open) document.getElementById("chat-input").focus();
+}
+function chatSend(e) {
+  e.preventDefault();
+  var input = document.getElementById("chat-input"), btn = document.getElementById("chat-send");
+  var text = input.value.trim();
+  if (!text || btn.disabled) return;
+  chatAdd("user", text); input.value = ""; btn.disabled = true;
+  var wait = chatAdd("note", "агент думает…");
+  fetch("/chat", {method: "POST", headers: {"Content-Type": "application/json"},
+                  body: JSON.stringify({message: text})})
+    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function (d) {
+      wait.remove(); chatAdd("assistant", d.reply);
+      if ((d.actions || []).length) {
+        var n = chatAdd("note", "");
+        var a = document.createElement("a"); a.href = "/admin"; a.textContent = "Обновить панель";
+        n.append("Выполнено действий: " + d.actions.length + " · "); n.appendChild(a);
+      }
+    })
+    .catch(function (err) { wait.textContent = "Ошибка: " + err.message; })
+    .finally(function () { btn.disabled = false; input.focus(); });
+}
+function chatClear() {
+  if (!confirm("Очистить историю чата?")) return;
+  fetch("/chat/clear", {method: "POST"}).then(function () {
+    document.getElementById("chat-log").innerHTML = "";
+  });
+}
+document.getElementById("chat-input").addEventListener("keydown", function (e) {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); chatSend(e); }
+});
+try { if (localStorage.getItem("chatOpen")) chatOpen(true); } catch (e) {}
+</script>
+
 </div></body></html>

@@ -29,20 +29,21 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
+    JSONResponse,
     PlainTextResponse,
     RedirectResponse,
     Response,
 )
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.sessions import SessionMiddleware
 
 from amzagent.agent.runner import (
+    change_settings,
     KILLED,
     PAUSE_FLAG,
     VISITS_PER_PAID_CLICK,
-    apply_daily_budget,
     build_deps,
-    enforce_budget_cap,
     exclude_zone,
     include_zone,
     quick_check,
@@ -58,9 +59,10 @@ from amzagent.agent.runner import (
 from amzagent.amazon.creator_connections import parse_opportunities, parse_opportunity_details
 from amzagent.config import Settings, get_settings
 from amzagent.models import Product
-from amzagent.panel_settings import effective, load_overrides, parse_form, save_overrides
+from amzagent.panel_settings import effective, load_overrides, parse_form
 from amzagent.push.propeller import PropellerClient, PropellerError
 from amzagent.store import ACTIVE, STOPPED, Store
+from amzagent.web.chat import ChatAgent
 from amzagent.web.period import PRESETS, Period, parse_period
 
 logger = logging.getLogger(__name__)
@@ -702,19 +704,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         if errors:
             request.session["flash"] = "Настройки не сохранены: " + "; ".join(errors)
             return RedirectResponse("/admin#settings", status_code=303)
-        before = effective(settings, store)
-        save_overrides(store, values)
-        after = effective(settings, store)
-        note = "Настройки сохранены."
-        if after.campaign_daily_budget != before.campaign_daily_budget:
-            n = apply_daily_budget(build_deps(settings, store), after.campaign_daily_budget)
-            note += f" Бюджет ${after.campaign_daily_budget:.2f}/день применён к {n} кампаниям."
-        if after.max_daily_spend < store.running_daily_budget():
-            enforce_budget_cap(build_deps(settings, store))
-            note += " Лишние кампании остановлены, чтобы уложиться в новый лимит."
-        if before.push_live and not after.push_live:
-            note += (" Новые кампании больше не запускаются; уже работающие продолжают — "
-                     "остановить их можно кнопкой «Стоп всё».")
+        note = change_settings(settings, store, values)
         request.session["flash"] = note
         return RedirectResponse("/admin#settings", status_code=303)
 
@@ -735,6 +725,34 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             else f"Кампания #{campaign_id}: зона {zone} {verb}."
         )
         return RedirectResponse(f"/admin#c{campaign_id}", status_code=303)
+
+    chat_agent = ChatAgent(settings, store,
+                           run_cycle=lambda discover: run_in_background(discover=discover))
+
+    @app.get("/chat/history")
+    def chat_history(request: Request):
+        if not logged_in(request):
+            return JSONResponse({"error": "login"}, status_code=401)
+        return {"messages": store.list_chat(50)}
+
+    @app.post("/chat")
+    async def chat(request: Request):
+        if not logged_in(request):
+            return JSONResponse({"error": "login"}, status_code=401)
+        try:
+            message = str((await request.json()).get("message", "")).strip()[:2000]
+        except ValueError:
+            message = ""
+        if not message:
+            raise HTTPException(400)
+        return await run_in_threadpool(chat_agent.reply, message)
+
+    @app.post("/chat/clear")
+    def chat_clear(request: Request):
+        if not logged_in(request):
+            return JSONResponse({"error": "login"}, status_code=401)
+        store.clear_chat()
+        return {"ok": True}
 
     @app.post("/stats/refresh")
     def refresh_stats(request: Request):

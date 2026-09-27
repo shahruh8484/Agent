@@ -91,6 +91,12 @@ CREATE TABLE IF NOT EXISTS messages (
     email TEXT NOT NULL,
     body TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS chat (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS kv (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -479,6 +485,19 @@ class Store:
         since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
         r = self._one("SELECT COUNT(*) AS n FROM messages WHERE ts >= ?", (since,))
         return int(r["n"])
+
+    # --- chat with the agent (dashboard) ---------------------------------
+
+    def add_chat(self, role: str, content: str) -> None:
+        self._exec("INSERT INTO chat (ts, role, content) VALUES (?, ?, ?)",
+                   (now_iso(), role, content))
+
+    def list_chat(self, limit: int = 50) -> list[dict]:
+        rows = self._all("SELECT * FROM chat ORDER BY id DESC LIMIT ?", (limit,))
+        return [dict(r) for r in reversed(rows)]
+
+    def clear_chat(self) -> None:
+        self._exec("DELETE FROM chat")
 
     def get_flag(self, key: str, default: str = "") -> str:
         r = self._one("SELECT value FROM kv WHERE key = ?", (key,))

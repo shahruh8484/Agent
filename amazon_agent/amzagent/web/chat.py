@@ -1,0 +1,369 @@
+"""Chat with the agent from the dashboard.
+
+The owner asks in plain Russian ("why was #6 stopped?", "raise the limit
+to $40", "turn off zone 123 on #6"); the LLM answers from live data it
+reads through tools and performs the same actions the dashboard buttons
+do. Every action goes through the agent's own functions, so limits and
+safety rules still apply, and is written to the journal.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import re
+from datetime import datetime, timezone
+from typing import Callable
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from amzagent.agent.runner import (
+    KILLED,
+    PAUSE_FLAG,
+    STATS_ERROR_FLAG,
+    build_deps,
+    change_settings,
+    exclude_zone,
+    include_zone,
+    resume_campaign,
+    spent_today,
+    stop_all,
+    stop_campaign,
+)
+from amzagent.config import Settings
+from amzagent.panel_settings import EDITABLE, effective, parse_form
+from amzagent.store import Store
+
+logger = logging.getLogger(__name__)
+
+HISTORY_MESSAGES = 20  # earlier turns the model sees
+MAX_TOOL_ROUNDS = 8
+ZONE_RE = re.compile(r"^\d{1,12}$")
+
+SYSTEM = """Ты — автономный агент, который ведёт партнёрский бизнес владельца на Amazon.
+Ты сам делаешь сайты-витрины с товарами Amazon (партнёрский тег владельца) и
+запускаешь на страницы товаров пуш-рекламу в PropellerAds: одна кампания на
+товар. Сейчас с владельцем ты общаешься в чате панели управления.
+
+Как ты работаешь (это правила, по которым действует агент):
+- Тест товара: когда кампания потратила KILL_MIN_SPEND (реальный расход или
+  оценка по визитам × ставка), её отключают, если на Amazon перешло меньше
+  MIN_AMAZON_RATE % посетителей сайта. Дополнительно (если > 0) —
+  если переход на Amazon дороже MAX_COST_PER_AMAZON_CLICK.
+- Зоны (площадки PropellerAds): у кампаний, прошедших тест, и у вернутых
+  вручную, агент отключает зону без переходов на Amazon после ZONE_MIN_VISITS
+  визитов или ZONE_MIN_SPEND расхода. Зоны с переходами остаются.
+- Лимит: MAX_DAILY_SPEND — предел расхода за скользящие 24 часа. При
+  достижении все кампании ставятся на паузу (статус capped), потом снимаются.
+- Вернутая вручную кампания (manual_keep) не отключается правилами — только
+  владельцем.
+- Статусы: active — работает; capped — пауза по лимиту; killed — отключена
+  (правилом или вручную); stopped — остановлена; error — не создалась;
+  dry_run — тест без отправки; creating — создаётся.
+- Проверка кампаний идёт каждые 3 минуты, полный цикл — каждые
+  AGENT_INTERVAL_HOURS часов. Amazon Creators API пока может отказывать
+  (AssociateNotEligible) — тогда сайт в запасном режиме без фото и цен Amazon.
+
+Правила чата:
+- Отвечай по-русски, коротко и по делу, простыми словами. Деньги в долларах.
+- Цифры бери только из инструментов, не выдумывай. Если данных нет — скажи.
+- Действия (стоп/возврат кампании, зоны, настройки, запуск цикла, стоп всё)
+  выполняй, только когда владелец прямо об этом просит. Если просьба
+  неоднозначна или действие увеличит расходы, а владелец этого явно не
+  сказал — сначала уточни.
+- После действия скажи, что именно сделано, и результат (или ошибку).
+- Если спрашивают совета — дай рекомендацию с цифрами."""
+
+
+def _tool(name: str, description: str, properties: dict | None = None,
+          required: list[str] | None = None) -> dict:
+    return {"name": name, "description": description,
+            "parameters": {"type": "object", "properties": properties or {},
+                           "required": required or []}}
+
+
+_SETTING_TYPES = {bool: "boolean", float: "number", int: "integer", str: "string"}
+
+TOOLS = [
+    _tool("overview", "Сводка: сайты, настройки, расход за 24 ч и лимит, число кампаний, "
+                      "ошибки статистики, включена ли реклама."),
+    _tool("list_campaigns", "Все кампании со статистикой за всё время: показы, клики, "
+                            "расход, визиты, переходы на Amazon, статус и причина.",
+          {"only_running": {"type": "boolean",
+                            "description": "только active/capped"}}),
+    _tool("campaign_zones", "Зоны (площадки) одной кампании со статистикой.",
+          {"campaign_id": {"type": "integer"},
+           "limit": {"type": "integer", "description": "сколько зон, по расходу (30)"}},
+          ["campaign_id"]),
+    _tool("journal", "Последние записи журнала агента.",
+          {"limit": {"type": "integer", "description": "сколько записей (5)"}}),
+    _tool("stop_campaign", "Остановить кампанию (товар больше не запускается).",
+          {"campaign_id": {"type": "integer"}}, ["campaign_id"]),
+    _tool("resume_campaign", "Вернуть остановленную/отключённую кампанию. Правила её "
+                             "больше не отключают, зоны без переходов чистятся.",
+          {"campaign_id": {"type": "integer"}}, ["campaign_id"]),
+    _tool("set_zone", "Отключить или снова включить зону в кампании.",
+          {"campaign_id": {"type": "integer"}, "zone": {"type": "string"},
+           "action": {"type": "string", "enum": ["exclude", "include"]}},
+          ["campaign_id", "zone", "action"]),
+    _tool("update_settings", "Изменить настройки рекламы и бюджета. Передай только "
+                             "меняемые поля.",
+          {"changes": {"type": "object", "properties": {
+              k: {"type": _SETTING_TYPES[t]} for k, (t, _, _) in EDITABLE.items()},
+              "additionalProperties": False}},
+          ["changes"]),
+    _tool("run_cycle", "Запустить полный цикл агента сейчас (товары, сайт, кампании). "
+                       "discover > 0 — сначала подобрать столько новых ниш.",
+          {"discover": {"type": "integer"}}),
+    _tool("kill_switch", "Стоп всё (on=true: остановить все кампании и не запускать "
+                         "новые) или снять стоп (on=false).",
+          {"on": {"type": "boolean"}}, ["on"]),
+]
+
+
+def _round(value, digits: int = 2):
+    return round(value, digits) if isinstance(value, float) else value
+
+
+class ChatAgent:
+    def __init__(self, settings: Settings, store: Store,
+                 run_cycle: Callable[[int], None] | None = None, backend=None):
+        self.settings, self.store = settings, store
+        self._run_cycle = run_cycle
+        self._backend = backend  # tests inject a fake; otherwise built per reply
+
+    # --- tools -------------------------------------------------------------
+
+    def _overview(self, _args: dict) -> dict:
+        s = effective(self.settings, self.store)
+        sites = []
+        for n in self.store.list_niches():
+            stats = self.store.niche_stats(n.id)
+            sites.append({"id": n.id, "name": n.keywords, "slug": n.slug, "enabled": n.enabled,
+                          "products": len(self.store.list_products(n.id)),
+                          "visits_7d": stats["visit"], "amazon_clicks_7d": stats["click"]})
+        running = self.store.list_campaigns(statuses=("active",))
+        return {
+            "now_panel_time": _now_local(s.panel_timezone),
+            "ads_live": s.push_live,
+            "stop_all_on": self.store.get_flag(PAUSE_FLAG) == "1",
+            "spent_24h": _round(spent_today(self.store)),
+            "limit_24h": s.max_daily_spend,
+            "running_campaigns": len(running),
+            "stats_error": self.store.get_flag(STATS_ERROR_FLAG) or None,
+            "settings": {k: getattr(s, k) for k in EDITABLE},
+            "agent_interval_hours": s.agent_interval_hours,
+            "sites": sites,
+        }
+
+    def _campaigns(self, args: dict) -> list:
+        from amzagent.web.app import _campaign_rows  # the dashboard's own numbers
+
+        s = effective(self.settings, self.store)
+        rows = _campaign_rows(self.store, s.push_bid_cpc)
+        if args.get("only_running"):
+            rows = [c for c in rows if c["status"] in ("active", "capped")]
+        return [{
+            "id": c["id"], "asin": c["asin"], "title": c["title"][:70],
+            "status": c["status"], "note": c["note"], "manual_keep": bool(c.get("manual_keep")),
+            "daily_budget": c["daily_budget"], "spent": _round(c["spend"]),
+            "spent_estimate_from_visits": _round(c["spend_est"]),
+            "impressions": c["impressions"], "ad_clicks": c["ad_clicks"],
+            "site_visits": c["visits"], "amazon_clicks": c["clicks"],
+            "to_amazon_percent": _round(100 * c["to_amazon"]) if c["to_amazon"] else 0,
+            "cost_per_amazon_click": _round(c["cost_per_click"]),
+            "zones": len(c["zones"]), "zones_excluded": sum(z["excluded"] for z in c["zones"]),
+            "created_at": c["created_at"],
+        } for c in rows[:60]]
+
+    def _zones(self, args: dict) -> dict:
+        from amzagent.web.app import _zone_rows
+
+        cid = int(args["campaign_id"])
+        if self.store.get_campaign(cid) is None:
+            return {"error": f"кампании #{cid} нет"}
+        zones = _zone_rows(self.store, cid)
+        limit = max(1, min(int(args.get("limit") or 30), 100))
+        return {"total": len(zones), "excluded": sum(z["excluded"] for z in zones),
+                "zones": [{"zone": z["zone"], "impressions": z["impressions"],
+                           "ad_clicks": z["clicks"], "spent": _round(z["spent"]),
+                           "site_visits": z["visits"], "amazon_clicks": z["amazon"],
+                           "excluded": z["excluded"]} for z in zones[:limit]]}
+
+    def _journal(self, args: dict) -> list:
+        limit = max(1, min(int(args.get("limit") or 5), 20))
+        return [{"at": r["ts"], "ok": r["ok"], "log": (r["log"] or "")[-1500:]}
+                for r in self.store.list_runs(limit)]
+
+    def _stop(self, deps, args: dict) -> dict:
+        c = self.store.get_campaign(int(args["campaign_id"]))
+        if c is None:
+            return {"error": "кампания не найдена"}
+        if c["status"] in (KILLED, "stopped"):
+            return {"error": "кампания уже остановлена"}
+        stop_campaign(deps, c, KILLED, "stopped manually (chat)")
+        return {"ok": True, "status": self.store.get_campaign(c["id"])["status"]}
+
+    def _resume(self, deps, args: dict) -> dict:
+        error = resume_campaign(deps, int(args["campaign_id"]))
+        return {"error": error} if error else {"ok": True}
+
+    def _set_zone(self, deps, args: dict) -> dict:
+        zone, action = str(args.get("zone", "")), args.get("action")
+        if not ZONE_RE.match(zone) or action not in ("exclude", "include"):
+            return {"error": "зона — число, action — exclude или include"}
+        fn = exclude_zone if action == "exclude" else include_zone
+        error = fn(deps, int(args["campaign_id"]), zone)
+        return {"error": error} if error else {"ok": True}
+
+    def _update_settings(self, args: dict) -> dict:
+        changes = args.get("changes") or {}
+        unknown = [k for k in changes if k not in EDITABLE]
+        if unknown or not changes:
+            return {"error": f"нельзя менять: {unknown}" if unknown else "нет изменений"}
+        current = effective(self.settings, self.store)
+        form = {k: ("1" if getattr(current, k) else "") if t is bool else str(getattr(current, k))
+                for k, (t, _, _) in EDITABLE.items()}
+        for k, v in changes.items():
+            form[k] = ("1" if v in (True, "true", "1", 1) else "") if EDITABLE[k][0] is bool \
+                else str(v)
+        values, errors = parse_form(form)
+        if errors:
+            return {"error": "; ".join(errors)}
+        return {"ok": True, "note": change_settings(self.settings, self.store, values)}
+
+    def _run(self, args: dict) -> dict:
+        if self._run_cycle is None:
+            return {"error": "запуск цикла недоступен"}
+        self._run_cycle(max(0, min(int(args.get("discover") or 0), 5)))
+        return {"ok": True, "note": "цикл запущен в фоне, ход виден в журнале"}
+
+    def _kill_switch(self, deps, args: dict) -> dict:
+        on = bool(args.get("on"))
+        self.store.set_flag(PAUSE_FLAG, "1" if on else "0")
+        if on:
+            stop_all(deps)
+        return {"ok": True, "stop_all_on": on}
+
+    def run_tool(self, deps, name: str, args: dict) -> dict | list:
+        readers = {"overview": self._overview, "list_campaigns": self._campaigns,
+                   "campaign_zones": self._zones, "journal": self._journal,
+                   "update_settings": self._update_settings, "run_cycle": self._run}
+        actors = {"stop_campaign": self._stop, "resume_campaign": self._resume,
+                  "set_zone": self._set_zone, "kill_switch": self._kill_switch}
+        try:
+            if name in readers:
+                return readers[name](args)
+            if name in actors:
+                return actors[name](deps, args)
+        except (KeyError, TypeError, ValueError) as exc:
+            return {"error": f"неверные параметры: {exc}"}
+        return {"error": f"нет такого инструмента: {name}"}
+
+    # --- conversation ------------------------------------------------------
+
+    def reply(self, message: str) -> dict:
+        """Answer one owner message. Returns {"reply", "actions"}."""
+        s = effective(self.settings, self.store)
+        history = [{"role": m["role"], "content": m["content"]}
+                   for m in self.store.list_chat(HISTORY_MESSAGES)]
+        self.store.add_chat("user", message)
+        deps = build_deps(self.settings, self.store)
+        deps.log.clear()  # only what the chat does goes to the journal
+        actions: list[str] = []
+
+        def call(name: str, args: dict) -> str:
+            result = self.run_tool(deps, name, args)
+            if name not in ("overview", "list_campaigns", "campaign_zones", "journal"):
+                actions.append(f"{name} {json.dumps(args, ensure_ascii=False)} → "
+                               f"{json.dumps(result, ensure_ascii=False)[:200]}")
+            return json.dumps(result, ensure_ascii=False, default=str)
+
+        try:
+            backend = self._backend or make_backend(s)
+            text = backend.chat(SYSTEM, history + [{"role": "user", "content": message}],
+                                TOOLS, call)
+        except Exception as exc:  # the chat must never take the panel down
+            logger.exception("chat failed")
+            text = f"Не получилось ответить: {exc}"
+        text = text.strip() or "(пустой ответ)"
+        self.store.add_chat("assistant", text)
+        lines = [f"чат: {a}" for a in actions] + deps.log
+        if lines:
+            run_id = self.store.start_run(None)
+            for line in lines:
+                self.store.append_run_log(run_id, line)
+            self.store.finish_run(run_id, True)
+        return {"reply": text, "actions": actions}
+
+
+def _now_local(tz: str) -> str:
+    try:
+        zone = ZoneInfo(tz)
+    except ZoneInfoNotFoundError:
+        zone = timezone.utc
+    return datetime.now(zone).strftime("%Y-%m-%d %H:%M")
+
+
+# --- LLM backends with tool use ---------------------------------------------
+
+
+class OpenAIChat:
+    def __init__(self, settings: Settings):
+        import openai
+
+        self._client = openai.OpenAI(api_key=settings.openai_api_key)
+        self._model = settings.openai_model
+
+    def chat(self, system: str, messages: list[dict], tools: list[dict],
+             call: Callable[[str, dict], str]) -> str:
+        msgs: list = [{"role": "system", "content": system}, *messages]
+        spec = [{"type": "function", "function": t} for t in tools]
+        for _ in range(MAX_TOOL_ROUNDS):
+            resp = self._client.chat.completions.create(
+                model=self._model, messages=msgs, tools=spec, max_tokens=1500)
+            msg = resp.choices[0].message
+            if not msg.tool_calls:
+                return msg.content or ""
+            msgs.append({"role": "assistant", "content": msg.content or "",
+                         "tool_calls": [tc.model_dump() for tc in msg.tool_calls]})
+            for tc in msg.tool_calls:
+                try:
+                    args = json.loads(tc.function.arguments or "{}")
+                except ValueError:
+                    args = {}
+                msgs.append({"role": "tool", "tool_call_id": tc.id,
+                             "content": call(tc.function.name, args)})
+        return "Слишком много шагов — уточните вопрос."
+
+
+class AnthropicChat:
+    def __init__(self, settings: Settings):
+        import anthropic
+
+        self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        self._model = settings.anthropic_model
+
+    def chat(self, system: str, messages: list[dict], tools: list[dict],
+             call: Callable[[str, dict], str]) -> str:
+        msgs: list = list(messages)
+        spec = [{"name": t["name"], "description": t["description"],
+                 "input_schema": t["parameters"]} for t in tools]
+        for _ in range(MAX_TOOL_ROUNDS):
+            resp = self._client.messages.create(
+                model=self._model, system=system, messages=msgs, tools=spec, max_tokens=1500)
+            text = "".join(b.text for b in resp.content if b.type == "text")
+            uses = [b for b in resp.content if b.type == "tool_use"]
+            if not uses:
+                return text
+            msgs.append({"role": "assistant", "content": [b.model_dump() for b in resp.content]})
+            msgs.append({"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": b.id, "content": call(b.name, b.input)}
+                for b in uses]})
+        return "Слишком много шагов — уточните вопрос."
+
+
+def make_backend(settings: Settings):
+    if settings.llm_provider == "openai" and settings.openai_api_key:
+        return OpenAIChat(settings)
+    if settings.llm_provider == "anthropic" and settings.anthropic_api_key:
+        return AnthropicChat(settings)
+    raise RuntimeError("не настроен ключ нейросети (OPENAI_API_KEY / ANTHROPIC_API_KEY)")
