@@ -250,7 +250,9 @@ class ChatAgent:
         if error:
             out.append(f"Статистика PropellerAds не читается: {error[:150]}")
         if is_manual(self.store):
-            out.append("Ручной режим: агент сам новые кампании не запускает.")
+            out.append("Ручной режим: агент сам новые кампании не запускает"
+                       + ("; зоны без переходов отключает." if s.manual_prune_zones
+                          else " и зоны не отключает."))
         elif spent is not None and s.push_live:
             committed = committed_24h(self.store) or 0.0
             if committed + s.campaign_daily_budget > s.max_daily_spend:

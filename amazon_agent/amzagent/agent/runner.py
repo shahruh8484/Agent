@@ -989,10 +989,10 @@ def apply_kill_rules(deps: Deps, by_results: bool = True) -> None:
                           f"> ${s.max_cost_per_amazon_click:.2f}")
 
 
-def blacklist_bad_zones(deps: Deps) -> None:
+def blacklist_bad_zones(deps: Deps, every_campaign: bool = False) -> None:
     """For campaigns that passed the product test (spent KILL_MIN_SPEND and
-    >= MIN_AMAZON_RATE % of visitors went to Amazon) or were resumed by hand,
-    exclude the zones that
+    >= MIN_AMAZON_RATE % of visitors went to Amazon) or were resumed by hand
+    (with `every_campaign`, manual mode: for all of them), exclude the zones that
     sent no one to Amazon once they've had a fair sample (ZONE_MIN_VISITS
     visits or ZONE_MIN_SPEND spent); zones with a click to Amazon stay."""
     if deps.push is None:
@@ -1012,7 +1012,7 @@ def blacklist_bad_zones(deps: Deps) -> None:
         passed = estimated_spend(deps, c) >= s.kill_min_spend and rate >= s.min_amazon_rate
         # A campaign resumed by hand is kept whatever its overall rate, so
         # trimming its dead zones is exactly what's left to optimize.
-        if not (passed or c.get("manual_keep")):
+        if not (passed or c.get("manual_keep") or every_campaign):
             continue  # still in its test (or about to be killed): leave zones alone
         clicks = store.events_by_zone(c["id"], "click")
         excluded = store.blacklisted_zones(c["id"])
@@ -1283,6 +1283,8 @@ def manage_campaigns(deps: Deps) -> None:
     apply_kill_rules(deps, by_results=not manual)
     if not manual:
         blacklist_bad_zones(deps)
+    elif deps.settings.manual_prune_zones:
+        blacklist_bad_zones(deps, every_campaign=True)
     sync_today_spend(deps)  # right before launching: the cap needs fresh numbers
     enforce_spend_cap(deps)
     pace_campaigns(deps)

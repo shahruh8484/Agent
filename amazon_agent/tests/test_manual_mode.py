@@ -25,6 +25,7 @@ def test_manual_mode_builds_the_site_but_launches_nothing(settings, store):
 
 def test_manual_mode_does_not_kill_or_prune_but_still_caps_spend(settings, store):
     settings.push_live = True
+    settings.manual_prune_zones = False
     settings.zone_min_visits = 5
     niche = store.add_niche("earbuds")
     push = FakePush()
@@ -42,6 +43,26 @@ def test_manual_mode_does_not_kill_or_prune_but_still_caps_spend(settings, store
     push.spend_rows = [{"campaign_id": c["external_id"], "spent": settings.max_daily_spend}]
     run_cycle(_deps(settings, store, push))
     assert store.get_campaign(c["id"])["status"] == "capped"
+
+
+def test_manual_mode_prunes_dead_zones_when_enabled(settings, store):
+    settings.push_live = True
+    settings.zone_min_visits = 15
+    niche = store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    store.set_flag(MANUAL_FLAG, "1")
+    for zone, visits, amazon in (("111", 15, 0), ("222", 15, 1), ("333", 5, 0)):
+        for _ in range(visits):
+            store.log_event("visit", niche.id, c["asin"], c["id"], zone)
+        for _ in range(amazon):
+            store.log_event("click", niche.id, c["asin"], c["id"], zone)
+    push.spend_rows = [{"campaign_id": c["external_id"], "spent": 0.5}]  # still in its test
+    run_cycle(_deps(settings, store, push))
+    assert store.get_campaign(c["id"])["status"] == ACTIVE  # not killed in manual mode
+    # 15 visits, no Amazon click -> out; the clicking zone and the young one stay
+    assert push.excluded == [(c["external_id"], ["111"])]
 
 
 def test_launch_product_by_hand(settings, store):

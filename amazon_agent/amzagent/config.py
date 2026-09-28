@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     # push CPC has no pacing of its own and spends it in a few hours, so the
     # agent pauses a campaign that runs ahead of schedule and resumes it later.
     pace_daily_budget: bool = True
+    # In manual mode, still exclude zones with no Amazon clicks (same
+    # thresholds as in auto mode) on every running campaign.
+    manual_prune_zones: bool = True
     # Platform of new campaigns: all, mobile (phones and tablets) or desktop.
     push_platform: str = "all"
     campaigns_per_site: int = 3
