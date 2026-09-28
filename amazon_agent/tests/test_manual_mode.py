@@ -133,7 +133,7 @@ def test_whitelist_campaign_from_zone_table(settings, store, monkeypatch):
     wl = max(store.list_campaigns(statuses=(ACTIVE,)), key=lambda r: r["id"])
     assert wl["zones_only"] == "111,222" and wl["manual_keep"] == 1 and wl["asin"] == c["asin"]
     assert store.get_campaign(c["id"])["status"] == ACTIVE  # the original keeps running
-    assert "вайт-лист 2 зон" in client.get("/admin").text
+    assert "вайт-лист: 2 зон" in client.get("/admin").text
 
     # the whitelist copy's zones are never pruned by the agent
     for _ in range(10):
