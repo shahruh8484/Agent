@@ -110,7 +110,12 @@ def test_visitors_without_ads_are_counted_by_source(settings, store):
         visitor.post("/pv", content=json.dumps(body), headers=ua)
     visitor.post("/pv", content=json.dumps({"p": "/", "r": ""}),
                  headers={"User-Agent": "Googlebot/2.1"})  # bots aren't counted
-    store.log_event("click", niche.id, "A1", None)  # an Amazon click without an ad
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    visitor.get(f"/go/{niche.slug}/{c['asin']}?js=1&o=1", headers=ua,
+                follow_redirects=False)  # a click to Amazon by a visitor without an ad
+    visitor.get(f"/go/{niche.slug}/{c['asin']}?js=1&c={c['id']}&z=5", headers=ua,
+                follow_redirects=False)  # an ad visitor clicking on another page of the site
+    assert store.count_events(c["id"], "click") == 1  # ...counts for its campaign
 
     owner = _client(settings, store)
     owner.post("/pv", content=json.dumps({"p": "/", "r": ""}), headers=ua)  # the owner

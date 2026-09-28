@@ -10,23 +10,34 @@
 </div></footer>
 <script>
 /* Marks links to Amazon that a real browser interacted with: the server holds
-   back clicks without this mark (bots that fetch the link directly). */
+   back clicks without this mark (bots that fetch the link directly). A visitor
+   from our ads keeps the ad's campaign and zone on every page of the visit, so
+   a click to Amazon from a guide still counts for that campaign; any other
+   visitor's click is marked as not from ads. */
 (function () {
+  var q = new URLSearchParams(location.search), ad = null;
+  try {
+    if (/^\d+$/.test(q.get("c") || "")) {
+      ad = {c: q.get("c"), z: /^[\w-]{1,64}$/.test(q.get("z") || "") ? q.get("z") : ""};
+      sessionStorage.setItem("ad", JSON.stringify(ad));
+    } else {
+      ad = JSON.parse(sessionStorage.getItem("ad") || "null");
+    }
+  } catch (e) {}
   function mark(e) {
     var a = e.target && e.target.closest && e.target.closest('a[href*="/go/"]');
     if (!a || a.dataset.js) return;
-    var h = a.getAttribute("href");
-    a.setAttribute("href", h + (h.indexOf("?") < 0 ? "?" : "&") + "js=1" + (navigator.webdriver ? "&wd=1" : ""));
+    var h = a.getAttribute("href"), add = "js=1" + (navigator.webdriver ? "&wd=1" : "");
+    if (ad && ad.c && !/[?&]c=/.test(h)) add += "&c=" + ad.c + (ad.z ? "&z=" + encodeURIComponent(ad.z) : "");
+    else if (!ad) add += "&o=1";
+    a.setAttribute("href", h + (h.indexOf("?") < 0 ? "?" : "&") + add);
     a.dataset.js = "1";
   }
   ["pointerdown", "mousedown", "touchstart", "keydown", "click", "auxclick", "contextmenu"].forEach(function (t) {
     document.addEventListener(t, mark, {capture: true, passive: true});
   });
-  /* Counts visits that didn't come from our ads: an ad landing carries ?c=,
-     and the rest of that visitor's session is skipped too. */
-  var fromAd = /[?&]c=\d/.test(location.search);
-  try { if (fromAd) sessionStorage.setItem("ad", "1"); else fromAd = sessionStorage.getItem("ad") === "1"; } catch (e) {}
-  if (!fromAd && !navigator.webdriver) {
+  /* Counts visits that didn't come from our ads (the whole ad visit is skipped). */
+  if (!ad && !navigator.webdriver) {
     try {
       var body = JSON.stringify({p: location.pathname, r: document.referrer});
       if (!(navigator.sendBeacon && navigator.sendBeacon("/pv", body)))

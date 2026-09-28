@@ -931,7 +931,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
     @app.get("/go/{slug}/{asin}")
     def outbound(request: Request, slug: str, asin: str, c: str | None = None,
                  z: str | None = None, v: str | None = None, js: str | None = None,
-                 wd: str | None = None, ok: str | None = None):
+                 wd: str | None = None, ok: str | None = None, o: str | None = None):
         niche = store.get_niche_by_slug(slug)
         found = store.get_product(niche.id, asin) if niche else None
         if found is None:
@@ -944,7 +944,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         if confirmed and not HARD_BOT_REASONS & set(reasons):
             reasons = []  # a person pressed "Continue" on the check page
         if not reasons:
-            store.log_event("click", niche.id, asin, campaign_id, zone, device, ip=ip_key)
+            # "organic": a visitor who didn't come from our ads (page script mark)
+            organic = campaign_id is None and o == "1" and not logged_in(request)
+            store.log_event("click", niche.id, asin, campaign_id, zone, device, ip=ip_key,
+                            reason="organic" if organic else None)
             return RedirectResponse(found[0].url, status_code=302)
         store.log_event("bot", niche.id, asin, campaign_id, zone, device,
                         reason=",".join(reasons), ip=ip_key)

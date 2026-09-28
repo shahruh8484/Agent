@@ -469,7 +469,7 @@ class Store:
             " SUM(CASE WHEN entry = 1 AND device = 'mobile' THEN 1 ELSE 0 END) AS mobile"
             " FROM pageviews WHERE ts >= ?", (since,))[0]
         clicks = self._all("SELECT COUNT(*) AS n FROM events WHERE type = 'click'"
-                           " AND campaign_id IS NULL AND ts >= ?", (since,))[0]["n"]
+                           " AND reason = 'organic' AND ts >= ?", (since,))[0]["n"]
         sources = self._all("SELECT source, COUNT(*) AS n FROM pageviews WHERE entry = 1"
                             " AND ts >= ? GROUP BY source ORDER BY n DESC LIMIT 8", (since,))
         pages = self._all("SELECT path, COUNT(*) AS n FROM pageviews WHERE entry = 1"
