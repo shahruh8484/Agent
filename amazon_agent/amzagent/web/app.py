@@ -595,14 +595,20 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         deals.sort(key=lambda d: -(d["product"].savings_percent or 0))
         return deals[:limit]
 
-    def articles_of(sites: list[dict]) -> list[dict]:
-        out = []
+    def articles_of(sites: list[dict], mixed: bool = False) -> list[dict]:
+        """Advice cards; each article of a section shows a different product.
+        `mixed` puts one article per section first (for the hub)."""
+        rows = []
         for s in sites:
             for x in s["sections"]:
-                image = next((p.image_url for p, _ in x["entries"] if p.image_url), "")
-                out += [{"niche": s["niche"], "section": x["section"], "article": a,
-                         "image": image} for a in x["section"].all_articles]
-        return out
+                images = [p.image_url for p, _ in x["entries"] if p.image_url] or [""]
+                rows.append([{"niche": s["niche"], "section": x["section"], "article": a,
+                              "image": images[i % len(images)]}
+                             for i, a in enumerate(x["section"].all_articles)])
+        if not mixed:
+            return [a for row in rows for a in row]
+        depth = max((len(r) for r in rows), default=0)
+        return [r[i] for i in range(depth) for r in rows if i < len(r)]
 
     def versus_of(sites: list[dict]) -> list[dict]:
         out = []
@@ -853,7 +859,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         return SITE_TEMPLATES.TemplateResponse(
             request, "hub.html",
             public_ctx(request, sites=sites, deals=deals_of(sites, 8),
-                       articles=articles_of(sites)[:6], versus=versus_of(sites)[:6],
+                       articles=articles_of(sites, mixed=True)[:6], versus=versus_of(sites)[:6],
                        collections=collections_of(sites), price_is_fresh=price_is_fresh))
 
     @app.get("/admin", response_class=HTMLResponse)

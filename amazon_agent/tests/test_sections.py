@@ -233,3 +233,20 @@ def test_small_product_changes_dont_rebuild_everything(settings, store):
     deps = Deps(settings=settings, store=store, llm=llm)
     update_site_plan(deps, niche)
     assert llm.prompts == [] and any("small change" in line for line in deps.log)
+
+
+def test_hub_advice_mixes_sections_and_varies_pictures(settings, store):
+    niche = _site(settings, store)
+    plan = store.get_site_plan(niche.id)
+    with_articles = [s for s in plan.sections if s.all_articles]
+    hub = TestClient(create_app(settings, store, start_loop=False)).get("/").text
+    block = hub[hub.index(">Advice<"):]
+    cats = [c.split("</span>")[0] for c in block.split("Advice &middot; ")[1:]]
+    first = cats[:len(with_articles)]
+    assert len(set(first)) == len(first)  # one article per section before any repeats
+    advice = TestClient(create_app(settings, store, start_loop=False)).get("/advice").text
+    one = with_articles[0]
+    pics = [c.split('<img src="')[1].split('"')[0]
+            for c in advice.split('class="gcard"')[1:]
+            if f"Advice &middot; {one.name}" in c and '<img src="' in c]
+    assert len(pics) == len(one.all_articles) and len(set(pics)) > 1
