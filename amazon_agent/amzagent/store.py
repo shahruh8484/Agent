@@ -101,6 +101,18 @@ CREATE TABLE IF NOT EXISTS kv (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+-- Page views by real browsers that did not come from our ads (reported by
+-- the page script). entry = 1 when the visitor arrived from outside the site.
+CREATE TABLE IF NOT EXISTS pageviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    path TEXT NOT NULL,
+    source TEXT NOT NULL,
+    entry INTEGER NOT NULL,
+    device TEXT,
+    ip TEXT
+);
+CREATE INDEX IF NOT EXISTS pageviews_ts ON pageviews (ts);
 """
 
 # Campaign statuses
@@ -442,6 +454,31 @@ class Store:
              0 if type_ == "visit" else None, reason, ip),
         )
         return cur.lastrowid
+
+    def log_pageview(self, path: str, source: str, entry: bool, device: str | None,
+                     ip: str | None) -> None:
+        self._exec("INSERT INTO pageviews (ts, path, source, entry, device, ip)"
+                   " VALUES (?, ?, ?, ?, ?, ?)",
+                   (now_iso(), path[:200], source[:60], int(entry), device, ip))
+
+    def organic_stats(self, since: str) -> dict:
+        """Visitors who didn't come from our ads, since `since`."""
+        row = self._all(
+            "SELECT SUM(entry) AS entries, COUNT(*) AS views,"
+            " COUNT(DISTINCT CASE WHEN entry = 1 THEN ip END) AS people,"
+            " SUM(CASE WHEN entry = 1 AND device = 'mobile' THEN 1 ELSE 0 END) AS mobile"
+            " FROM pageviews WHERE ts >= ?", (since,))[0]
+        clicks = self._all("SELECT COUNT(*) AS n FROM events WHERE type = 'click'"
+                           " AND campaign_id IS NULL AND ts >= ?", (since,))[0]["n"]
+        sources = self._all("SELECT source, COUNT(*) AS n FROM pageviews WHERE entry = 1"
+                            " AND ts >= ? GROUP BY source ORDER BY n DESC LIMIT 8", (since,))
+        pages = self._all("SELECT path, COUNT(*) AS n FROM pageviews WHERE entry = 1"
+                          " AND ts >= ? GROUP BY path ORDER BY n DESC LIMIT 10", (since,))
+        return {"entries": int(row["entries"] or 0), "views": int(row["views"] or 0),
+                "people": int(row["people"] or 0), "mobile": int(row["mobile"] or 0),
+                "amazon": int(clicks),
+                "sources": [(r["source"], int(r["n"])) for r in sources],
+                "pages": [(r["path"], int(r["n"])) for r in pages]}
 
     def visit_time(self, event_id: int) -> datetime | None:
         rows = self._all("SELECT ts FROM events WHERE id = ? AND type = 'visit'", (event_id,))

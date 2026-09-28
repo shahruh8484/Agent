@@ -22,5 +22,16 @@
   ["pointerdown", "mousedown", "touchstart", "keydown", "click", "auxclick", "contextmenu"].forEach(function (t) {
     document.addEventListener(t, mark, {capture: true, passive: true});
   });
+  /* Counts visits that didn't come from our ads: an ad landing carries ?c=,
+     and the rest of that visitor's session is skipped too. */
+  var fromAd = /[?&]c=\d/.test(location.search);
+  try { if (fromAd) sessionStorage.setItem("ad", "1"); else fromAd = sessionStorage.getItem("ad") === "1"; } catch (e) {}
+  if (!fromAd && !navigator.webdriver) {
+    try {
+      var body = JSON.stringify({p: location.pathname, r: document.referrer});
+      if (!(navigator.sendBeacon && navigator.sendBeacon("/pv", body)))
+        fetch("/pv", {method: "POST", body: body, keepalive: true});
+    } catch (e) {}
+  }
 })();
 </script>

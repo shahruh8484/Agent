@@ -84,3 +84,46 @@ def test_zones_sending_mostly_bots_are_excluded(settings, store):
     store.log_event("bot", niche.id, c["asin"], c["id"], "999", reason="no-js")
     exclude_bot_zones(deps)
     assert push.excluded == []  # rule off
+
+
+def test_visitors_without_ads_are_counted_by_source(settings, store):
+    import json
+
+    from amzagent.web.app import referrer_source
+
+    settings.domain = "pushpannel.com"
+    assert referrer_source("https://www.google.com/search?q=x", "pushpannel.com") == ("Google", True)
+    assert referrer_source("", "pushpannel.com") == ("Прямой заход", True)
+    assert referrer_source("https://pushpannel.com/deals", "pushpannel.com")[1] is False
+    assert referrer_source("https://old.reddit.com/r/x", "pushpannel.com") == ("Reddit", True)
+
+    niche, _ = _live(settings, store)
+    from fastapi.testclient import TestClient
+
+    from amzagent.web.app import create_app
+    visitor = TestClient(create_app(settings, store, start_loop=False))
+    ua = {"User-Agent": IPHONE, "X-Forwarded-For": "7.7.7.7"}
+    for body in ({"p": "/", "r": "https://www.google.com/"},
+                 {"p": "/deals", "r": "https://pushpannel.com/"},  # same visitor, next page
+                 {"p": f"/s/{niche.slug}/", "r": ""},
+                 {"p": "/admin", "r": ""}):  # never counted
+        visitor.post("/pv", content=json.dumps(body), headers=ua)
+    visitor.post("/pv", content=json.dumps({"p": "/", "r": ""}),
+                 headers={"User-Agent": "Googlebot/2.1"})  # bots aren't counted
+    store.log_event("click", niche.id, "A1", None)  # an Amazon click without an ad
+
+    owner = _client(settings, store)
+    owner.post("/pv", content=json.dumps({"p": "/", "r": ""}), headers=ua)  # the owner
+    o = store.organic_stats("2000-01-01")
+    assert (o["entries"], o["views"], o["people"], o["amazon"]) == (2, 3, 1, 1)
+    assert dict(o["sources"]) == {"Google": 1, "Прямой заход": 1}
+    page = owner.get("/admin").text
+    assert "Посетители без рекламы" in page and "Google" in page
+
+
+def test_referrer_names_match_whole_domain_parts():
+    from amzagent.web.app import referrer_source
+    assert referrer_source("https://t.co/abc", "x.org")[0] == "X / Twitter"
+    assert referrer_source("https://news.google.co.uk/", "x.org")[0] == "Google"
+    assert referrer_source("https://notgoogle.com/", "x.org")[0] == "notgoogle.com"
+    assert referrer_source("https://lm.facebook.com/l.php", "x.org")[0] == "Facebook"

@@ -328,6 +328,22 @@ function toggleDone() {
 }
 </script>
 
+<h2>Посетители без рекламы <span class="muted" style="font-size:.8rem;font-weight:400">поиск, соцсети, прямые заходы — только настоящие браузеры, без ботов и без вас (пока вы вошли в панель)</span></h2>
+<div class="kpis">
+{% for label, o in organic %}
+  <div class="card kpi"><b>{{ o.entries }}</b><span>заходов {{ label }} · людей ≈ {{ o.people }}{% if o.entries %} · 📱 {{ "%.0f%%"|format(100 * o.mobile / o.entries) }}{% endif %}<br>просмотров страниц {{ o.views }} · на Amazon {{ o.amazon }}</span></div>
+{% endfor %}
+</div>
+{% set month = organic[-1][1] %}
+{% if month.entries %}
+<div class="card" style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px">
+  <div><b>Откуда пришли (30 дней)</b>
+    <table class="mini" style="margin-top:6px;width:100%;border-collapse:collapse;font-size:.88rem">{% for name, n in month.sources %}<tr><td>{{ name }}</td><td class="num">{{ n }}</td></tr>{% endfor %}</table></div>
+  <div><b>Страницы входа (30 дней)</b>
+    <table class="mini" style="margin-top:6px;width:100%;border-collapse:collapse;font-size:.88rem">{% for path, n in month.pages %}<tr><td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="{{ path }}" target="_blank">{{ path }}</a></td><td class="num">{{ n }}</td></tr>{% endfor %}</table></div>
+</div>
+{% else %}<p class="muted">Пока заходов без рекламы нет. Они появятся, когда сайт начнут находить в поиске или по ссылкам; счётчик работает с этого обновления.</p>{% endif %}
+
 <h2>Сообщения с сайта{% if messages %} ({{ messages|length }}){% endif %}</h2>
 {% for m in messages %}
 <details class="card" style="margin-bottom:8px">

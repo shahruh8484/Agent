@@ -24,7 +24,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import bcrypt
@@ -161,6 +161,35 @@ def client_ip(request: Request) -> str:
     if forwarded:
         return forwarded.split(",")[-1].strip()
     return request.client.host if request.client else ""
+
+
+# Where a visitor who didn't come from our ads found the site (Referer host).
+REFERRER_SOURCES = (
+    ("google.", "Google"), ("bing.", "Bing"), ("duckduckgo.", "DuckDuckGo"),
+    ("yahoo.", "Yahoo"), ("yandex.", "Yandex"), ("baidu.", "Baidu"),
+    ("ecosia.", "Ecosia"), ("brave.", "Brave Search"), ("chatgpt.", "ChatGPT"),
+    ("perplexity.", "Perplexity"), ("facebook.", "Facebook"), ("fb.", "Facebook"),
+    ("instagram.", "Instagram"), ("t.co", "X / Twitter"), ("x.com", "X / Twitter"),
+    ("twitter.", "X / Twitter"), ("reddit.", "Reddit"), ("pinterest.", "Pinterest"),
+    ("youtube.", "YouTube"), ("tiktok.", "TikTok"), ("quora.", "Quora"),
+)
+
+
+def referrer_source(referrer: str, own_host: str) -> tuple[str, bool]:
+    """(source name, whether this view is an entry from outside the site)."""
+    host = urlparse(referrer).hostname or "" if referrer else ""
+    host = host.lower().removeprefix("www.")
+    own = own_host.lower().removeprefix("www.")
+    if not host:
+        return "Прямой заход", True
+    if own and (host == own or host.endswith("." + own)):
+        return "внутри сайта", False
+    for needle, name in REFERRER_SOURCES:
+        # "google." matches a whole label (www.google.co.uk); "t.co" the domain
+        if (host.startswith(needle) or f".{needle}" in host if needle.endswith(".")
+                else host == needle or host.endswith(f".{needle}")):
+            return name, True
+    return host[:60], True
 
 
 def _clean(value: str | None) -> str | None:
@@ -749,6 +778,25 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                      section=section["section"] if section else None),
         )
 
+    @app.post("/pv")
+    async def pageview(request: Request):
+        """Page script beacon for visitors who didn't come from our ads. Only
+        real browsers run it; bots and the logged-in owner aren't counted."""
+        if logged_in(request) or BOT_UA.search(request.headers.get("user-agent", "") or "bot"):
+            return Response(status_code=204)
+        try:
+            data = json.loads((await request.body())[:2000] or b"{}")
+        except ValueError:
+            return Response(status_code=204)
+        path = str(data.get("p") or "")[:200]
+        if not path.startswith("/") or path.startswith(("/admin", "/go/", "/t/", "/login")):
+            return Response(status_code=204)
+        source, entry = referrer_source(str(data.get("r") or "")[:500], settings.domain)
+        ip = client_ip(request)
+        store.log_pageview(path, source, entry, device_of(request),
+                           visit_sig(f"ip:{ip}") if ip else None)
+        return Response(status_code=204)
+
     @app.post("/t/{visit_id}/{sig}")
     def time_on_page(visit_id: int, sig: str, s: int = 0):
         """The product page reports how long it was visible (sendBeacon)."""
@@ -799,7 +847,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
     @app.get("/robots.txt", response_class=PlainTextResponse)
     def robots():
         return (
-            "User-agent: *\nDisallow: /admin\nDisallow: /login\nDisallow: /go/\nDisallow: /t/\n"
+            "User-agent: *\nDisallow: /admin\nDisallow: /login\nDisallow: /go/\nDisallow: /t/\nDisallow: /pv\n"
             f"Sitemap: {settings.public_base_url()}/sitemap.xml\n"
         )
 
@@ -1021,6 +1069,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "running": store.run_in_progress(),
                 "stats_error": store.get_flag("stats_error"),
                 "totals": totals,
+                "organic": [(label, store.organic_stats(
+                    (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(
+                        timespec="seconds")))
+                    for label, days in (("за 24 ч", 1), ("7 дней", 7), ("30 дней", 30))],
                 "period": chosen,
                 "presets": PRESETS,
                 "period_error": period_error,
