@@ -127,3 +127,29 @@ def test_referrer_names_match_whole_domain_parts():
     assert referrer_source("https://news.google.co.uk/", "x.org")[0] == "Google"
     assert referrer_source("https://notgoogle.com/", "x.org")[0] == "notgoogle.com"
     assert referrer_source("https://lm.facebook.com/l.php", "x.org")[0] == "Facebook"
+
+
+def test_zones_where_visitors_leave_at_once_are_excluded(settings, store, monkeypatch):
+    import amzagent.agent.runner as runner
+    monkeypatch.setattr(runner, "BOUNCE_MIN_AGE_SECONDS", -60)  # count the visits made just now
+    settings.bounce_zone_min_visits = 8
+    niche, push = _live(settings, store)
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    store.update_campaign(c["id"], zones_only="111,222,333,444", manual_keep=1)  # a whitelist
+
+    def visits(zone, seconds_list):
+        for s in seconds_list:
+            vid = store.log_event("visit", niche.id, c["asin"], c["id"], zone)
+            if s:
+                store.set_visit_seconds(vid, s)
+
+    visits("111", [0] * 7 + [30])          # 7 of 8 gone at once (88%) -> out
+    visits("222", [0] * 7 + [30])          # same, but it sent someone to Amazon -> stays
+    store.log_event("click", niche.id, c["asin"], c["id"], "222")
+    visits("333", [0] * 5)                 # too few visits yet -> stays
+    visits("444", [2, 40, 50, 60, 3, 70, 80, 90])  # real readers -> stays
+    deps = Deps(settings=settings, store=store, catalog=FakeCatalog([]), llm=FakeLLM(),
+                push=push)
+    exclude_bot_zones(deps)
+    assert push.excluded == [(c["external_id"], ["111"])]
+    assert any("left within 5 s" in line for line in deps.log)

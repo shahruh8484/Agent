@@ -31,6 +31,8 @@ EDITABLE: dict[str, tuple[type, float | None, float | None]] = {
     "zone_min_visits": (int, 1, 100_000),
     "zone_min_spend": (float, 0, 10_000),
     "bot_zone_min": (int, 0, 1000),
+    "bounce_zone_min_visits": (int, 0, 1000),
+    "bounce_zone_pct": (float, 1, 100),
     "push_creatives": (str, None, None),
     "auto_niches": (int, 0, 50),
     "import_site_size": (int, 1, 500),

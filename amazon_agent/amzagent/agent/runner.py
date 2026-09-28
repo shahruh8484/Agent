@@ -1029,28 +1029,44 @@ def blacklist_bad_zones(deps: Deps, every_campaign: bool = False) -> None:
                 deps.say(f"campaign #{c['id']}: zone exclude failed: {error}")
 
 
+BOUNCE_MIN_AGE_SECONDS = 120  # a younger visit may not have reported its time yet
+
+
 def exclude_bot_zones(deps: Deps) -> None:
-    """Exclude zones whose clicks to Amazon are mostly held back as automated
-    (at least BOT_ZONE_MIN of them, and no fewer than the ones let through):
-    we pay for their visits and Amazon won't pay for their clicks. Runs in
-    both modes and on whitelists too."""
+    """Exclude zones that send bots, in both modes and on whitelists too:
+    - clicks to Amazon mostly held back as automated (at least BOT_ZONE_MIN
+      of them, and no fewer than the ones let through);
+    - visitors who mostly leave within 5 s or whose page never reports back
+      (bots, accidental taps): BOUNCE_ZONE_PCT % of at least
+      BOUNCE_ZONE_MIN_VISITS measured visits, and no click to Amazon.
+    We pay for their visits and Amazon won't pay for their clicks."""
     s, store = deps.settings, deps.store
-    if deps.push is None or s.bot_zone_min <= 0:
+    if deps.push is None or (s.bot_zone_min <= 0 and s.bounce_zone_min_visits <= 0):
         return
     for c in store.list_campaigns(statuses=(ACTIVE,)):
         if not c["external_id"]:
             continue
-        bots = store.events_by_zone(c["id"], "bot")
-        if not bots:
-            continue
         clicks = store.events_by_zone(c["id"], "click")
         excluded = store.blacklisted_zones(c["id"])
-        for zone, held in bots.items():
-            passed = clicks.get(zone, 0)
-            if zone in excluded or held < s.bot_zone_min or held < passed:
+        reasons: dict[str, str] = {}
+        if s.bot_zone_min > 0:
+            for zone, held in store.events_by_zone(c["id"], "bot").items():
+                passed = clicks.get(zone, 0)
+                if held >= s.bot_zone_min and held >= passed:
+                    reasons[zone] = f"bots: {held} clicks held back, {passed} real"
+        if s.bounce_zone_min_visits > 0:
+            settled = (datetime.now(timezone.utc) - timedelta(
+                seconds=BOUNCE_MIN_AGE_SECONDS)).isoformat(timespec="seconds")
+            for zone, t in store.time_on_site(c["id"], until=settled).items():
+                if (zone is not None and zone not in reasons and not clicks.get(zone)
+                        and t["n"] >= s.bounce_zone_min_visits
+                        and t["bounce"] * 100 >= s.bounce_zone_pct):
+                    reasons[zone] = (f"bots: {t['bounce']:.0%} of {t['n']} visitors left "
+                                     f"within 5 s, no Amazon clicks")
+        for zone, reason in reasons.items():
+            if zone in excluded:
                 continue
-            error = exclude_zone(deps, c["id"], zone,
-                                 f"bots: {held} clicks held back, {passed} real")
+            error = exclude_zone(deps, c["id"], zone, reason)
             if error:
                 deps.say(f"campaign #{c['id']}: zone exclude failed: {error}")
 

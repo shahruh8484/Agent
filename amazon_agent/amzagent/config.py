@@ -70,6 +70,11 @@ class Settings(BaseSettings):
     # Exclude a zone once this many of its clicks to Amazon were held back as
     # automated and they outnumber the real ones (0 = off).
     bot_zone_min: int = 3
+    # ...and a zone where this % of at least BOUNCE_ZONE_MIN_VISITS measured
+    # visits left within 5 s (or never reported back), with no click to
+    # Amazon (0 visits = off).
+    bounce_zone_min_visits: int = 8
+    bounce_zone_pct: float = 80.0
     # Platform of new campaigns: all, mobile (phones and tablets) or desktop.
     push_platform: str = "all"
     campaigns_per_site: int = 3
