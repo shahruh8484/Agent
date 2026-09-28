@@ -144,7 +144,9 @@ class Store:
                               ("ad_clicks", "INTEGER NOT NULL DEFAULT 0"),
                               ("stats_at", "TEXT"),
                               # 1 = resumed by hand: kill rules leave it alone
-                              ("manual_keep", "INTEGER NOT NULL DEFAULT 0")):
+                              ("manual_keep", "INTEGER NOT NULL DEFAULT 0"),
+                              # zones a whitelist campaign runs on (comma list)
+                              ("zones_only", "TEXT NOT NULL DEFAULT ''")):
                 if col not in cols:
                     self._db.execute(f"ALTER TABLE campaigns ADD COLUMN {col} {decl}")
             # Run kind (added later): cycle = full agent cycle, check = the

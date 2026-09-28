@@ -170,7 +170,7 @@
     {% if c.images %}<a href="{{ c.images[0] }}" target="_blank"><img src="{{ c.images[0] }}" alt=""></a>{% else %}<span class="noimg"></span>{% endif %}
     <div>
       <a class="t" href="/s/{{ c.slug }}/p/{{ c.asin }}" target="_blank" title="{{ c.title }}">{{ c.title }}</a>
-      <span class="sub" title="{% if c.external_id %}PropellerAds {{ c.external_id }}{% endif %}{% if c.images|length > 1 %} · {{ c.images|length }} картинки{% endif %}">#{{ c.id }} · {{ c.asin }} · ${{ "%.0f"|format(c.daily_budget) }}/день</span>
+      <span class="sub" title="{% if c.external_id %}PropellerAds {{ c.external_id }}{% endif %}{% if c.images|length > 1 %} · {{ c.images|length }} картинки{% endif %}">#{{ c.id }} · {{ c.asin }} · ${{ "%.0f"|format(c.daily_budget) }}/день{% if c.zones_only %} · <b title="Вайт-лист: крутится только на зонах {{ c.zones_only|replace(',', ', ') }}">вайт-лист {{ c.zones_only.split(',')|length }} зон</b>{% endif %}</span>
     </div>
   </div></td>
   <td class="st" title="{{ c.note or '' }}">{% if c.status == "active" and (c.note or "").startswith("PropellerAds: paused") %}<span class="dot d-capped"></span><span title="PropellerAds сама приостановила кампанию около дневного бюджета: ждёт поздних кликов по уже сделанным показам и потом сама её перезапустит (Daily impressions)">пауза в PropellerAds</span>{% else %}<span class="dot d-{{ c.status }}"></span>{{ status_names.get(c.status, c.status) }}{% endif %}{% if c.manual_keep and c.status == "active" %} · <b title="Возвращена вручную: агент не отключает её по результатам">вручную</b>{% endif %}{% if c.note == "PropellerAds: paused" and c.status == "active" %}<span class="sub">ждёт поздних кликов, продолжит сама</span>{% elif c.note %}<span class="sub">{{ c.note|replace("PropellerAds: ", "PA: ")|truncate(34) }}</span>{% endif %}</td>
@@ -192,9 +192,10 @@
 <tr class="zones-row" id="z{{ c.id }}" hidden><td colspan="11">
   {% if c.zones %}
   <div class="zwrap"><table class="zones">
-    <tr><th>Зона</th><th class="num">Показы</th><th class="num">Клики</th><th class="num">CTR</th><th class="num">Потрачено</th><th class="num">Визиты</th><th class="num">На Amazon</th><th class="num">$/Amazon</th><th class="num" title="Переходы × EPC − расход (максимум)">Прибыль ≤</th><th></th></tr>
+    <tr><th data-nosort="1" title="Отметьте зоны для вайт-листа">✓</th><th>Зона</th><th class="num">Показы</th><th class="num">Клики</th><th class="num">CTR</th><th class="num">Потрачено</th><th class="num">Визиты</th><th class="num">На Amazon</th><th class="num">$/Amazon</th><th class="num" title="Переходы × EPC − расход (максимум)">Прибыль ≤</th><th></th></tr>
     {% for z in c.zones %}
     <tr{% if z.excluded %} class="excluded"{% endif %}>
+      <td>{% if not z.excluded and not c.zones_only %}<input type="checkbox" name="zones" value="{{ z.zone }}" form="wl{{ c.id }}"{% if z.amazon %} checked{% endif %} title="В вайт-лист"> {% endif %}</td>
       <td>{{ z.zone }}</td>
       <td class="num">{{ "{:,}".format(z.impressions) }}</td><td class="num">{{ "{:,}".format(z.clicks) }}</td><td class="num">{{ pct(z.ctr) }}</td>
       <td class="num">{{ money(z.spent) }}</td><td class="num">{{ z.visits }}{{ dev_visits(z.devices) }}</td><td class="num">{{ z.amazon }}{{ dev_rate(z.devices) }}</td><td class="num">{{ money(z.cost_per_amazon) }}</td><td class="num">{{ profit(z.profit) }}</td>
@@ -202,6 +203,7 @@
     </tr>
     {% endfor %}
   </table></div>
+  {% if not c.zones_only and c.status != "dry_run" %}<form id="wl{{ c.id }}" class="row" method="post" action="/campaigns/{{ c.id }}/whitelist" style="margin:8px 0;gap:10px" onsubmit="var n=this.ownerDocument.querySelectorAll('input[form=wl{{ c.id }}]:checked').length; if(!n){alert('Отметьте хотя бы одну зону');return false} return confirm('Создать новую кампанию на этот товар только с отмеченными зонами (' + n + ')? Бюджет ${{ '%.2f'|format(settings.campaign_daily_budget) }}/день, действует лимит за 24 ч. Эта кампания продолжит работать.')"><button class="sm">Создать кампанию только с отмеченными зонами</button><span class="muted">зоны с переходами на Amazon отмечены заранее; новой кампании агент зоны не отключает и по результатам её не останавливает</span></form>{% endif %}
   {% else %}<p class="muted" style="margin:6px 0">Данных по зонам пока нет — появятся, когда кампания начнёт показываться.</p>{% endif %}
   {% if c.payload %}<details style="margin-top:6px"><summary class="muted" style="font-size:.8rem">payload (что отправлено в PropellerAds)</summary><pre>{{ c.payload }}</pre></details>{% endif %}
 </td></tr>
@@ -272,9 +274,9 @@ function sortTable(table, col, desc) {
   });
 }
 document.querySelectorAll("table.zones").forEach(function (table) {
-  var kind = table.dataset.kind || "zones";
+  var kind = table.dataset.kind || "zones2";  // zones2: a checkbox column came first
   Array.prototype.forEach.call(table.rows[0].cells, function (th, i) {
-    if (!th.textContent.trim()) return;  // the buttons column
+    if (!th.textContent.trim() || th.dataset.nosort) return;  // buttons/checkbox columns
     th.classList.add("sortable");
     th.title = "Сортировать";
     th.addEventListener("click", function () {

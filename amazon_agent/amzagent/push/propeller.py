@@ -176,6 +176,7 @@ def build_campaign_payload(
     bid_cpc: float,
     daily_budget: float,
     os_types: list | None = None,
+    zones: list[str] | None = None,
 ) -> dict[str, Any]:
     payload = {
         "name": name[:100],
@@ -216,6 +217,8 @@ def build_campaign_payload(
     }
     if os_types:  # only phones/tablets or only computers
         payload["targeting"]["os_type"] = {"list": list(os_types), "is_excluded": False}
+    if zones:  # whitelist: show only on these zones
+        payload["targeting"]["zone"] = {"list": [int(z) for z in zones], "is_excluded": False}
     return payload
 
 

@@ -143,3 +143,11 @@ def test_os_type_reference_formats():
     assert match_os_types(ids, "mobile") == [2, 3]
     assert match_os_types({"1": "Desktop", "2": "Mobile"}, "desktop") == ["1"]
     assert match_os_types(["mobile", "desktop"], "desktop") == ["desktop"]
+
+
+def test_whitelist_payload_targets_only_the_given_zones():
+    p = build_campaign_payload("n", "u", "t", "b", [("i", "m")], ["us"], 0.03, 10,
+                               zones=["11878612", "10731420"])
+    assert p["targeting"]["zone"] == {"list": [11878612, 10731420], "is_excluded": False}
+    assert "zone" not in build_campaign_payload("n", "u", "t", "b", [("i", "m")], ["us"],
+                                                0.03, 10)["targeting"]

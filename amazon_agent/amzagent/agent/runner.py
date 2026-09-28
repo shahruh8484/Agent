@@ -999,8 +999,8 @@ def blacklist_bad_zones(deps: Deps, every_campaign: bool = False) -> None:
         return
     s, store = deps.settings, deps.store
     for c in store.list_campaigns(statuses=(ACTIVE,)):
-        if not c["external_id"]:
-            continue
+        if not c["external_id"] or c.get("zones_only"):
+            continue  # a whitelist runs only on the zones the owner picked
         visits_by_zone = store.events_by_zone(c["id"], "visit")
         # Only judge zones where our own visit log carries zone ids: if the
         # zone macro in the target URL isn't substituted, every zone would
@@ -1097,11 +1097,15 @@ def launch_campaigns(deps: Deps) -> None:
                 slots -= 1
 
 
-def create_campaign(deps: Deps, niche: Niche, site_copy, product, copy) -> str | None:
-    """Create one campaign (or a dry-run row). Returns an error or None."""
+def create_campaign(deps: Deps, niche: Niche, site_copy, product, copy,
+                    zones: list[str] | None = None) -> str | None:
+    """Create one campaign (or a dry-run row); with `zones`, a whitelist
+    campaign that runs only there. Returns an error or None."""
     s, store = deps.settings, deps.store
     cid = store.add_campaign(niche.id, product.asin, CREATING, s.campaign_daily_budget)
-    payload = build_payload(deps, niche, site_copy, product, copy, cid)
+    if zones:  # the owner's own pick: rules don't kill it or prune its zones
+        store.update_campaign(cid, zones_only=",".join(zones), manual_keep=1)
+    payload = build_payload(deps, niche, site_copy, product, copy, cid, zones)
     if not s.push_live:
         store.update_campaign(cid, status=DRY_RUN, payload=payload,
                               note="dry run: not sent (PUSH_LIVE=false)")
@@ -1125,6 +1129,7 @@ def create_campaign(deps: Deps, niche: Niche, site_copy, product, copy) -> str |
     deps.say(
         f"[{niche.slug}] launched campaign #{cid} (PropellerAds {external_id}) "
         f"for {product.asin}, ${s.campaign_daily_budget:.2f}/day"
+        + (f", only zones {', '.join(zones)}" if zones else "")
     )
     return None
 
@@ -1155,6 +1160,37 @@ def launch_product(deps: Deps, niche_id: int, asin: str) -> str | None:
             return (f"не хватает дневного лимита: занято ${committed:.2f} из "
                     f"${s.max_daily_spend:.2f} (поднимите лимит в настройках)")
     return create_campaign(deps, niche, site_copy, product, copy)
+
+
+def launch_whitelist(deps: Deps, campaign_id: int, zones: list[str]) -> str | None:
+    """New campaign for the same product that runs only on `zones` (picked
+    from campaign `campaign_id`'s zone table). The original keeps running.
+    The 24h limit applies as for any launch. Returns an error or None."""
+    s, store = deps.settings, deps.store
+    source = store.get_campaign(campaign_id)
+    if source is None:
+        return "кампания не найдена"
+    zones = list(dict.fromkeys(z for z in zones if z.isdigit()))
+    if not zones:
+        return "не отмечено ни одной зоны"
+    niche = store.get_niche(source["niche_id"])
+    found = store.get_product(source["niche_id"], source["asin"]) if niche else None
+    if found is None:
+        return "товара больше нет на сайте"
+    product, copy = found
+    site_copy = store.get_site_copy(niche.id)
+    if copy is None or site_copy is None:
+        return "у товара ещё нет текстов — дождитесь окончания цикла"
+    if s.push_live:
+        if deps.push is None:
+            return "PropellerAds не подключён"
+        committed = committed_24h(store)
+        if committed is None:
+            return "расход за 24 ч ещё не получен из PropellerAds — попробуйте через пару минут"
+        if committed + s.campaign_daily_budget > s.max_daily_spend:
+            return (f"не хватает дневного лимита: занято ${committed:.2f} из "
+                    f"${s.max_daily_spend:.2f} (поднимите лимит в настройках)")
+    return create_campaign(deps, niche, site_copy, product, copy, zones=zones)
 
 
 def push_images(deps: Deps, niche: Niche, site_title: str, product, copy, cid: int
@@ -1188,7 +1224,8 @@ def media_file(deps: Deps, url: str) -> Path | None:
     return path if root in path.parents and path.is_file() else None
 
 
-def build_payload(deps: Deps, niche: Niche, site_copy, product, copy, cid: int) -> dict:
+def build_payload(deps: Deps, niche: Niche, site_copy, product, copy, cid: int,
+                  zones: list[str] | None = None) -> dict:
     s = deps.settings
     return propeller.build_campaign_payload(
         name=f"{niche.slug} {product.asin} #{cid}",
@@ -1203,6 +1240,7 @@ def build_payload(deps: Deps, niche: Niche, site_copy, product, copy, cid: int) 
         bid_cpc=s.push_bid_cpc,
         daily_budget=s.campaign_daily_budget,
         os_types=platform_os_types(deps),
+        zones=zones,
     )
 
 

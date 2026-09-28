@@ -54,6 +54,7 @@ from amzagent.agent.runner import (
     build_deps,
     exclude_zone,
     include_zone,
+    launch_whitelist,
     quick_check,
     redraw_campaign,
     resume_campaign,
@@ -1070,6 +1071,21 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         return RedirectResponse("/admin#settings", status_code=303)
 
     ZONE_RE = re.compile(r"^\d{1,12}$")
+
+    @app.post("/campaigns/{campaign_id}/whitelist")
+    async def whitelist_campaign(request: Request, campaign_id: int):
+        if not logged_in(request):
+            return to_login()
+        form = await request.form()
+        zones = [str(z) for z in form.getlist("zones") if ZONE_RE.match(str(z))]
+        error = launch_whitelist(build_deps(settings, store), campaign_id, zones)
+        request.session["flash"] = (
+            f"Вайт-лист не создан: {error}" if error else
+            f"Создана новая кампания на тот же товар только с зонами: {', '.join(zones)}. "
+            "Она появится в списке после модерации PropellerAds; кампания "
+            f"#{campaign_id} продолжает работать."
+        )
+        return RedirectResponse("/admin#campaigns", status_code=303)
 
     @app.post("/campaigns/{campaign_id}/zones/{zone}/{action}")
     def zone_action(request: Request, campaign_id: int, zone: str, action: str):

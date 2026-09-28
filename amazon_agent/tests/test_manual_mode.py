@@ -100,3 +100,55 @@ def test_mode_switch_and_product_list_in_panel(settings, store):
     assert any(c["asin"] == "A0" for c in store.list_campaigns())
     client.post("/mode", data={"mode": "auto"})
     assert store.get_flag(MANUAL_FLAG) == "0"
+
+
+def test_whitelist_campaign_from_zone_table(settings, store, monkeypatch):
+    settings.push_live = True
+    settings.max_daily_spend = 100
+    settings.zone_min_visits = 5
+    settings.admin_password_hash = bcrypt.hashpw(b"pw", bcrypt.gensalt()).decode()
+    niche = store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    for zone, visits, amazon in (("111", 10, 2), ("222", 10, 1), ("333", 10, 0)):
+        for _ in range(visits):
+            store.log_event("visit", niche.id, c["asin"], c["id"], zone)
+        for _ in range(amazon):
+            store.log_event("click", niche.id, c["asin"], c["id"], zone)
+    import amzagent.web.app as web_app
+    monkeypatch.setattr(web_app, "build_deps", lambda s, st: _deps(s, st, push))
+    client = TestClient(create_app(settings, store, start_loop=False))
+    client.post("/login", data={"username": "admin", "password": "pw"})
+    page = client.get("/admin").text
+    assert 'value="111" form="wl' in page and "только с отмеченными зонами" in page
+    before = len(push.created)
+    client.post(f"/campaigns/{c['id']}/whitelist", data={"zones": ["111", "222", "x;1"]})
+    assert len(push.created) == before + 1
+    assert push.created[-1]["targeting"]["zone"] == {"list": [111, 222], "is_excluded": False}
+    wl = max(store.list_campaigns(statuses=(ACTIVE,)), key=lambda r: r["id"])
+    assert wl["zones_only"] == "111,222" and wl["manual_keep"] == 1 and wl["asin"] == c["asin"]
+    assert store.get_campaign(c["id"])["status"] == ACTIVE  # the original keeps running
+    assert "вайт-лист 2 зон" in client.get("/admin").text
+
+    # the whitelist copy's zones are never pruned by the agent
+    for _ in range(10):
+        store.log_event("visit", niche.id, wl["asin"], wl["id"], "111")
+    push.spend_rows = [{"campaign_id": wl["external_id"], "spent": 5.0}]
+    run_cycle(_deps(settings, store, push))
+    assert all(ext != wl["external_id"] for ext, _ in push.excluded)
+    assert store.get_campaign(wl["id"])["status"] == ACTIVE
+
+
+def test_whitelist_needs_zones_and_room(settings, store):
+    from amzagent.agent.runner import launch_whitelist
+
+    settings.push_live = True
+    settings.max_daily_spend = 20
+    store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    deps = _deps(settings, store, push)
+    assert launch_whitelist(deps, c["id"], []) == "не отмечено ни одной зоны"
+    assert "дневного лимита" in launch_whitelist(deps, c["id"], ["111"])  # 2 x $10 already
