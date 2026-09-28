@@ -122,8 +122,12 @@ def test_whitelist_campaign_from_zone_table(settings, store, monkeypatch):
     client.post("/login", data={"username": "admin", "password": "pw"})
     page = client.get("/admin").text
     assert 'value="111" form="wl' in page and "только с отмеченными зонами" in page
+    failed = client.post(f"/campaigns/{c['id']}/whitelist", data={}).text
+    assert 'class="banner bad"' in failed and "Вайт-лист не создан" in failed  # shown in red
     before = len(push.created)
-    client.post(f"/campaigns/{c['id']}/whitelist", data={"zones": ["111", "222", "x;1"]})
+    done = client.post(f"/campaigns/{c['id']}/whitelist",
+                       data={"zones": ["111", "222", "x;1"]}).text
+    assert "Создана новая кампания" in done and 'class="banner bad"' not in done
     assert len(push.created) == before + 1
     assert push.created[-1]["targeting"]["zone"] == {"list": [111, 222], "is_excluded": False}
     wl = max(store.list_campaigns(statuses=(ACTIVE,)), key=lambda r: r["id"])

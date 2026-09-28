@@ -25,7 +25,7 @@
 </div>
 
 {% if running %}<div class="banner" style="border-color:var(--accent);color:var(--accent)">Агент сейчас работает — журнал внизу обновляется, страница перезагружается сама каждые 10 секунд.</div>{% endif %}
-{% if flash %}<div class="banner" style="border-color:var(--ok);color:var(--ok)">{{ flash }}</div>{% endif %}
+{% if flash %}<div class="banner{% if flash_bad %} bad{% endif %}"{% if not flash_bad %} style="border-color:var(--ok);color:var(--ok)"{% endif %}>{{ flash }}</div>{% endif %}
 {% if stats_error and settings.push_live %}<div class="banner bad">Статистика из PropellerAds не читается: {{ stats_error }}. Новые кампании не запускаются; если так продлится больше 30 минут, агент остановит работающие кампании.</div>{% endif %}
 {% if manual %}<div class="banner">Ручной режим: агент сам не запускает и не отключает кампании и не подбирает ниши{% if settings.manual_prune_zones %}; зоны без переходов на Amazon отключает (выключается в настройках){% else %}, не отключает зоны{% endif %}. Запуск — кнопкой «Запустить рекламу» в списке товаров сайта, остальное — кнопками кампаний или через чат. Лимит за 24 ч и аварийные защиты работают.</div>{% endif %}
 {% if paused %}<div class="banner bad">Включён аварийный стоп: все кампании остановлены, новые не запускаются.</div>{% endif %}

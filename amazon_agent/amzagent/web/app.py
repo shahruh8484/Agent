@@ -89,6 +89,9 @@ PRICE_MAX_AGE = timedelta(hours=24)
 # "Last updated" on the legal pages: change it when their text changes.
 LEGAL_PAGES_UPDATED = "September 26, 2026"
 CONTACT_HOURLY_LIMIT = 20
+# Flash messages that report a failure ("… не создан: …") are shown in red.
+FLASH_FAILED_RE = re.compile(
+    r"\bне (найдено|возвращена|сохранены|создан|удалось|запущена|запущен)\b")
 STATS_INTERVAL_SECONDS = 3 * 60  # site-wide, keeps a spam bot from flooding the inbox
 SAFE_PARAM = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
 
@@ -909,7 +912,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "checks": store.list_runs(40, kinds=("check",)),
                 "paused": store.get_flag(PAUSE_FLAG) == "1",
                 "manual": is_manual(store),
-                "flash": request.session.pop("flash", None),
+                "flash": (flash := request.session.pop("flash", None)),
+                "flash_bad": bool(flash and FLASH_FAILED_RE.search(flash)),
                 "running": store.run_in_progress(),
                 "stats_error": store.get_flag("stats_error"),
                 "totals": totals,
