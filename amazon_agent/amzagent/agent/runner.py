@@ -1029,6 +1029,32 @@ def blacklist_bad_zones(deps: Deps, every_campaign: bool = False) -> None:
                 deps.say(f"campaign #{c['id']}: zone exclude failed: {error}")
 
 
+def exclude_bot_zones(deps: Deps) -> None:
+    """Exclude zones whose clicks to Amazon are mostly held back as automated
+    (at least BOT_ZONE_MIN of them, and no fewer than the ones let through):
+    we pay for their visits and Amazon won't pay for their clicks. Runs in
+    both modes and on whitelists too."""
+    s, store = deps.settings, deps.store
+    if deps.push is None or s.bot_zone_min <= 0:
+        return
+    for c in store.list_campaigns(statuses=(ACTIVE,)):
+        if not c["external_id"]:
+            continue
+        bots = store.events_by_zone(c["id"], "bot")
+        if not bots:
+            continue
+        clicks = store.events_by_zone(c["id"], "click")
+        excluded = store.blacklisted_zones(c["id"])
+        for zone, held in bots.items():
+            passed = clicks.get(zone, 0)
+            if zone in excluded or held < s.bot_zone_min or held < passed:
+                continue
+            error = exclude_zone(deps, c["id"], zone,
+                                 f"bots: {held} clicks held back, {passed} real")
+            if error:
+                deps.say(f"campaign #{c['id']}: zone exclude failed: {error}")
+
+
 def expire_stuck_creations(deps: Deps) -> None:
     """A launch interrupted mid-way (e.g. a restart while images were being
     drawn) leaves a row in "creating" forever; after STUCK_CREATING_MINUTES
@@ -1323,6 +1349,7 @@ def manage_campaigns(deps: Deps) -> None:
         blacklist_bad_zones(deps)
     elif deps.settings.manual_prune_zones:
         blacklist_bad_zones(deps, every_campaign=True)
+    exclude_bot_zones(deps)
     sync_today_spend(deps)  # right before launching: the cap needs fresh numbers
     enforce_spend_cap(deps)
     pace_campaigns(deps)

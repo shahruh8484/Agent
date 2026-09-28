@@ -164,7 +164,7 @@ def test_visits_record_the_device_and_stats_split_by_it(settings, store):
     for _ in range(3):
         client.get(page, headers={"User-Agent": IPHONE})
     client.get(page, headers={"User-Agent": WINDOWS})
-    client.get(f"/go/{niche.slug}/{c['asin']}?c={c['id']}&z=777",
+    client.get(f"/go/{niche.slug}/{c['asin']}?c={c['id']}&z=777&js=1",
                headers={"User-Agent": IPHONE}, follow_redirects=False)
     assert store.events_by_device(c["id"], "visit") == {"mobile": 3, "desktop": 1}
 

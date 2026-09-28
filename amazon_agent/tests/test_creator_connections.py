@@ -168,7 +168,7 @@ def test_fallback_builds_site_from_pasted_page(settings, store):
     page = client.get("/s/top-deals/p/B0FYZ9QQ9Z").text
     assert 'class="ph"' in page and "Price as of" not in page and "ratings on Amazon" not in page
     assert "See current price, photos and customer reviews on Amazon" in page
-    assert client.get("/go/top-deals/B0FYZ9QQ9Z", follow_redirects=False) \
+    assert client.get("/go/top-deals/B0FYZ9QQ9Z?js=1", follow_redirects=False) \
         .headers["location"].split("&linkId=")[0].endswith("tag=screensoundlo-20")
 
 

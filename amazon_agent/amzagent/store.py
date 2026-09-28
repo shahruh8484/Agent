@@ -169,6 +169,12 @@ class Store:
             # nothing reported back yet; NULL = visit from before this existed.
             if "seconds" not in cols:
                 self._db.execute("ALTER TABLE events ADD COLUMN seconds INTEGER")
+            # Bot filter (added later): why a click was held back from Amazon,
+            # and a keyed hash of the visitor's IP (the IP itself isn't kept).
+            for col in ("reason", "ip"):
+                if col not in cols:
+                    self._db.execute(f"ALTER TABLE events ADD COLUMN {col} TEXT")
+            self._db.execute("CREATE INDEX IF NOT EXISTS events_ip ON events (ip, ts)")
             self._db.commit()
 
     def _exec(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
@@ -426,14 +432,39 @@ class Store:
         campaign_id: int | None = None,
         zone: str | None = None,
         device: str | None = None,
+        reason: str | None = None,
+        ip: str | None = None,
     ) -> int:
         cur = self._exec(
-            "INSERT INTO events (ts, type, niche_id, asin, campaign_id, zone, device, seconds)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO events (ts, type, niche_id, asin, campaign_id, zone, device, seconds,"
+            " reason, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (now_iso(), type_, niche_id, asin, campaign_id, zone, device,
-             0 if type_ == "visit" else None),
+             0 if type_ == "visit" else None, reason, ip),
         )
         return cur.lastrowid
+
+    def visit_time(self, event_id: int) -> datetime | None:
+        rows = self._all("SELECT ts FROM events WHERE id = ? AND type = 'visit'", (event_id,))
+        return datetime.fromisoformat(rows[0]["ts"]) if rows else None
+
+    def clicks_from_ip(self, ip: str, since: str) -> int:
+        """Clicks to Amazon (passed or held back) from one visitor since `since`."""
+        rows = self._all("SELECT COUNT(*) AS n FROM events WHERE ip = ? AND ts >= ?"
+                         " AND type IN ('click', 'bot')", (ip, since))
+        return int(rows[0]["n"])
+
+    def bot_reasons(self, campaign_id: int, since: str | None = None,
+                    until: str | None = None) -> dict[str, int]:
+        """{reason: count} of clicks held back from Amazon."""
+        window, extra = self._window(since, until)
+        rows = self._all("SELECT reason, COUNT(*) AS n FROM events WHERE campaign_id = ?"
+                         " AND type = 'bot'" + window + " GROUP BY reason",
+                         (campaign_id, *extra))
+        out: dict[str, int] = {}
+        for r in rows:
+            for reason in (r["reason"] or "?").split(","):
+                out[reason] = out.get(reason, 0) + int(r["n"])
+        return out
 
     def set_visit_seconds(self, event_id: int, seconds: int, max_age_hours: int = 6) -> None:
         """Time on page reported by the page itself; keeps the largest report,

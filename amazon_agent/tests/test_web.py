@@ -31,9 +31,9 @@ def test_site_pages_and_tracking(site, store):
     assert page.status_code == 200
     assert "$19.99" in page.text and "Price as of" in page.text
     assert "Choosing the right earbuds" in page.text and "Check battery life" in page.text
-    assert 'href="/go/earbuds/NEW?c=1&amp;z=555"' in page.text
+    assert 'href="/go/earbuds/NEW?v=' in page.text and '&amp;c=1&amp;z=555"' in page.text
 
-    go = client.get("/go/earbuds/NEW?c=1&z=555", follow_redirects=False)
+    go = client.get("/go/earbuds/NEW?c=1&z=555&js=1", follow_redirects=False)
     assert go.status_code == 302 and go.headers["location"].endswith("tag=test-20")
     assert store.count_events(1, "visit") == 1 and store.count_events(1, "click") == 1
     assert store.events_by_zone(1, "click") == {"555": 1}
@@ -47,7 +47,7 @@ def test_stale_price_is_hidden(site):
 
 def test_unsafe_zone_values_are_dropped(site, store):
     client, _ = site
-    client.get("/go/earbuds/NEW?c=2&z=<script>")
+    client.get("/go/earbuds/NEW?c=2&z=<script>&js=1")
     assert store.events_by_zone(2, "click") == {}
 
 

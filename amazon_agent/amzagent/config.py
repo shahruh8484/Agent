@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     # In manual mode, still exclude zones with no Amazon clicks (same
     # thresholds as in auto mode) on every running campaign.
     manual_prune_zones: bool = True
+    # Exclude a zone once this many of its clicks to Amazon were held back as
+    # automated and they outnumber the real ones (0 = off).
+    bot_zone_min: int = 3
     # Platform of new campaigns: all, mobile (phones and tablets) or desktop.
     push_platform: str = "all"
     campaigns_per_site: int = 3

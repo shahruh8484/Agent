@@ -8,3 +8,19 @@
   <p>Amazon and the Amazon logo are trademarks of Amazon.com, Inc. or its affiliates. {{ brand }} is not affiliated with or endorsed by Amazon. Product prices and availability are subject to change; the price shown on Amazon at the time of purchase applies.</p>
   <p>&copy; {{ year }} {{ brand }}. All rights reserved.</p>
 </div></footer>
+<script>
+/* Marks links to Amazon that a real browser interacted with: the server holds
+   back clicks without this mark (bots that fetch the link directly). */
+(function () {
+  function mark(e) {
+    var a = e.target && e.target.closest && e.target.closest('a[href*="/go/"]');
+    if (!a || a.dataset.js) return;
+    var h = a.getAttribute("href");
+    a.setAttribute("href", h + (h.indexOf("?") < 0 ? "?" : "&") + "js=1" + (navigator.webdriver ? "&wd=1" : ""));
+    a.dataset.js = "1";
+  }
+  ["pointerdown", "mousedown", "touchstart", "keydown", "click", "auxclick", "contextmenu"].forEach(function (t) {
+    document.addEventListener(t, mark, {capture: true, passive: true});
+  });
+})();
+</script>

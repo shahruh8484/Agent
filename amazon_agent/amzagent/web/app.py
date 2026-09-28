@@ -24,6 +24,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
+from urllib.parse import urlencode
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import bcrypt
@@ -66,7 +67,11 @@ from amzagent.agent.runner import (
     sync_moderation,
     sync_stats,
 )
-from amzagent.amazon.creator_connections import parse_opportunities, parse_opportunity_details
+from amzagent.amazon.creator_connections import (
+    marketplace_host,
+    parse_opportunities,
+    parse_opportunity_details,
+)
 from amzagent.config import Settings, get_settings
 from amzagent.models import Product
 from amzagent.panel_settings import effective, load_overrides, parse_form
@@ -93,6 +98,19 @@ CONTACT_HOURLY_LIMIT = 20
 # Flash messages that report a failure ("… не создан: …") are shown in red.
 FLASH_FAILED_RE = re.compile(
     r"\bне (найдено|возвращена|сохранены|создан|удалось|запущена|запущен)\b")
+# Shown instead of the redirect when a click looks automated. The button is a
+# plain Amazon link (no tag); in a real browser the script swaps in our
+# tagged link, so people still get through with one more tap.
+CONTINUE_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>Continue to Amazon</title><style>body{{font-family:system-ui,sans-serif;background:#f6f5f2;
+margin:0;display:grid;place-items:center;min-height:100vh}}.box{{background:#fff;border:1px solid #e3e0d8;
+border-radius:14px;padding:28px;max-width:420px;margin:16px;text-align:center}}a.btn{{display:block;
+background:#f0a020;color:#111;font-weight:700;padding:14px;border-radius:10px;text-decoration:none;
+margin-top:18px}}p{{color:#555}}</style></head><body><div class="box"><h1 style="font-size:1.2rem">{title}</h1>
+<p>You are leaving our site for Amazon.</p><a class="btn" id="go" href="{plain}" rel="nofollow noopener">
+Continue to Amazon &rarr;</a></div><script>(function(){{var r="{retry}";if(r&&!navigator.webdriver)
+document.getElementById("go").href=r+"&js=1";}})();</script></body></html>"""
 MAX_TIME_ON_PAGE = 1800  # seconds; longer reports are capped (tab left open)
 STATS_INTERVAL_SECONDS = 3 * 60  # site-wide, keeps a spam bot from flooding the inbox
 SAFE_PARAM = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
@@ -119,6 +137,30 @@ def device_of(request: Request) -> str:
     # iPadOS reports a desktop Mac user agent; its touch support gives it away
     # only in JS, so an iPad may count as desktop.
     return "mobile" if MOBILE_UA.search(ua) else "desktop"
+
+
+# --- bot filter on the way to Amazon ------------------------------------
+# Clicks that look automated are not sent to Amazon with our tag (Amazon
+# pays only for qualified clicks and may act on invalid ones). A person who
+# trips a soft check gets a "Continue to Amazon" page instead.
+BOT_UA = re.compile(
+    r"bot|crawl|spider|slurp|headless|phantom|puppeteer|playwright|selenium|webdriver|"
+    r"curl|wget|python|httpclient|okhttp|java/|go-http|libwww|scrapy|axios|node-fetch|"
+    r"facebookexternalhit|preview|lighthouse|pingdom|uptime|monitor", re.IGNORECASE)
+FAST_CLICK_SECONDS = 2  # clicked sooner after the page opened than a person can
+IP_CLICKS_PER_HOUR = 5  # more clicks to Amazon than this from one visitor per hour
+HARD_BOT_REASONS = {"bot-ua", "webdriver", "repeat-ip"}  # never passed on
+BOT_REASON_NAMES = {"bot-ua": "бот по User-Agent", "webdriver": "автоматический браузер",
+                    "no-js": "без JavaScript", "fast": "клик быстрее 2 с",
+                    "repeat-ip": "много кликов с одного адреса"}
+
+
+def client_ip(request: Request) -> str:
+    """The visitor's address: Caddy appends it as the last X-Forwarded-For entry."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[-1].strip()
+    return request.client.host if request.client else ""
 
 
 def _clean(value: str | None) -> str | None:
@@ -169,6 +211,7 @@ def _campaign_rows(store: Store, bid: float = 0.0, period: Period | None = None,
         visits = store.count_events(c["id"], "visit", since, until)
         times = store.time_on_site(c["id"], since, until)
         amazon = store.count_events(c["id"], "click", since, until)
+        bot_reasons = store.bot_reasons(c["id"], since, until)
         if since is not None:
             n = (net or {}).get(c["external_id"] or "", {})
             c.update(impressions=n.get("impressions", 0), ad_clicks=n.get("clicks", 0),
@@ -194,6 +237,9 @@ def _campaign_rows(store: Store, bid: float = 0.0, period: Period | None = None,
                              (net_zones or {}).get(c["external_id"] or "", [])
                              if since is not None else None, epc, times),
             time=times.get(None),
+            bots=store.count_events(c["id"], "bot", since, until),
+            bot_reasons=", ".join(f"{BOT_REASON_NAMES.get(k, k)}: {n}"
+                                  for k, n in sorted(bot_reasons.items(), key=lambda x: -x[1])),
         )
         rows.append(c)
     rows.sort(key=lambda c: (STATUS_ORDER.get(c["status"], 9), -c["spend"], -c["id"]))
@@ -205,6 +251,7 @@ def _zone_rows(store: Store, campaign_id: int, since: str | None = None,
                epc: float | None = None, times: dict | None = None) -> list[dict]:
     visits = store.events_by_zone(campaign_id, "visit", since, until)
     clicks = store.events_by_zone(campaign_id, "click", since, until)
+    bots = store.events_by_zone(campaign_id, "bot", since, until)
     dev_visits = store.events_by_zone_device(campaign_id, "visit", since, until)
     dev_clicks = store.events_by_zone_device(campaign_id, "click", since, until)
     excluded = store.blacklisted_zones(campaign_id)
@@ -231,6 +278,7 @@ def _zone_rows(store: Store, campaign_id: int, since: str | None = None,
                 {d: dev_clicks.get((z["zone"], d), 0) for d in DEVICES}),
             "excluded": z["zone"] in excluded,
             "time": (times or {}).get(z["zone"]),
+            "bots": bots.get(z["zone"], 0),
         })
     out.sort(key=lambda z: (z["excluded"], -z["spent"], -z["impressions"]))
     return out
@@ -390,7 +438,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
     network_cache: dict = {}
     time_key = (settings.secret_key or "dev-only-insecure-key").encode()
 
-    def visit_sig(visit_id: int) -> str:
+    def visit_sig(visit_id: int | str) -> str:
         """Signs the time-on-page URL so only our own page can report for a visit."""
         return hmac.new(time_key, str(visit_id).encode(), hashlib.sha256).hexdigest()[:16]
 
@@ -680,9 +728,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         zone = _clean(z)
         visit_id = store.log_event("visit", niche.id, asin, campaign_id, zone,
                                    device_of(request))
-        go = f"/go/{slug}/{asin}"
+        go = f"/go/{slug}/{asin}?v={visit_id}"
         if campaign_id:
-            go += f"?c={campaign_id}" + (f"&z={zone}" if zone else "")
+            go += f"&c={campaign_id}" + (f"&z={zone}" if zone else "")
         listed_products = [(p, pc) for p, pc in store.list_products(niche.id) if pc]
         listed = [p.asin for p, _ in listed_products]
         rank = listed.index(asin) + 1 if asin in listed else None
@@ -812,16 +860,53 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
     def favicon_ico():
         return RedirectResponse("/favicon.svg", status_code=301)
 
+    def bot_reasons_of(request: Request, visit: str | None, js: str | None,
+                       wd: str | None, ip_key: str) -> list[str]:
+        reasons = []
+        ua = request.headers.get("user-agent", "")
+        if not ua or BOT_UA.search(ua):
+            reasons.append("bot-ua")
+        if wd == "1":
+            reasons.append("webdriver")
+        if js != "1":  # our page script marks links a real browser clicked
+            reasons.append("no-js")
+        opened = store.visit_time(int(visit)) if visit and visit.isdigit() else None
+        if opened and (datetime.now(timezone.utc) - opened).total_seconds() < FAST_CLICK_SECONDS:
+            reasons.append("fast")
+        hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(timespec="seconds")
+        if ip_key and store.clicks_from_ip(ip_key, hour_ago) >= IP_CLICKS_PER_HOUR:
+            reasons.append("repeat-ip")
+        return reasons
+
     @app.get("/go/{slug}/{asin}")
     def outbound(request: Request, slug: str, asin: str, c: str | None = None,
-                 z: str | None = None):
+                 z: str | None = None, v: str | None = None, js: str | None = None,
+                 wd: str | None = None, ok: str | None = None):
         niche = store.get_niche_by_slug(slug)
         found = store.get_product(niche.id, asin) if niche else None
         if found is None:
             raise HTTPException(404)
         campaign_id = int(c) if c and c.isdigit() else None
-        store.log_event("click", niche.id, asin, campaign_id, _clean(z), device_of(request))
-        return RedirectResponse(found[0].url, status_code=302)
+        zone, device = _clean(z), device_of(request)
+        ip_key = visit_sig(f"ip:{client_ip(request)}") if client_ip(request) else ""
+        reasons = bot_reasons_of(request, v, js, wd, ip_key)
+        confirmed = bool(ok) and hmac.compare_digest(ok, visit_sig(f"ok:{slug}:{asin}"))
+        if confirmed and not HARD_BOT_REASONS & set(reasons):
+            reasons = []  # a person pressed "Continue" on the check page
+        if not reasons:
+            store.log_event("click", niche.id, asin, campaign_id, zone, device, ip=ip_key)
+            return RedirectResponse(found[0].url, status_code=302)
+        store.log_event("bot", niche.id, asin, campaign_id, zone, device,
+                        reason=",".join(reasons), ip=ip_key)
+        plain = f"https://{marketplace_host(settings.amazon_country)}/dp/{asin}"
+        params = {k: val for k, val in (("c", c), ("z", zone)) if val}
+        retry = f"/go/{slug}/{asin}?" + urlencode(
+            {**params, "ok": visit_sig(f"ok:{slug}:{asin}")})
+        soft = not HARD_BOT_REASONS & set(reasons)
+        return HTMLResponse(CONTINUE_PAGE.format(
+            title=escape(found[0].title[:120]), plain=escape(plain),
+            retry=escape(retry) if soft else ""), status_code=200,
+            headers={"X-Robots-Tag": "noindex, nofollow"})
 
     @app.get("/media/{slug}/{filename}")
     def media(slug: str, filename: str):
