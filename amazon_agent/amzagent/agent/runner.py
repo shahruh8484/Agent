@@ -1108,6 +1108,10 @@ def create_campaign(deps: Deps, niche: Niche, site_copy, product, copy) -> str |
     except PropellerError as exc:
         store.update_campaign(cid, status=ERROR, payload=payload, note=str(exc)[:500])
         deps.say(f"[{niche.slug}] campaign #{cid} failed: {exc}")
+        if "os_type" in str(exc):  # the platform values didn't fit: look them up again
+            store.set_flag(f"os_types:{s.push_platform}", "null")
+            deps.say("PropellerAds rejected the platform targeting (os_type); "
+                     "set Платформа to «Все устройства» in the panel until this is fixed")
         return f"PropellerAds не создал кампанию: {exc}"
     store.update_campaign(cid, status=ACTIVE, external_id=external_id,
                           payload=payload, note="sent to PropellerAds moderation")
@@ -1191,7 +1195,35 @@ def build_payload(deps: Deps, niche: Niche, site_copy, product, copy, cid: int) 
         countries=s.push_countries_list(),
         bid_cpc=s.push_bid_cpc,
         daily_budget=s.campaign_daily_budget,
+        os_types=platform_os_types(deps),
     )
+
+
+def platform_os_types(deps: Deps) -> list | None:
+    """targeting.os_type values for the chosen platform (None = all).
+    Looked up once in PropellerAds' reference and remembered."""
+    platform = deps.settings.push_platform
+    if platform not in propeller.OS_TYPE_FALLBACK:
+        return None
+    flag = f"os_types:{platform}"
+    try:
+        cached = json.loads(deps.store.get_flag(flag, "null"))
+    except ValueError:
+        cached = None
+    if cached:
+        return cached
+    if deps.push is not None and hasattr(deps.push, "os_type_values"):
+        try:
+            values = deps.push.os_type_values(platform)
+        except propeller.PropellerError as exc:
+            deps.say_once(f"os_type:{platform}",
+                          f"platform {platform}: PropellerAds reference unavailable ({exc}); "
+                          f"using {propeller.OS_TYPE_FALLBACK[platform]}", every=timedelta(hours=6))
+        else:
+            deps.store.set_flag(flag, json.dumps(values))
+            deps.say(f"platform {platform}: PropellerAds os_type values {values}")
+            return values
+    return propeller.OS_TYPE_FALLBACK[platform]
 
 
 def redraw_campaign(deps: Deps, campaign_id: int) -> bool:

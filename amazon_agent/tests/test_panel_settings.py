@@ -17,6 +17,10 @@ def test_parse_form_validates():
     assert any("лимит меньше" in e for e in errors)
     _, errors = parse_form({"push_countries": "usa"})
     assert errors
+    values, errors = parse_form({"push_platform": "mobile"})
+    assert values["push_platform"] == "mobile" and not errors
+    _, errors = parse_form({"push_platform": "tv"})
+    assert any("Платформа" in e for e in errors)
 
 
 def test_overrides_reach_the_agent(settings, store):

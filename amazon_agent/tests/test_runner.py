@@ -627,3 +627,40 @@ def test_quick_checks_go_to_their_own_journal_and_repeats_are_muted(settings, st
     quick_check(_deps(settings, store, push))  # rejected by moderation -> logged
     checks = store.list_runs(10, kinds=("check",))
     assert len(checks) == 1 and "rejected by moderation" in checks[0]["log"]
+
+
+class PlatformPush(FakePush):
+    def __init__(self, reference=None):
+        super().__init__()
+        self.reference, self.lookups = reference, 0
+
+    def os_type_values(self, platform):
+        from amzagent.push.propeller import PropellerError, match_os_types
+        self.lookups += 1
+        if self.reference is None:
+            raise PropellerError("HTTP 404")
+        return match_os_types(self.reference, platform)
+
+
+def test_platform_choice_targets_new_campaigns(settings, store):
+    settings.push_live = True
+    store.add_niche("earbuds")
+    push = PlatformPush([{"id": 7, "name": "Mobile"}, {"id": 8, "name": "Desktop"}])
+    run_cycle(_deps(settings, store, push))
+    assert all("os_type" not in p["targeting"] for p in push.created)  # "all" by default
+
+    settings.push_platform = "mobile"
+    settings.campaigns_per_site = 4
+    run_cycle(_deps(settings, store, push))
+    new = push.created[2:]
+    assert new and all(p["targeting"]["os_type"]["list"] == [7] for p in new)
+    assert push.lookups == 1  # looked up once, then remembered
+
+
+def test_platform_falls_back_when_reference_is_missing(settings, store):
+    settings.push_live, settings.push_platform = True, "desktop"
+    store.add_niche("earbuds")
+    push = PlatformPush(None)
+    run_cycle(_deps(settings, store, push))
+    assert push.created and all(p["targeting"]["os_type"]["list"] == ["desktop"]
+                                for p in push.created)

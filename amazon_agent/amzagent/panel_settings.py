@@ -23,6 +23,7 @@ EDITABLE: dict[str, tuple[type, float | None, float | None]] = {
     "campaigns_per_site": (int, 0, 50),
     "push_bid_cpc": (float, 0.001, 10),
     "push_countries": (str, None, None),
+    "push_platform": (str, None, None),
     "kill_min_spend": (float, 0, 10_000),
     "min_amazon_rate": (float, 0, 100),
     "max_cost_per_amazon_click": (float, 0, 100),
@@ -33,6 +34,7 @@ EDITABLE: dict[str, tuple[type, float | None, float | None]] = {
     "import_site_size": (int, 1, 500),
 }
 
+PLATFORMS = ("all", "mobile", "desktop")
 COUNTRIES_RE = re.compile(r"^[a-z]{2}(,[a-z]{2})*$")
 
 
@@ -66,6 +68,9 @@ def parse_form(form: dict[str, str]) -> tuple[dict, list[str]]:
                 if not COUNTRIES_RE.match(raw):
                     errors.append("Страны: двухбуквенные коды через запятую, например us,ca,gb")
                     continue
+            if field == "push_platform" and raw not in PLATFORMS:
+                errors.append("Платформа: all, mobile или desktop")
+                continue
             if field == "push_creatives" and raw not in ("ai", "simple"):
                 errors.append("Картинки: ai или simple")
                 continue

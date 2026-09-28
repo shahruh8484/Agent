@@ -47,6 +47,14 @@ TRAFFIC_CATEGORIES = ["propeller"]
 ALL_HOURS = [f"{d}{h:02d}" for d in ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
              for h in range(24)]
 MIN_DAILY_AMOUNT = 10.0
+# Platform targeting (targeting.os_type). The values come from the API's
+# targeting reference; these paths are tried in turn, and the fallback
+# values are used only when none answers.
+OS_TYPE_COLLECTION_PATHS = ("/collections/targeting/os_type",
+                            "/adv/collections/targeting/os_type")
+PLATFORM_WORDS = {"mobile": ("mobile", "tablet", "phone"),
+                  "desktop": ("desktop", "computer", "pc")}
+OS_TYPE_FALLBACK = {"mobile": ["mobile"], "desktop": ["desktop"]}
 
 # "nativeads" is the SSP direction for classic (web) push notifications.
 PUSH_DIRECTION = "nativeads"
@@ -131,6 +139,33 @@ def stats_rate_limited() -> bool:
     return _stats_blocked_until is not None and datetime.now(timezone.utc) < _stats_blocked_until
 
 
+def match_os_types(data: Any, platform: str) -> list:
+    """Values of the os_type reference entries that belong to `platform`.
+    Entries may be {"value"/"id": ..., "title"/"name"/"text": ...} or strings,
+    possibly wrapped in "result"/"data"/"items"."""
+    words = PLATFORM_WORDS.get(platform, ())
+    if isinstance(data, dict):
+        for key in ("result", "data", "items", "list"):
+            if isinstance(data.get(key), (list, dict)):
+                return match_os_types(data[key], platform)
+        entries = [{"value": k, "title": v} for k, v in data.items()]
+    elif isinstance(data, list):
+        entries = data
+    else:
+        return []
+    out = []
+    for e in entries:
+        if isinstance(e, dict):
+            value = next((e[k] for k in ("value", "id", "code", "key") if k in e), None)
+            text = " ".join(str(e.get(k, "")) for k in ("title", "name", "text", "label"))
+            text = f"{text} {value}".lower()
+        else:
+            value, text = e, str(e).lower()
+        if value is not None and any(w in text for w in words):
+            out.append(value)
+    return out
+
+
 def build_campaign_payload(
     name: str,
     target_url: str,
@@ -140,8 +175,9 @@ def build_campaign_payload(
     countries: list[str],
     bid_cpc: float,
     daily_budget: float,
+    os_types: list | None = None,
 ) -> dict[str, Any]:
-    return {
+    payload = {
         "name": name[:100],
         "direction": PUSH_DIRECTION,
         "rate_model": RATE_MODEL,
@@ -178,6 +214,9 @@ def build_campaign_payload(
             for icon_url, image_url in images
         ],
     }
+    if os_types:  # only phones/tablets or only computers
+        payload["targeting"]["os_type"] = {"list": list(os_types), "is_excluded": False}
+    return payload
 
 
 class PropellerClient:
@@ -219,6 +258,21 @@ class PropellerClient:
             return resp.json()
         except ValueError:
             return {}
+
+    def os_type_values(self, platform: str) -> list:
+        """os_type values for "mobile" or "desktop" from the API reference."""
+        errors = []
+        for path in OS_TYPE_COLLECTION_PATHS:
+            try:
+                data = self._request("GET", path)
+            except PropellerError as exc:
+                errors.append(str(exc))
+                continue
+            values = match_os_types(data, platform)
+            if values:
+                return values
+            errors.append(f"GET {path}: no {platform} entry in {str(data)[:300]}")
+        raise PropellerError("; ".join(errors))
 
     def create_campaign(self, payload: dict[str, Any]) -> str:
         data = self._request("POST", CAMPAIGNS_PATH, json=payload)

@@ -123,3 +123,23 @@ def test_statistics_rate_limit_pauses_further_stats_calls(monkeypatch):
     client.stop(["1"])  # campaign control is never held back
     assert len(calls) == 2
     monkeypatch.setattr(propeller, "_stats_blocked_until", None)
+
+
+def test_platform_targeting_only_when_chosen():
+    args = ("n", "u", "t", "b", [("i", "m")], ["us"], 0.03, 10)
+    assert "os_type" not in build_campaign_payload(*args)["targeting"]
+    p = build_campaign_payload(*args, os_types=["mobile"])
+    assert p["targeting"]["os_type"] == {"list": ["mobile"], "is_excluded": False}
+
+
+def test_os_type_reference_formats():
+    from amzagent.push.propeller import match_os_types
+    ref = {"result": [{"value": "mobile", "title": "Mobile"},
+                      {"value": "desktop", "title": "Desktop"}]}
+    assert match_os_types(ref, "mobile") == ["mobile"]
+    assert match_os_types(ref, "desktop") == ["desktop"]
+    ids = [{"id": 1, "name": "Desktop OS"}, {"id": 2, "name": "Mobile OS"},
+           {"id": 3, "name": "Tablet"}]
+    assert match_os_types(ids, "mobile") == [2, 3]
+    assert match_os_types({"1": "Desktop", "2": "Mobile"}, "desktop") == ["1"]
+    assert match_os_types(["mobile", "desktop"], "desktop") == ["desktop"]
