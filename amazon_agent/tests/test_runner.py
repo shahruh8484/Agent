@@ -431,7 +431,7 @@ def test_manual_resume_is_not_killed_again(settings, store):
     assert store.get_campaign(c["id"])["manual_keep"] == 0
 
 
-def test_resume_refused_without_budget_or_for_dry_runs(settings, store):
+def test_resume_waits_for_room_and_refuses_dry_runs(settings, store):
     from amzagent.agent.runner import resume_campaign
 
     store.add_niche("earbuds")
@@ -450,7 +450,15 @@ def test_resume_refused_without_budget_or_for_dry_runs(settings, store):
     from amzagent.agent.runner import sync_today_spend
     deps = _deps(settings, store, push)
     sync_today_spend(deps)
-    assert "не хватает дневного лимита" in resume_campaign(deps, a["id"])
+    assert resume_campaign(deps, a["id"]) is None  # no room: queued, not refused
+    queued = store.get_campaign(a["id"])
+    assert queued["status"] == "capped" and queued["manual_keep"] == 1
+    assert a["external_id"] not in push.started
+
+    push.spend_rows = [{"campaign_id": a["external_id"], "spent": 2.0}]  # window rolled on
+    run_cycle(_deps(settings, store, push))
+    assert store.get_campaign(a["id"])["status"] == ACTIVE  # started by itself
+    assert a["external_id"] in push.started
 
 
 def test_manual_campaign_zones_are_pruned_even_below_the_rate(settings, store):

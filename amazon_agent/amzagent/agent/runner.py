@@ -913,7 +913,8 @@ def estimated_spend(deps: Deps, campaign: dict) -> float:
 def resume_campaign(deps: Deps, campaign_id: int) -> str | None:
     """Bring a stopped/killed campaign back by hand. It's marked manual_keep
     so the kill rules don't stop it again (limits and safety stops still
-    apply). Returns an error message or None."""
+    apply). Without room under the 24h limit it waits as "capped" and starts
+    by itself later. Returns an error message or None."""
     c = deps.store.get_campaign(campaign_id)
     if c is None:
         return "кампания не найдена"
@@ -924,11 +925,17 @@ def resume_campaign(deps: Deps, campaign_id: int) -> str | None:
     if deps.push is None:
         return "PropellerAds не подключён или реклама выключена в настройках"
     # Same rule as launching: spent in 24h by stopped campaigns + running
-    # budgets + this one's budget must fit under the limit.
-    committed = committed_24h(deps.store) or 0.0
-    if committed + c["daily_budget"] > deps.settings.max_daily_spend:
-        return (f"не хватает дневного лимита: занято ${committed:.2f} из "
-                f"${deps.settings.max_daily_spend:.2f} (поднимите лимит в настройках)")
+    # budgets + this one's budget must fit under the limit. If it doesn't,
+    # queue it as paused at the limit: the 3-minute check starts it (before
+    # any new launch) once the 24h window has room again.
+    committed = committed_24h(deps.store)
+    if committed is None or committed + c["daily_budget"] > deps.settings.max_daily_spend:
+        taken = f"занято ${committed:.2f}" if committed is not None else "расход неизвестен"
+        deps.store.update_campaign(
+            campaign_id, status=CAPPED, manual_keep=1,
+            note=f"returned by hand: starts when the 24h limit has room ({taken})")
+        deps.say(f"campaign #{campaign_id} returned by hand: waits for room under the 24h limit")
+        return None
     try:
         deps.push.start([c["external_id"]])
     except PropellerError as exc:

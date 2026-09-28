@@ -146,7 +146,8 @@ TOOLS = [
     _tool("stop_campaign", "Остановить кампанию (товар больше не запускается).",
           {"campaign_id": {"type": "integer"}}, ["campaign_id"]),
     _tool("resume_campaign", "Вернуть остановленную/отключённую кампанию. Правила её "
-                             "больше не отключают, зоны без переходов чистятся.",
+                             "больше не отключают, зоны без переходов чистятся. Если под лимитом "
+                             "за 24 ч нет места — встаёт в очередь (capped) и включится сама.",
           {"campaign_id": {"type": "integer"}}, ["campaign_id"]),
     _tool("set_zone", "Отключить или снова включить зону в кампании.",
           {"campaign_id": {"type": "integer"}, "zone": {"type": "string"},
@@ -357,7 +358,12 @@ class ChatAgent:
 
     def _resume(self, deps, args: dict) -> dict:
         error = resume_campaign(deps, int(args["campaign_id"]))
-        return {"error": error} if error else {"ok": True}
+        if error:
+            return {"error": error}
+        status = self.store.get_campaign(int(args["campaign_id"]))["status"]
+        return {"ok": True, "status": status,
+                "note": "ждёт места под лимитом за 24 ч, включится сама" if status == "capped"
+                        else "работает"}
 
     def _set_zone(self, deps, args: dict) -> dict:
         zone, action = str(args.get("zone", "")), args.get("action")

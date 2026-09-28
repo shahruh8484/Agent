@@ -1028,8 +1028,12 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         if not logged_in(request):
             return to_login()
         error = resume_campaign(build_deps(settings, store), campaign_id)
+        queued = not error and store.get_campaign(campaign_id)["status"] == CAPPED
         request.session["flash"] = (
             f"Кампания #{campaign_id} не возвращена: {error}" if error else
+            f"Кампания #{campaign_id} вернута и ждёт места под лимитом за 24 ч: включится "
+            "сама, как только оно освободится (раньше новых запусков). Передумали — "
+            "кнопка «Стоп»." if queued else
             f"Кампания #{campaign_id} снова работает. Агент не будет отключать её по "
             "результатам (остановить можно кнопкой «Стоп»), но будет отключать её зоны "
             "без переходов на Amazon."
