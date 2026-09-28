@@ -159,6 +159,7 @@
 {% macro profit(v) %}{% if v is none %}—{% elif v >= 0 %}<span class="pos">+${{ "%.2f"|format(v) }}</span>{% else %}<span class="neg">−${{ "%.2f"|format(-v) }}</span>{% endif %}{% endmacro %}
 {% macro dev_visits(d) %}{% if d %}<span class="sub dev" title="Визиты с телефонов/планшетов · с компьютеров">📱 {{ d.mobile.visits }} · 💻 {{ d.desktop.visits }}</span>{% endif %}{% endmacro %}
 {% macro dev_rate(d) %}{% if d %}<span class="sub dev" title="Переходы на Amazon: с телефонов/планшетов · с компьютеров (доля от визитов)">📱 {{ d.mobile.amazon }}{% if d.mobile.rate is not none %} ({{ "%.1f%%"|format(d.mobile.rate * 100) }}){% endif %} · 💻 {{ d.desktop.amazon }}{% if d.desktop.rate is not none %} ({{ "%.1f%%"|format(d.desktop.rate * 100) }}){% endif %}</span>{% endif %}{% endmacro %}
+{% macro time_on_site(t) %}{% if t %}<span class="sub" title="Время на странице (пока вкладка на экране), среднее по {{ t.n }} визитам · доля ушедших быстрее 5 секунд, включая не приславших время (боты, мгновенное закрытие)">⏱ {{ "%d:%02d"|format(t.avg // 60, t.avg % 60) }} · отказ {{ "%.0f%%"|format(t.bounce * 100) }}</span>{% endif %}{% endmacro %}
 {% macro pct(v) %}{{ "%.2f%%"|format(v * 100) if v is not none else "—" }}{% endmacro %}
 {% set live = campaigns|selectattr("status", "in", ["active", "capped", "paced", "dry_run", "creating"])|list %}
 {% set done = campaigns|rejectattr("status", "in", ["active", "capped", "paced", "dry_run", "creating"])|list %}
@@ -177,7 +178,7 @@
   <td class="num">{{ "{:,}".format(c.impressions) }}</td>
   <td class="num" title="CTR · цена клика (CPC)">{{ "{:,}".format(c.ad_clicks) }}<span class="sub">{{ pct(c.ctr) }} · {{ money(c.cpc) }}</span></td>
   <td class="num" title="PropellerAds отдаёт расход с задержкой; ≈ — оценка агента по визитам на сайт (без задержки), по ней он и принимает решения"><b>{{ money(c.spend) }}</b>{% if c.spend_est > c.spend + 0.05 %}<span class="sub">≈ {{ money(c.spend_est) }} сейчас</span>{% endif %}</td>
-  <td class="num">{{ c.visits }}{{ dev_visits(c.devices) }}</td>
+  <td class="num">{{ c.visits }}{{ dev_visits(c.devices) }}{{ time_on_site(c.time) }}</td>
   <td class="num">{{ c.clicks }}{% if c.to_amazon is not none %}<span class="sub">{{ pct(c.to_amazon) }}</span>{% endif %}{{ dev_rate(c.devices) }}</td>
   <td class="num"><b>{{ money(c.cost_per_click) }}</b></td>
   <td class="num" title="Переходы на Amazon × Estimated EPC товара ({{ money(c.epc) }}) — максимум, который обещает Amazon">{{ money(c.revenue) }}</td>
@@ -198,7 +199,7 @@
       <td>{% if not z.excluded and not c.zones_only %}<input type="checkbox" name="zones" value="{{ z.zone }}" form="wl{{ c.id }}"{% if z.amazon %} checked{% endif %} title="В вайт-лист"> {% endif %}</td>
       <td>{{ z.zone }}</td>
       <td class="num">{{ "{:,}".format(z.impressions) }}</td><td class="num">{{ "{:,}".format(z.clicks) }}</td><td class="num">{{ pct(z.ctr) }}</td>
-      <td class="num">{{ money(z.spent) }}</td><td class="num">{{ z.visits }}{{ dev_visits(z.devices) }}</td><td class="num">{{ z.amazon }}{{ dev_rate(z.devices) }}</td><td class="num">{{ money(z.cost_per_amazon) }}</td><td class="num">{{ profit(z.profit) }}</td>
+      <td class="num">{{ money(z.spent) }}</td><td class="num">{{ z.visits }}{{ dev_visits(z.devices) }}{{ time_on_site(z.time) }}</td><td class="num">{{ z.amazon }}{{ dev_rate(z.devices) }}</td><td class="num">{{ money(z.cost_per_amazon) }}</td><td class="num">{{ profit(z.profit) }}</td>
       <td class="acts"><form class="inline" method="post" action="/campaigns/{{ c.id }}/zones/{{ z.zone }}/{{ 'include' if z.excluded else 'exclude' }}" onsubmit="return zoneToggle(event, this)">{% if z.excluded %}<button class="sm">Включить</button>{% else %}<button class="sm danger">Отключить</button>{% endif %}</form></td>
     </tr>
     {% endfor %}

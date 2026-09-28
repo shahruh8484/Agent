@@ -14,6 +14,7 @@ Admin (login): /, /login, /logout and the POST actions below.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -92,6 +93,7 @@ CONTACT_HOURLY_LIMIT = 20
 # Flash messages that report a failure ("… не создан: …") are shown in red.
 FLASH_FAILED_RE = re.compile(
     r"\bне (найдено|возвращена|сохранены|создан|удалось|запущена|запущен)\b")
+MAX_TIME_ON_PAGE = 1800  # seconds; longer reports are capped (tab left open)
 STATS_INTERVAL_SECONDS = 3 * 60  # site-wide, keeps a spam bot from flooding the inbox
 SAFE_PARAM = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
 
@@ -165,6 +167,7 @@ def _campaign_rows(store: Store, bid: float = 0.0, period: Period | None = None,
         # to Amazon can earn; revenue/profit below are that upper bound.
         epc = (found[0].epc if found else None) or (niche.asins.get(c["asin"]) if niche else None)
         visits = store.count_events(c["id"], "visit", since, until)
+        times = store.time_on_site(c["id"], since, until)
         amazon = store.count_events(c["id"], "click", since, until)
         if since is not None:
             n = (net or {}).get(c["external_id"] or "", {})
@@ -189,7 +192,8 @@ def _campaign_rows(store: Store, bid: float = 0.0, period: Period | None = None,
             images=_payload_images(c["payload"]),
             zones=_zone_rows(store, c["id"], since, until,
                              (net_zones or {}).get(c["external_id"] or "", [])
-                             if since is not None else None, epc),
+                             if since is not None else None, epc, times),
+            time=times.get(None),
         )
         rows.append(c)
     rows.sort(key=lambda c: (STATUS_ORDER.get(c["status"], 9), -c["spend"], -c["id"]))
@@ -198,7 +202,7 @@ def _campaign_rows(store: Store, bid: float = 0.0, period: Period | None = None,
 
 def _zone_rows(store: Store, campaign_id: int, since: str | None = None,
                until: str | None = None, net_rows: list | None = None,
-               epc: float | None = None) -> list[dict]:
+               epc: float | None = None, times: dict | None = None) -> list[dict]:
     visits = store.events_by_zone(campaign_id, "visit", since, until)
     clicks = store.events_by_zone(campaign_id, "click", since, until)
     dev_visits = store.events_by_zone_device(campaign_id, "visit", since, until)
@@ -226,6 +230,7 @@ def _zone_rows(store: Store, campaign_id: int, since: str | None = None,
                 {d: dev_visits.get((z["zone"], d), 0) for d in DEVICES},
                 {d: dev_clicks.get((z["zone"], d), 0) for d in DEVICES}),
             "excluded": z["zone"] in excluded,
+            "time": (times or {}).get(z["zone"]),
         })
     out.sort(key=lambda z: (z["excluded"], -z["spent"], -z["impressions"]))
     return out
@@ -383,6 +388,11 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
     store = store or Store(settings.data_dir)
     media_root = (Path(settings.data_dir) / "media").resolve()
     network_cache: dict = {}
+    time_key = (settings.secret_key or "dev-only-insecure-key").encode()
+
+    def visit_sig(visit_id: int) -> str:
+        """Signs the time-on-page URL so only our own page can report for a visit."""
+        return hmac.new(time_key, str(visit_id).encode(), hashlib.sha256).hexdigest()[:16]
 
     app = FastAPI(title="Amazon affiliate agent")
     app.add_middleware(
@@ -668,7 +678,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         product, product_copy = found
         campaign_id = int(c) if c and c.isdigit() else None
         zone = _clean(z)
-        store.log_event("visit", niche.id, asin, campaign_id, zone, device_of(request))
+        visit_id = store.log_event("visit", niche.id, asin, campaign_id, zone,
+                                   device_of(request))
         go = f"/go/{slug}/{asin}"
         if campaign_id:
             go += f"?c={campaign_id}" + (f"&z={zone}" if zone else "")
@@ -686,8 +697,16 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             request, "product.html",
             site_ctx(request, niche, copy, product=product, copy=product_copy,
                      go_url=go, others=others, rank=rank,
+                     time_url=f"/t/{visit_id}/{visit_sig(visit_id)}",
                      section=section["section"] if section else None),
         )
+
+    @app.post("/t/{visit_id}/{sig}")
+    def time_on_page(visit_id: int, sig: str, s: int = 0):
+        """The product page reports how long it was visible (sendBeacon)."""
+        if hmac.compare_digest(sig, visit_sig(visit_id)):
+            store.set_visit_seconds(visit_id, max(0, min(s, MAX_TIME_ON_PAGE)))
+        return Response(status_code=204)
 
     @app.get("/s/{slug}/about")
     def old_about_page(slug: str):
@@ -732,7 +751,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
     @app.get("/robots.txt", response_class=PlainTextResponse)
     def robots():
         return (
-            "User-agent: *\nDisallow: /admin\nDisallow: /login\nDisallow: /go/\n"
+            "User-agent: *\nDisallow: /admin\nDisallow: /login\nDisallow: /go/\nDisallow: /t/\n"
             f"Sitemap: {settings.public_base_url()}/sitemap.xml\n"
         )
 

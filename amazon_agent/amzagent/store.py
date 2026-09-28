@@ -165,6 +165,10 @@ class Store:
             cols = {r[1] for r in self._db.execute("PRAGMA table_info(events)")}
             if "device" not in cols:
                 self._db.execute("ALTER TABLE events ADD COLUMN device TEXT")
+            # Seconds a visit's page was visible (added later): 0 = page served,
+            # nothing reported back yet; NULL = visit from before this existed.
+            if "seconds" not in cols:
+                self._db.execute("ALTER TABLE events ADD COLUMN seconds INTEGER")
             self._db.commit()
 
     def _exec(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
@@ -422,12 +426,49 @@ class Store:
         campaign_id: int | None = None,
         zone: str | None = None,
         device: str | None = None,
-    ) -> None:
-        self._exec(
-            "INSERT INTO events (ts, type, niche_id, asin, campaign_id, zone, device)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (now_iso(), type_, niche_id, asin, campaign_id, zone, device),
+    ) -> int:
+        cur = self._exec(
+            "INSERT INTO events (ts, type, niche_id, asin, campaign_id, zone, device, seconds)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (now_iso(), type_, niche_id, asin, campaign_id, zone, device,
+             0 if type_ == "visit" else None),
         )
+        return cur.lastrowid
+
+    def set_visit_seconds(self, event_id: int, seconds: int, max_age_hours: int = 6) -> None:
+        """Time on page reported by the page itself; keeps the largest report,
+        only for recent visits."""
+        since = (datetime.now(timezone.utc) - timedelta(hours=max_age_hours)).isoformat(
+            timespec="seconds")
+        self._exec(
+            "UPDATE events SET seconds = MAX(COALESCE(seconds, 0), ?)"
+            " WHERE id = ? AND type = 'visit' AND ts >= ?",
+            (seconds, event_id, since),
+        )
+
+    def time_on_site(self, campaign_id: int, since: str | None = None,
+                     until: str | None = None, bounce_seconds: int = 5) -> dict[str | None, dict]:
+        """Per zone (and None = the whole campaign): visits measured, average
+        seconds, and the share that left within `bounce_seconds` (including
+        pages that never reported back: bots and instant closes)."""
+        window, extra = self._window(since, until)
+        rows = self._all(
+            "SELECT zone, COUNT(*) AS n, AVG(seconds) AS avg,"
+            " SUM(CASE WHEN seconds < ? THEN 1 ELSE 0 END) AS quick"
+            " FROM events WHERE campaign_id = ? AND type = 'visit' AND seconds IS NOT NULL"
+            + window + " GROUP BY zone",
+            (bounce_seconds, campaign_id, *extra),
+        )
+        out: dict[str | None, dict] = {}
+        total_n = total_s = total_q = 0
+        for r in rows:
+            n, avg, quick = int(r["n"]), float(r["avg"] or 0), int(r["quick"])
+            total_n, total_s, total_q = total_n + n, total_s + avg * n, total_q + quick
+            if r["zone"] is not None:
+                out[r["zone"]] = {"n": n, "avg": avg, "bounce": quick / n}
+        if total_n:
+            out[None] = {"n": total_n, "avg": total_s / total_n, "bounce": total_q / total_n}
+        return out
 
     @staticmethod
     def _window(since: str | None, until: str | None) -> tuple[str, tuple]:

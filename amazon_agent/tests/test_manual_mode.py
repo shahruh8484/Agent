@@ -156,3 +156,33 @@ def test_whitelist_needs_zones_and_room(settings, store):
     deps = _deps(settings, store, push)
     assert launch_whitelist(deps, c["id"], []) == "не отмечено ни одной зоны"
     assert "дневного лимита" in launch_whitelist(deps, c["id"], ["111"])  # 2 x $10 already
+
+
+def test_time_on_site_is_reported_by_the_page_and_shown(settings, store):
+    import re
+
+    settings.push_live = True
+    settings.admin_password_hash = bcrypt.hashpw(b"pw", bcrypt.gensalt()).decode()
+    niche = store.add_niche("earbuds")
+    run_cycle(_deps(settings, store, FakePush()))
+    c = store.list_campaigns(statuses=(ACTIVE,))[0]
+    client = TestClient(create_app(settings, store, start_loop=False))
+
+    urls = []
+    for _ in range(3):
+        page = client.get(f"/s/{niche.slug}/p/{c['asin']}?c={c['id']}&z=555").text
+        urls.append(re.search(r'var url = "(/t/\d+/\w+)"', page).group(1))
+    assert client.post(urls[0] + "?s=40").status_code == 204
+    client.post(urls[0] + "?s=12")  # an earlier heartbeat arriving late: max is kept
+    client.post(urls[1] + "?s=2")   # left within 5 s; the 3rd never reported (a bot?)
+    visit_id = urls[2].split("/")[2]
+    client.post(f"/t/{visit_id}/0000000000000000?s=999")  # forged: ignored
+    client.post(urls[2].replace("/t/", "/t/9") + "?s=50")  # another id, same sig: ignored
+
+    t = store.time_on_site(c["id"])
+    assert t[None]["n"] == 3 and round(t[None]["avg"]) == 14  # (40 + 2 + 0) / 3
+    assert round(t[None]["bounce"], 2) == 0.67 and t["555"]["n"] == 3
+
+    client.post("/login", data={"username": "admin", "password": "pw"})
+    assert "⏱ 0:14 · отказ 67%" in client.get("/admin").text
+    assert "Disallow: /t/" in client.get("/robots.txt").text

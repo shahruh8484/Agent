@@ -90,4 +90,21 @@ h1.title { font-size:clamp(1.4rem,3vw,1.9rem); line-height:1.25; margin:12px 0 8
 </section>
 {% endif %}
 <div class="sticky-buy"><a class="btn block" href="{{ go_url }}" rel="nofollow sponsored noopener" target="_blank">Check price on Amazon &rarr;</a></div>
+{% if time_url %}<script>
+/* Time on page: counts only while the tab is visible, reported every 15 s and on leaving. */
+(function () {
+  var url = "{{ time_url }}", ms = 0, from = Date.now(), visible = !document.hidden;
+  function tick() { if (visible) ms += Date.now() - from; from = Date.now(); }
+  function send() {
+    tick();
+    var q = url + "?s=" + Math.round(ms / 1000);
+    try { if (!(navigator.sendBeacon && navigator.sendBeacon(q))) fetch(q, {method: "POST", keepalive: true}); } catch (e) {}
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) { send(); visible = false; } else { from = Date.now(); visible = true; }
+  });
+  addEventListener("pagehide", send);
+  setInterval(function () { if (!document.hidden) send(); }, 15000);
+})();
+</script>{% endif %}
 {% endblock %}
