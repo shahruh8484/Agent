@@ -1410,6 +1410,16 @@ def add_discovered_niches(deps: Deps, count: int) -> int:
     return len(winners)
 
 
+def _advise(deps: Deps) -> None:
+    """Recommendations for the owner in the chat; never breaks a run."""
+    from amzagent.agent.advice import post_advice
+    try:
+        post_advice(deps)
+    except Exception as exc:  # advice is optional
+        logger.exception("advice failed")
+        deps.say(f"recommendations: unexpected error: {exc}")
+
+
 def quick_check(deps: Deps) -> bool:
     """Campaign management only (stats, kill rules, zones, refill freed
     slots) — run every few minutes so a campaign is judged soon after it
@@ -1419,6 +1429,7 @@ def quick_check(deps: Deps) -> bool:
         return False
     try:
         manage_campaigns(deps)
+        _advise(deps)
     except Exception as exc:
         logger.exception("quick check failed")
         deps.say(f"quick check: unexpected error: {exc}")
@@ -1479,6 +1490,7 @@ def run_cycle(
             ok = False
             logger.exception("campaign management failed")
             deps.say(f"campaign management: unexpected error: {exc}")
+        _advise(deps)
     finally:
         deps.store.finish_run(deps.run_id, ok)
         _run_lock.release()

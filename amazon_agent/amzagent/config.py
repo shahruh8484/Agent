@@ -69,6 +69,8 @@ class Settings(BaseSettings):
     manual_prune_zones: bool = True
     # Exclude a zone once this many of its clicks to Amazon were held back as
     # automated and they outnumber the real ones (0 = off).
+    # Post recommendations to the panel chat (rule-based, once an hour).
+    agent_advice: bool = True
     bot_zone_min: int = 3
     # ...and a zone where this % of at least BOUNCE_ZONE_MIN_VISITS measured
     # visits left within 5 s (or never reported back), with no click to

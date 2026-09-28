@@ -54,6 +54,10 @@
       <input type="checkbox" name="manual_prune_zones" value="1" {% if settings.manual_prune_zones %}checked{% endif %} style="width:20px;height:20px">
       В ручном режиме тоже отключать зоны без переходов на Amazon <span class="muted" style="font-weight:400">— у всех работающих кампаний, по тем же порогам «Зона без переходов» (визитов или расхода); зоны, давшие переход, остаются</span>
     </label>
+    <label class="row" style="gap:10px;font-weight:600">
+      <input type="checkbox" name="agent_advice" value="1" {% if settings.agent_advice %}checked{% endif %} style="width:20px;height:20px">
+      Агент пишет советы в чат <span class="muted" style="font-weight:400">— раз в час смотрит кампании и зоны и пишет, что стоит сделать: мёртвые зоны в вайт-листах, зоны для вайт-листа, выгодные кампании на паузе, убыточные, кончающийся бюджет бонусов. Сам ничего не меняет; каждый совет — один раз</span>
+    </label>
     <div class="set-grid">
       <label>Бюджет одной кампании, $/день<input name="campaign_daily_budget" type="number" step="0.01" min="10" title="PropellerAds не принимает меньше $10" value="{{ '%.2f'|format(settings.campaign_daily_budget) }}"><span class="muted">минимум PropellerAds — $10</span></label>
       <label>Общий лимит, $/день<input name="max_daily_spend" type="number" step="0.01" min="0" value="{{ '%.2f'|format(settings.max_daily_spend) }}"><span class="muted">сумма бюджетов всех кампаний не больше этого</span></label>
@@ -377,7 +381,7 @@ function toggleDone() {
   Отключение: после ${{ "%.2f"|format(settings.kill_min_spend) }} расхода{% if settings.min_amazon_rate %}, если на Amazon перешло меньше {{ settings.min_amazon_rate }}% посетителей{% endif %}{% if settings.max_cost_per_amazon_click %}{{ " или" if settings.min_amazon_rate else "," }} если переход на Amazon дороже ${{ "%.2f"|format(settings.max_cost_per_amazon_click) }}{% endif %}. У прошедших тест кампаний зоны без переходов на Amazon (после {{ settings.zone_min_visits }} визитов или ${{ "%.2f"|format(settings.zone_min_spend) }}) отключаются, зоны с переходами остаются.
 </div>
 
-<button class="chat-fab" id="chat-fab" onclick="chatOpen(true)">💬 Чат с агентом</button>
+<button class="chat-fab" id="chat-fab" onclick="chatOpen(true)">💬 Чат с агентом{% if chat_unread %} · 💡 {{ chat_unread }}{% endif %}</button>
 <div class="chat-box" id="chat-box" hidden>
   <div class="chat-head"><span>💬 Чат с агентом</span>
     <button class="sm" onclick="chatClear()" title="Очистить историю">Очистить</button>

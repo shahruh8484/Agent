@@ -67,6 +67,7 @@ from amzagent.agent.runner import (
     sync_moderation,
     sync_stats,
 )
+from amzagent.agent.advice import ADVICE_PREFIX
 from amzagent.amazon.creator_connections import (
     marketplace_host,
     parse_opportunities,
@@ -111,6 +112,7 @@ margin-top:18px}}p{{color:#555}}</style></head><body><div class="box"><h1 style=
 <p>You are leaving our site for Amazon.</p><a class="btn" id="go" href="{plain}" rel="nofollow noopener">
 Continue to Amazon &rarr;</a></div><script>(function(){{var r="{retry}";if(r&&!navigator.webdriver)
 document.getElementById("go").href=r+"&js=1";}})();</script></body></html>"""
+CHAT_SEEN_FLAG = "chat_seen_id"
 MAX_TIME_ON_PAGE = 1800  # seconds; longer reports are capped (tab left open)
 STATS_INTERVAL_SECONDS = 3 * 60  # site-wide, keeps a spam bot from flooding the inbox
 SAFE_PARAM = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
@@ -1069,6 +1071,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 "running": store.run_in_progress(),
                 "stats_error": store.get_flag("stats_error"),
                 "totals": totals,
+                "chat_unread": store.count_chat_after(
+                    int(store.get_flag(CHAT_SEEN_FLAG, "0") or 0), ADVICE_PREFIX),
                 "organic": [(label, store.organic_stats(
                     (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(
                         timespec="seconds")))
@@ -1272,7 +1276,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
     def chat_history(request: Request):
         if not logged_in(request):
             return JSONResponse({"error": "login"}, status_code=401)
-        return {"messages": store.list_chat(50)}
+        messages = store.list_chat(50)
+        if messages:  # opening the chat marks the agent's advice as read
+            store.set_flag(CHAT_SEEN_FLAG, str(messages[-1]["id"]))
+        return {"messages": messages}
 
     @app.post("/chat")
     async def chat(request: Request):

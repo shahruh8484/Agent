@@ -679,6 +679,12 @@ class Store:
         rows = self._all("SELECT * FROM chat ORDER BY id DESC LIMIT ?", (limit,))
         return [dict(r) for r in reversed(rows)]
 
+    def count_chat_after(self, after_id: int, prefix: str) -> int:
+        """Agent messages starting with `prefix` newer than message `after_id`."""
+        row = self._one("SELECT COUNT(*) AS n FROM chat WHERE id > ? AND role = 'assistant'"
+                        " AND content LIKE ?", (after_id, prefix + "%"))
+        return int(row["n"])
+
     def clear_chat(self) -> None:
         self._exec("DELETE FROM chat")
 

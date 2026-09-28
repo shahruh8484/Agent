@@ -146,7 +146,8 @@ def settings(tmp_path):
         campaign_daily_budget=10,
         max_daily_spend=30,
         pace_daily_budget=False,  # time-of-day dependent; tested on its own
-        bounce_zone_min_visits=0,  # visits logged by tests carry no time; tested on its own
+        bounce_zone_min_visits=0,
+        agent_advice=False,  # posts to the chat; tested on its own  # visits logged by tests carry no time; tested on its own
         agent_interval_hours=0,
         session_https_only=False,
         secret_key="test",
