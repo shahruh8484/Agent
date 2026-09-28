@@ -186,3 +186,46 @@ def test_time_on_site_is_reported_by_the_page_and_shown(settings, store):
     client.post("/login", data={"username": "admin", "password": "pw"})
     assert "⏱ 0:14 · отказ 67%" in client.get("/admin").text
     assert "Disallow: /t/" in client.get("/robots.txt").text
+
+
+def test_zones_can_be_added_to_a_whitelist_and_removed_from_it(settings, store, monkeypatch):
+    from amzagent.agent.runner import PACED, add_whitelist_zones, exclude_zone, include_zone
+
+    settings.push_live = True
+    settings.max_daily_spend = 100
+    settings.admin_password_hash = bcrypt.hashpw(b"pw", bcrypt.gensalt()).decode()
+    niche = store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    source = store.list_campaigns(statuses=(ACTIVE,))[0]
+    for zone, amazon in (("777", 2), ("888", 0)):  # the source campaign's zones
+        for _ in range(5):
+            store.log_event("visit", niche.id, source["asin"], source["id"], zone)
+        for _ in range(amazon):
+            store.log_event("click", niche.id, source["asin"], source["id"], zone)
+    deps = _deps(settings, store, push)
+    from amzagent.agent.runner import launch_whitelist
+    assert launch_whitelist(deps, source["id"], ["111"]) is None
+    wl = max(store.list_campaigns(statuses=(ACTIVE,)), key=lambda r: r["id"])
+
+    import amzagent.web.app as web_app
+    monkeypatch.setattr(web_app, "build_deps", lambda s, st: _deps(s, st, push))
+    client = TestClient(create_app(settings, store, start_loop=False))
+    client.post("/login", data={"username": "admin", "password": "pw"})
+    page = client.get("/admin").text
+    assert "Добавить зоны в вайт-лист" in page and 'name="pick" value="777"' in page
+    assert 'name="pick" value="888"' not in page  # no Amazon clicks: not suggested
+    client.post(f"/campaigns/{wl['id']}/whitelist/add", data={"zones": "222, 333", "pick": "777"})
+    assert store.get_campaign(wl["id"])["zones_only"] == "111,222,333,777"
+    assert push.included_added == [(wl["external_id"], ["222", "333", "777"])]
+    assert "уже в вайт-листе" in add_whitelist_zones(deps, wl["id"], ["111"])
+    assert "не вайт-лист" in add_whitelist_zones(deps, source["id"], ["5"])
+
+    store.update_campaign(wl["id"], status=PACED)  # paused by us: still reaches the network
+    assert exclude_zone(deps, wl["id"], "222") is None
+    assert push.included[-1] == (wl["external_id"], ["111", "333", "777"])
+    assert include_zone(deps, wl["id"], "222") is None
+    assert push.included[-1] == (wl["external_id"], ["111", "222", "333", "777"])
+    for z in ("111", "333", "777"):
+        exclude_zone(deps, wl["id"], z)
+    assert "последняя зона" in exclude_zone(deps, wl["id"], "222")

@@ -214,6 +214,13 @@
   </table></div>
   {% if not c.zones_only and c.status != "dry_run" %}<form id="wl{{ c.id }}" class="row" method="post" action="/campaigns/{{ c.id }}/whitelist" style="margin:8px 0;gap:10px" onsubmit="var n=this.ownerDocument.querySelectorAll('input[form=wl{{ c.id }}]:checked').length; if(!n){alert('Отметьте хотя бы одну зону');return false} return confirm('Создать новую кампанию на этот товар только с отмеченными зонами (' + n + ')? Бюджет ${{ '%.2f'|format(settings.campaign_daily_budget) }}/день, действует лимит за 24 ч. Эта кампания продолжит работать.')"><button class="sm">Создать кампанию только с отмеченными зонами</button><span class="muted">зоны с переходами на Amazon отмечены заранее; новой кампании агент зоны не отключает и по результатам её не останавливает</span></form>{% endif %}
   {% else %}<p class="muted" style="margin:6px 0">Данных по зонам пока нет — появятся, когда кампания начнёт показываться.</p>{% endif %}
+  {% if c.zones_only %}<form class="row" method="post" action="/campaigns/{{ c.id }}/whitelist/add" style="margin:8px 0;gap:10px;align-items:center;flex-wrap:wrap">
+    <b>Добавить зоны в вайт-лист:</b>
+    <input name="zones" placeholder="номера зон через запятую" style="min-width:220px;flex:1;max-width:360px">
+    {% if c.wl_suggest %}<span class="muted">или из других кампаний этого товара (были переходы на Amazon):</span>
+    {% for z, amazon, visits in c.wl_suggest %}<label class="muted" style="white-space:nowrap"><input type="checkbox" name="pick" value="{{ z }}"> {{ z }} <span title="переходов на Amazon / визитов">({{ amazon }}/{{ visits }})</span></label>{% endfor %}{% endif %}
+    <button class="sm">Добавить</button>
+  </form>{% endif %}
   {% if c.payload %}<details style="margin-top:6px"><summary class="muted" style="font-size:.8rem">payload (что отправлено в PropellerAds)</summary><pre>{{ c.payload }}</pre></details>{% endif %}
 </td></tr>
 {% endfor %}

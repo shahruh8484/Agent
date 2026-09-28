@@ -28,6 +28,7 @@ from amzagent.agent.runner import (
     include_zone,
     is_manual,
     launch_product,
+    add_whitelist_zones,
     launch_whitelist,
     resume_campaign,
     resume_eta,
@@ -159,6 +160,10 @@ TOOLS = [
                                 "campaign_id, которая крутится только на зонах zones "
                                 "(вайт-лист). Исходная продолжает работать; лимит за 24 ч "
                                 "действует; новой агент зоны не отключает.",
+          {"campaign_id": {"type": "integer"},
+           "zones": {"type": "array", "items": {"type": "string"}}},
+          ["campaign_id", "zones"]),
+    _tool("add_whitelist_zones", "Добавить зоны в существующий вайт-лист campaign_id.",
           {"campaign_id": {"type": "integer"},
            "zones": {"type": "array", "items": {"type": "string"}}},
           ["campaign_id", "zones"]),
@@ -385,6 +390,11 @@ class ChatAgent:
         error = launch_whitelist(deps, int(args["campaign_id"]), zones)
         return {"error": error} if error else {"ok": True, "zones": zones}
 
+    def _whitelist_add(self, deps, args: dict) -> dict:
+        zones = [str(z) for z in args.get("zones") or [] if ZONE_RE.match(str(z))]
+        error = add_whitelist_zones(deps, int(args["campaign_id"]), zones)
+        return {"error": error} if error else {"ok": True, "zones": zones}
+
     def _set_zone(self, deps, args: dict) -> dict:
         zone, action = str(args.get("zone", "")), args.get("action")
         if not ZONE_RE.match(zone) or action not in ("exclude", "include"):
@@ -429,6 +439,7 @@ class ChatAgent:
                    "site_products": self._site_products, "set_mode": self._set_mode}
         actors = {"stop_campaign": self._stop, "resume_campaign": self._resume,
                   "launch_product": self._launch, "whitelist_campaign": self._whitelist,
+                  "add_whitelist_zones": self._whitelist_add,
                   "set_zone": self._set_zone, "kill_switch": self._kill_switch}
         try:
             if name in readers:

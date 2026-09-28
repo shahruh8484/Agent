@@ -865,16 +865,35 @@ def stop_if_flying_blind(deps: Deps) -> bool:
 sync_spend = sync_stats
 
 
+# Campaigns that exist at PropellerAds (paused by us or not): zone changes
+# must reach it, or they are lost when a paused campaign resumes.
+AT_NETWORK = (ACTIVE, PACED, CAPPED)
+
+
+def _whitelist_zones(c: dict) -> list[str]:
+    return [z for z in (c.get("zones_only") or "").split(",") if z]
+
+
 def exclude_zone(deps: Deps, campaign_id: int, zone: str, reason: str = "manual") -> str | None:
-    """Stop showing a campaign in one zone. Returns an error message or None."""
+    """Stop showing a campaign in one zone (a whitelist: drop it from the
+    include list). Returns an error message or None."""
     c = deps.store.get_campaign(campaign_id)
     if c is None:
         return "campaign not found"
-    if c["status"] == ACTIVE and c["external_id"]:
+    whitelist = _whitelist_zones(c)
+    if whitelist:
+        shown = [z for z in whitelist
+                 if z != zone and z not in deps.store.blacklisted_zones(campaign_id)]
+        if not shown:
+            return "это последняя зона вайт-листа — остановите кампанию кнопкой «Стоп»"
+    if c["status"] in AT_NETWORK and c["external_id"]:
         if deps.push is None:
             return "PropellerAds is not configured"
         try:
-            deps.push.exclude_zones(c["external_id"], [zone])
+            if whitelist:
+                deps.push.set_included_zones(c["external_id"], shown)
+            else:
+                deps.push.exclude_zones(c["external_id"], [zone])
         except PropellerError as exc:
             return str(exc)
     deps.store.blacklist_zone(campaign_id, zone)
@@ -883,20 +902,49 @@ def exclude_zone(deps: Deps, campaign_id: int, zone: str, reason: str = "manual"
 
 
 def include_zone(deps: Deps, campaign_id: int, zone: str) -> str | None:
-    """Undo exclude_zone: re-send the exclude list without this zone."""
+    """Undo exclude_zone: re-send the exclude list without this zone (and,
+    for a whitelist, the include list with it)."""
     c = deps.store.get_campaign(campaign_id)
     if c is None:
         return "campaign not found"
     remaining = sorted(deps.store.blacklisted_zones(campaign_id) - {zone})
-    if c["status"] == ACTIVE and c["external_id"]:
+    if c["status"] in AT_NETWORK and c["external_id"]:
         if deps.push is None:
             return "PropellerAds is not configured"
         try:
             deps.push.set_excluded_zones(c["external_id"], remaining)
+            if _whitelist_zones(c):
+                deps.push.set_included_zones(
+                    c["external_id"], [z for z in _whitelist_zones(c) if z not in remaining])
         except PropellerError as exc:
             return str(exc)
     deps.store.unblacklist_zone(campaign_id, zone)
     deps.say(f"campaign #{campaign_id}: zone {zone} re-enabled")
+    return None
+
+
+def add_whitelist_zones(deps: Deps, campaign_id: int, zones: list[str]) -> str | None:
+    """Add zones to a whitelist campaign. Returns an error message or None."""
+    c = deps.store.get_campaign(campaign_id)
+    if c is None:
+        return "кампания не найдена"
+    current = _whitelist_zones(c)
+    if not current:
+        return "это не вайт-лист — для обычной кампании создайте вайт-лист из её зон"
+    new = [z for z in dict.fromkeys(zones) if z.isdigit() and z not in current]
+    if not new:
+        return "таких зон нет или они уже в вайт-листе"
+    if c["status"] in AT_NETWORK and c["external_id"]:
+        if deps.push is None:
+            return "PropellerAds не подключён"
+        try:
+            deps.push.add_included_zones(c["external_id"], new)
+        except PropellerError as exc:
+            return f"PropellerAds не добавил зоны: {exc}"
+    deps.store.update_campaign(campaign_id, zones_only=",".join(current + new))
+    for z in new:
+        deps.store.unblacklist_zone(campaign_id, z)
+    deps.say(f"campaign #{campaign_id}: whitelist zones added: {', '.join(new)}")
     return None
 
 

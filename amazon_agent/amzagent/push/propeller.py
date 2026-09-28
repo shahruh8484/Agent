@@ -27,6 +27,7 @@ PLAY_PATH = "/adv/campaigns/play"
 STOP_PATH = "/adv/campaigns/stop"
 STATISTICS_PATH = "/adv/statistics"
 EXCLUDE_ZONES_PATH = "/adv/campaigns/{id}/targeting/exclude/zone"
+INCLUDE_ZONES_PATH = "/adv/campaigns/{id}/targeting/include/zone"  # whitelists
 BALANCE_PATH = "/adv/balance"
 
 STATUS_MODERATION = 2
@@ -305,6 +306,16 @@ class PropellerClient:
             "PUT", EXCLUDE_ZONES_PATH.format(id=campaign_id),
             json={ZONE_LIST_KEY: [int(z) for z in zones]},
         )
+
+    def add_included_zones(self, campaign_id: str, zones: list[str]) -> None:
+        """Add zones to a whitelist campaign's include list (PATCH appends)."""
+        self._request("PATCH", INCLUDE_ZONES_PATH.format(id=campaign_id),
+                      json={ZONE_LIST_KEY: [int(z) for z in zones]})
+
+    def set_included_zones(self, campaign_id: str, zones: list[str]) -> None:
+        """Replace a whitelist campaign's include list (PUT)."""
+        self._request("PUT", INCLUDE_ZONES_PATH.format(id=campaign_id),
+                      json={ZONE_LIST_KEY: [int(z) for z in zones]})
 
     def update_target_url(self, campaign_id: str, url: str) -> None:
         self._request("PUT", URL_PATH.format(id=campaign_id), json={"target_url": url})

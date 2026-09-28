@@ -156,5 +156,7 @@ def test_zones_where_visitors_leave_at_once_are_excluded(settings, store, monkey
     deps = Deps(settings=settings, store=store, catalog=FakeCatalog([]), llm=FakeLLM(),
                 push=push)
     exclude_bot_zones(deps)
-    assert push.excluded == [(c["external_id"], ["111"])]
+    # a whitelist drops the zone from its include list
+    assert push.included == [(c["external_id"], ["222", "333", "444"])]
+    assert push.excluded == [] and store.blacklisted_zones(c["id"]) == {"111"}
     assert any("left within 5 s" in line for line in deps.log)

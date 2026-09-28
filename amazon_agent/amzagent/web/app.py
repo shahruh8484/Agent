@@ -55,6 +55,7 @@ from amzagent.agent.runner import (
     VISITS_PER_PAID_CLICK,
     build_deps,
     exclude_zone,
+    add_whitelist_zones,
     include_zone,
     launch_whitelist,
     quick_check,
@@ -98,7 +99,7 @@ LEGAL_PAGES_UPDATED = "September 26, 2026"
 CONTACT_HOURLY_LIMIT = 20
 # Flash messages that report a failure ("… не создан: …") are shown in red.
 FLASH_FAILED_RE = re.compile(
-    r"\bне (найдено|возвращена|сохранены|создан|удалось|запущена|запущен)\b")
+    r"\bне (найдено|возвращена|сохранены|создан|удалось|запущена|запущен|добавлены)\b")
 # Shown instead of the redirect when a click looks automated. The button is a
 # plain Amazon link (no tag); in a real browser the script swaps in our
 # tagged link, so people still get through with one more tap.
@@ -274,6 +275,23 @@ def _campaign_rows(store: Store, bid: float = 0.0, period: Period | None = None,
         )
         rows.append(c)
     rows.sort(key=lambda c: (STATUS_ORDER.get(c["status"], 9), -c["spend"], -c["id"]))
+    # For each whitelist: zones that sent people to Amazon in the product's
+    # other campaigns and aren't in it yet — candidates to add.
+    for c in rows:
+        if not c.get("zones_only"):
+            continue
+        have = set(c["zones_only"].split(","))
+        found: dict[str, list[int]] = {}
+        for other in rows:
+            if other["asin"] != c["asin"] or other["id"] == c["id"]:
+                continue
+            for z in other["zones"]:
+                if z["amazon"] and z["zone"] not in have:
+                    acc = found.setdefault(z["zone"], [0, 0])
+                    acc[0] += z["amazon"]
+                    acc[1] += z["visits"]
+        c["wl_suggest"] = sorted(((z, a, v) for z, (a, v) in found.items()),
+                                 key=lambda x: (-x[1], x[2]))[:12]
     return rows
 
 
@@ -1253,6 +1271,20 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             f"#{campaign_id} продолжает работать."
         )
         return RedirectResponse("/admin#campaigns", status_code=303)
+
+    @app.post("/campaigns/{campaign_id}/whitelist/add")
+    async def whitelist_add(request: Request, campaign_id: int):
+        if not logged_in(request):
+            return to_login()
+        form = await request.form()
+        zones = [z for z in re.split(r"[\s,;]+", str(form.get("zones") or "")) if z]
+        zones += [str(z) for z in form.getlist("pick")]
+        zones = [z for z in zones if ZONE_RE.match(z)]
+        error = add_whitelist_zones(build_deps(settings, store), campaign_id, zones)
+        request.session["flash"] = (
+            f"Зоны не добавлены: {error}" if error else
+            f"Кампания #{campaign_id}: в вайт-лист добавлены зоны {', '.join(zones)}.")
+        return RedirectResponse(f"/admin#c{campaign_id}", status_code=303)
 
     @app.post("/campaigns/{campaign_id}/zones/{zone}/{action}")
     def zone_action(request: Request, campaign_id: int, zone: str, action: str):
