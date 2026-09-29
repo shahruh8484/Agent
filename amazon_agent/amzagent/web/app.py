@@ -82,6 +82,7 @@ from amzagent.store import ACTIVE, STOPPED, Store
 from amzagent.content.sections import OTHER as SECTIONS_OTHER
 from amzagent.models import SiteSection
 from amzagent.web.chat import ChatAgent
+from amzagent.web.fb_routes import register_fb_routes
 from amzagent.web.period import PRESETS, Period, parse_period
 
 logger = logging.getLogger(__name__)
@@ -993,6 +994,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
 
     def to_login() -> RedirectResponse:
         return RedirectResponse("/login", status_code=303)
+
+    register_fb_routes(app, TEMPLATES, settings, store, logged_in, to_login)
 
     @app.get("/login", response_class=HTMLResponse)
     def login_form(request: Request):

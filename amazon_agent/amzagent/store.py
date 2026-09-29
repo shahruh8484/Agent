@@ -113,6 +113,32 @@ CREATE TABLE IF NOT EXISTS pageviews (
     ip TEXT
 );
 CREATE INDEX IF NOT EXISTS pageviews_ts ON pageviews (ts);
+-- Facebook ads: a project is one offer + the owner's landing page; ads are
+-- drafts (text + image) until sent to Facebook.
+CREATE TABLE IF NOT EXISTS fb_projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    lander_url TEXT NOT NULL,
+    country TEXT NOT NULL DEFAULT 'UZ',
+    language TEXT NOT NULL DEFAULT 'uz',
+    product TEXT NOT NULL DEFAULT '',
+    daily_budget REAL NOT NULL DEFAULT 10,
+    max_cpl REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS fb_ads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    language TEXT NOT NULL,
+    primary_text TEXT NOT NULL DEFAULT '',
+    headline TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    image TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'draft',
+    fb_ad_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 # Campaign statuses
@@ -479,6 +505,63 @@ class Store:
                 "amazon": int(clicks),
                 "sources": [(r["source"], int(r["n"])) for r in sources],
                 "pages": [(r["path"], int(r["n"])) for r in pages]}
+
+    # --- Facebook ads --------------------------------------------------------
+
+    FB_PROJECT_FIELDS = ("name", "lander_url", "country", "language", "product",
+                         "daily_budget", "max_cpl")
+    FB_AD_FIELDS = ("language", "primary_text", "headline", "description", "image", "status",
+                    "fb_ad_id")
+
+    def add_fb_project(self, **fields) -> int:
+        cols = [k for k in self.FB_PROJECT_FIELDS if k in fields]
+        cur = self._exec(
+            f"INSERT INTO fb_projects ({', '.join(cols)}, created_at) VALUES "
+            f"({', '.join('?' for _ in cols)}, ?)", (*[fields[k] for k in cols], now_iso()))
+        return cur.lastrowid
+
+    def update_fb_project(self, project_id: int, **fields) -> None:
+        cols = [k for k in self.FB_PROJECT_FIELDS if k in fields]
+        if cols:
+            self._exec(f"UPDATE fb_projects SET {', '.join(f'{k} = ?' for k in cols)} WHERE id = ?",
+                       (*[fields[k] for k in cols], project_id))
+
+    def list_fb_projects(self) -> list[dict]:
+        return [dict(r) for r in self._all("SELECT * FROM fb_projects ORDER BY id DESC")]
+
+    def get_fb_project(self, project_id: int) -> dict | None:
+        r = self._one("SELECT * FROM fb_projects WHERE id = ?", (project_id,))
+        return dict(r) if r else None
+
+    def delete_fb_project(self, project_id: int) -> None:
+        self._exec("DELETE FROM fb_ads WHERE project_id = ?", (project_id,))
+        self._exec("DELETE FROM fb_projects WHERE id = ?", (project_id,))
+
+    def add_fb_ad(self, project_id: int, **fields) -> int:
+        cols = [k for k in self.FB_AD_FIELDS if k in fields]
+        ts = now_iso()
+        cur = self._exec(
+            f"INSERT INTO fb_ads (project_id, {', '.join(cols)}, created_at, updated_at) VALUES "
+            f"(?, {', '.join('?' for _ in cols)}, ?, ?)",
+            (project_id, *[fields[k] for k in cols], ts, ts))
+        return cur.lastrowid
+
+    def update_fb_ad(self, ad_id: int, **fields) -> None:
+        cols = [k for k in self.FB_AD_FIELDS if k in fields]
+        if cols:
+            self._exec(f"UPDATE fb_ads SET {', '.join(f'{k} = ?' for k in cols)}, updated_at = ?"
+                       " WHERE id = ?", (*[fields[k] for k in cols], now_iso(), ad_id))
+
+    def list_fb_ads(self, project_id: int) -> list[dict]:
+        return [dict(r) for r in self._all(
+            "SELECT * FROM fb_ads WHERE project_id = ? ORDER BY id", (project_id,))]
+
+    def get_fb_ad(self, ad_id: int) -> dict | None:
+        r = self._one("SELECT * FROM fb_ads WHERE id = ?", (ad_id,))
+        return dict(r) if r else None
+
+    def delete_fb_ad(self, ad_id: int) -> None:
+        self._exec("DELETE FROM fb_ads WHERE id = ?", (ad_id,))
 
     def visit_time(self, event_id: int) -> datetime | None:
         rows = self._all("SELECT ts FROM events WHERE id = ? AND type = 'visit'", (event_id,))

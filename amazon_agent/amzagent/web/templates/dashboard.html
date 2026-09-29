@@ -24,6 +24,7 @@
   </div>
 </div>
 
+{% set tab = "amazon" %}{% include "_tabs.html" %}
 {% if running %}<div class="banner" style="border-color:var(--accent);color:var(--accent)">Агент сейчас работает — журнал внизу обновляется, страница перезагружается сама каждые 10 секунд.</div>{% endif %}
 {% if flash %}<div class="banner{% if flash_bad %} bad{% endif %}"{% if not flash_bad %} style="border-color:var(--ok);color:var(--ok)"{% endif %}>{{ flash }}</div>{% endif %}
 {% if stats_error and settings.push_live %}<div class="banner bad">Статистика из PropellerAds не читается: {{ stats_error }}. Новые кампании не запускаются; если так продлится больше 30 минут, агент остановит работающие кампании.</div>{% endif %}

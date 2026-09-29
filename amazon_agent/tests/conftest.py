@@ -45,6 +45,10 @@ class FakeLLM:
 
     def generate(self, system, prompt, max_tokens=2048):
         self.prompts.append(prompt)
+        if prompt.startswith("TASK: write facebook ads"):
+            return json.dumps([{"primary_text": f"Variant {i}: honest text.",
+                                "headline": f"Headline {i}", "description": "Delivery"}
+                               for i in range(1, 4)])
         if prompt.startswith("TASK: group products"):
             asins = [line.split(" | ")[0] for line in prompt.splitlines() if " | " in line
                      and not line.startswith("Products")]
