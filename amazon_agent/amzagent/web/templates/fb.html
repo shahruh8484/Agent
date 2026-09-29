@@ -15,16 +15,22 @@
 
 <h2 id="conn">1. Подключение</h2>
 <div class="card">
-  <form method="post" action="/admin/fb/connection" class="set-grid" style="align-items:end">
-    <label>Токен системного пользователя<input name="token" type="password" autocomplete="off" placeholder="{% if token_hint %}сохранён {{ token_hint }} — оставьте пустым, чтобы не менять{% else %}EAAG…{% endif %}"><span class="muted">Business Manager → Настройки компании → Системные пользователи → Сгенерировать токен (права ads_management, ads_read, pages_read_engagement)</span></label>
-    <label>ID рекламного аккаунта<input name="ad_account" value="{{ conn.ad_account }}" placeholder="act_1234567890"><span class="muted">Ads Manager → номер аккаунта в левом верхнем углу</span></label>
-    <label>ID страницы Facebook<input name="page_id" value="{{ conn.page_id }}" placeholder="1234567890"><span class="muted">Страница → Информация → ID страницы</span></label>
-    <label>ID пикселя<input name="pixel_id" value="{{ conn.pixel_id }}" placeholder="1234567890"><span class="muted">Events Manager → Источники данных → пиксель</span></label>
-    <label>Версия API<input name="api_version" value="{{ conn.api_version }}"><span class="muted">обычно менять не нужно</span></label>
-    <div class="row" style="gap:10px"><button class="primary">Сохранить</button>
-      {% if token_hint %}<label class="muted" style="font-weight:400"><input type="checkbox" name="forget_token" value="1"> удалить токен</label>{% endif %}</div>
+  <form method="post" action="/admin/fb/connection" class="fb-conn">
+    <label for="fb-token">Токен системного пользователя</label>
+    <div><input id="fb-token" name="token" type="password" autocomplete="off" placeholder="{% if token_hint %}сохранён {{ token_hint }} — оставьте пустым, чтобы не менять{% else %}EAAG…{% endif %}">
+      <span class="muted">Business Manager → Настройки компании → Системные пользователи → Сгенерировать токен (права ads_management, ads_read, pages_read_engagement)</span>
+      {% if token_hint %}<label class="muted" style="font-weight:400"><input type="checkbox" name="forget_token" value="1"> удалить сохранённый токен</label>{% endif %}</div>
+    <label for="fb-acc">ID рекламного аккаунта</label>
+    <div><input id="fb-acc" name="ad_account" value="{{ conn.ad_account }}" placeholder="act_1234567890"><span class="muted">Ads Manager → номер аккаунта в левом верхнем углу</span></div>
+    <label for="fb-page">ID страницы Facebook</label>
+    <div><input id="fb-page" name="page_id" value="{{ conn.page_id }}" placeholder="1234567890"><span class="muted">Страница → Информация → ID страницы</span></div>
+    <label for="fb-pixel">ID пикселя</label>
+    <div><input id="fb-pixel" name="pixel_id" value="{{ conn.pixel_id }}" placeholder="1234567890"><span class="muted">Events Manager → Источники данных → пиксель</span></div>
+    <label for="fb-ver">Версия API</label>
+    <div><input id="fb-ver" name="api_version" value="{{ conn.api_version }}" style="max-width:140px"><span class="muted">обычно менять не нужно</span></div>
+    <span></span><div style="display:block"><button class="primary">Сохранить</button></div>
   </form>
-  <form method="post" action="/admin/fb/check" class="row" style="margin-top:12px;gap:10px"><button>Проверить подключение</button>
+  <form method="post" action="/admin/fb/check" class="row" style="margin-top:14px;gap:10px;border-top:1px solid var(--line);padding-top:14px"><button>Проверить подключение</button>
     {% if last_check %}<span class="muted">последняя проверка: {{ last_check.at|localtime }}</span>{% endif %}</form>
   {% if last_check %}<table class="mini" style="margin-top:10px;width:100%;border-collapse:collapse">
     {% for what, ok, detail in last_check.results %}<tr><td style="padding:4px 8px">{{ "✅" if ok else "❌" }} {{ what }}</td><td style="padding:4px 8px" class="{{ '' if ok else 'bad' }}">{{ detail }}</td></tr>{% endfor %}

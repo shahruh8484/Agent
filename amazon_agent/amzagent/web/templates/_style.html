@@ -97,4 +97,9 @@ form.mode button.on { background:var(--fg); color:var(--bg); border-color:var(--
 .tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin:10px 0 4px; }
 .tabs a { padding:8px 14px; text-decoration:none; color:var(--muted); border:1px solid transparent; border-bottom:none; border-radius:8px 8px 0 0; font-weight:600; }
 .tabs a.on { color:var(--fg); background:var(--card); border-color:var(--line); margin-bottom:-1px; }
+.fb-conn { display:grid; grid-template-columns:240px minmax(0,1fr); gap:14px 18px; align-items:start; }
+.fb-conn > label { font-weight:600; padding-top:9px; }
+.fb-conn > div { display:grid; gap:4px; max-width:560px; }
+.fb-conn .muted { font-size:.8rem; }
+@media (max-width:700px) { .fb-conn { grid-template-columns:1fr; gap:4px; } .fb-conn > label { padding-top:10px; } }
 </style>
