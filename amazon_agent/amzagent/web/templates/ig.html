@@ -21,6 +21,19 @@
 </div>
 
 <h2 id="projects">2. Проекты</h2>
+<form class="period card" method="get" action="/admin/ig#projects">
+  <div class="presets">
+    {% for key, name in presets.items() %}<a class="preset{% if period.key == key %} on{% endif %}" href="/admin/ig?period={{ key }}#projects">{{ name }}</a>{% endfor %}
+  </div>
+  <div class="range">
+    <label>с <input type="date" name="date_from" value="{{ period.day_from.isoformat() if period.day_from else '' }}"></label>
+    <label>по <input type="date" name="date_to" value="{{ period.day_to.isoformat() if period.day_to else '' }}"></label>
+    <button class="sm primary">Показать</button>
+  </div>
+  <span class="muted">Период: <b>{{ period.label() }}</b> · время {{ timezone }}</span>
+</form>
+{% if period_error %}<div class="banner bad">Не удалось получить расход PropellerAds за период: {{ period_error }}. Показаны только данные лендинга и постбэка.</div>{% endif %}
+<p class="muted" style="margin:6px 0 10px;font-size:.82rem">Цифры за выбранный период; агент решает по данным за всё время кампании.</p>
 <details class="card"><summary style="cursor:pointer;font-weight:600">+ Новый проект</summary>
   {% set p = none %}{% include "_ig_project_form.html" %}
 </details>
@@ -39,7 +52,8 @@
 
   <table class="mini" style="margin-top:12px;width:100%;border-collapse:collapse;text-align:right">
     <tr class="muted"><th style="text-align:left;padding:4px 8px">Период</th><th>Визиты</th><th>Клики</th><th>CTR</th><th>Боты</th><th>Регистрации</th><th>Депозиты</th><th>Доход</th><th>Доход / визит</th></tr>
-    {% for label, st in (("7 дней", p.stats_week), ("всё время", p.stats_all)) %}
+    {% set rows = [(period.label(), p.stats)] if period.is_all else [(period.label(), p.stats), ("всё время", p.stats_all)] %}
+    {% for label, st in rows %}
     <tr><td style="text-align:left;padding:4px 8px">{{ label }}</td><td>{{ st.visit }}</td><td>{{ st.click }}</td>
       <td>{% if st.visit %}{{ "%.1f"|format(100 * st.click / st.visit) }}%{% else %}—{% endif %}</td><td>{{ st.bot }}</td>
       <td>{{ st.reg }}</td><td>{{ st.ftd }}{% if st.dep %} <span class="muted">+{{ st.dep }}</span>{% endif %}{% if st.rej %} <span class="bad" title="отклонены сетью после проверки">−{{ st.rej }}</span>{% endif %}</td><td>${{ "%.2f"|format(st.revenue) }}</td>
@@ -49,12 +63,12 @@
   {% if p.zones %}<details style="margin-top:8px"><summary class="muted" style="cursor:pointer">Площадки ({{ p.zones|length }})</summary>
     <table class="mini" style="width:100%;border-collapse:collapse;text-align:right">
       <tr class="muted"><th style="text-align:left;padding:4px 8px">Зона</th><th>Визиты</th><th>Клики</th><th>Рег.</th><th>Деп.</th><th>Расход</th><th>Доход</th></tr>
-      {% for z in p.zones %}<tr><td style="text-align:left;padding:4px 8px">{{ z.zone }}</td><td>{{ z.visits }}</td><td>{{ z.clicks }}</td><td>{{ z.regs }}</td><td>{{ z.ftds }}</td><td>${{ "%.2f"|format(z.spent) }}</td><td>${{ "%.2f"|format(z.revenue) }}</td></tr>{% endfor %}
+      {% for z in p.zones %}<tr><td style="text-align:left;padding:4px 8px">{{ z.zone }}</td><td>{{ z.visits }}</td><td>{{ z.clicks }}</td><td>{{ z.regs }}</td><td>{{ z.ftds }}{% if z.rejs %} <span class="bad">−{{ z.rejs }}</span>{% endif %}</td><td>${{ "%.2f"|format(z.spent) }}</td><td>${{ "%.2f"|format(z.revenue) }}</td></tr>{% endfor %}
     </table></details>{% endif %}
 
   <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Изменить проект</summary>{% include "_ig_project_form.html" %}</details>
 
-  <h4 id="push{{ p.id }}" style="margin:16px 0 6px">Пуш-кампании <span class="muted" style="font-weight:400">· расход ${{ "%.2f"|format(p.spent) }} · доход ${{ "%.2f"|format(p.stats_all.revenue) }} · итог <span class="{{ 'bad' if p.stats_all.revenue - p.spent < 0 else '' }}">${{ "%.2f"|format(p.stats_all.revenue - p.spent) }}</span></span></h4>
+  <h4 id="push{{ p.id }}" style="margin:16px 0 6px">Пуш-кампании <span class="muted" style="font-weight:400">· {{ period.label() }}: расход ${{ "%.2f"|format(p.spent) }} · доход ${{ "%.2f"|format(p.stats.revenue) }} · итог <span class="{{ 'bad' if p.stats.revenue - p.spent < 0 else '' }}">${{ "%.2f"|format(p.stats.revenue - p.spent) }}</span></span></h4>
   {% if p.push_issues %}<div class="banner bad">В тексте пуша запрещённые слова: {{ p.push_issues|join(", ") }}.</div>{% endif %}
   <div class="row" style="gap:10px;align-items:end;flex-wrap:wrap">
     <form method="post" action="/admin/ig/projects/{{ p.id }}/push" class="row" style="gap:8px;align-items:end;flex-wrap:wrap">
@@ -67,16 +81,18 @@
   {% if p.campaigns %}<table class="mini" style="margin-top:10px;width:100%;border-collapse:collapse;text-align:right">
     <tr class="muted"><th style="text-align:left;padding:4px 8px">Кампания</th><th style="text-align:left">Статус</th><th>Расход</th><th>Визиты</th><th>Клики</th><th>Рег.</th><th>Деп.</th><th>Доход</th><th>Итог</th><th>Зоны искл.</th><th></th></tr>
     {% for c in p.campaigns %}<tr>
-      <td style="text-align:left;padding:4px 8px">#{{ c.id }}{% if c.external_id %} <span class="muted">PA {{ c.external_id }}</span>{% endif %}</td>
+      <td style="text-align:left;padding:4px 8px">#{{ c.id }}{% if c.external_id %} <span class="muted">PA {{ c.external_id }}</span>{% endif %}{% if c.zones_only %}<br><span class="muted" style="font-size:.75rem">вайт-лист: {{ c.zones_only }}</span>{% endif %}</td>
       <td style="text-align:left" title="{{ c.note }}">{{ status_names.get(c.status, c.status) }}{% if c.note %}<br><span class="muted" style="font-size:.75rem">{{ c.note[:80] }}</span>{% endif %}</td>
-      <td>${{ "%.2f"|format(c.spend) }}</td><td>{{ c.total.visit }}</td><td>{{ c.total.click }}</td><td>{{ c.total.reg }}</td><td>{{ c.total.ftd }}</td>
+      <td>${{ "%.2f"|format(c.period_spend) }}</td><td>{{ c.total.visit }}</td><td>{{ c.total.click }}</td><td>{{ c.total.reg }}</td><td>{{ c.total.ftd }}{% if c.total.rej %} <span class="bad">−{{ c.total.rej }}</span>{% endif %}</td>
       <td>${{ "%.2f"|format(c.total.revenue) }}</td><td class="{{ 'bad' if c.profit < 0 else '' }}">${{ "%.2f"|format(c.profit) }}</td><td>{{ c.excluded }}</td>
       <td>{% if c.status in ("active", "capped", "paced") %}<form class="inline" method="post" action="/admin/ig/campaigns/{{ c.id }}/stop"><button class="sm danger">Стоп</button></form>
-        {% elif c.status in ("killed", "stopped") and c.external_id %}<form class="inline" method="post" action="/admin/ig/campaigns/{{ c.id }}/resume"><button class="sm">Вернуть</button></form>{% endif %}</td>
+        {% elif c.status in ("killed", "stopped") and c.external_id %}<form class="inline" method="post" action="/admin/ig/campaigns/{{ c.id }}/resume"><button class="sm">Вернуть</button></form>{% endif %}
+        {% if c.winners and not c.zones_only and c.external_id %}<form class="inline" method="post" action="/admin/ig/campaigns/{{ c.id }}/whitelist" onsubmit="return confirm('Запустить новую кампанию только на площадках {{ c.winners|join(', ') }}?')"><button class="sm" title="Новая кампания только на площадках, давших депозиты: {{ c.winners|join(', ') }}">Вайт-лист из площадок с депозитами ({{ c.winners|length }})</button></form>{% endif %}</td>
     </tr>{% endfor %}
   </table>{% else %}<p class="muted">Кампаний пока нет.</p>{% endif %}
 
-  <h4 id="lander{{ p.id }}" style="margin:16px 0 6px">Лендинг</h4>
+  <details id="lander{{ p.id }}" style="margin-top:16px"{% if p.issues or not p.l.headline %} open{% endif %}>
+  <summary style="cursor:pointer;font-weight:600">Лендинг <span class="muted" style="font-weight:400">— {% if p.l.headline %}«{{ p.l.headline }}» · {% if p.domain %}<a href="https://{{ p.domain }}/" target="_blank" rel="noopener">открыть</a>{% else %}<a href="/l/{{ p.id }}/" target="_blank" rel="noopener">предпросмотр</a>{% endif %} · нажмите, чтобы изменить{% else %}ещё не написан{% endif %}</span></summary>
   {% if p.issues %}<div class="banner bad">Исправьте перед запуском: {{ p.issues|join(", ") }}. Это запрещённые в рекламе азартных игр слова или речь от лица оператора («наш сайт», «мы предлагаем») — лендинг ваш, рекламодатель должен быть назван прямо.</div>{% endif %}
   <form class="inline" method="post" action="/admin/ig/projects/{{ p.id }}/write" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='агент пишет…'">
     <button class="primary">Агент: {{ "переписать" if p.l.headline else "написать" }} лендинг</button></form>
@@ -94,7 +110,10 @@
 {% endfor %}</textarea></label>
     <div><button class="primary sm">Сохранить лендинг</button> <span class="muted">18+, проверка возраста, блок об ответственной игре и пометка о рекламе добавляются всегда.</span></div>
   </form>
+  </details>
 </div>
 {% else %}<p class="muted">Проектов пока нет.</p>{% endfor %}
 
+<script>(function(){var d=location.hash&&document.getElementById(location.hash.slice(1));
+if(d&&d.tagName==="DETAILS")d.open=true;})();</script>
 </div></body></html>

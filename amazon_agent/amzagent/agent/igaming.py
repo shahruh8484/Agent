@@ -14,6 +14,7 @@ postback:
 - a zone sending bots (clicks held back) is excluded in either mode."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from amzagent.content.llm import LLM, LLMError, parse_json
@@ -89,9 +90,17 @@ def _os_types(deps, platform: str) -> list | None:
     return platform_os_types(_View())
 
 
-def launch_ig_campaign(deps, project_id: int) -> str | None:
-    """New push campaign to the project's lander. The shared 24h limit
-    applies as for any launch. Returns an error or None."""
+def deposit_zones(store, campaign_id: int) -> list[str]:
+    """Zones of a campaign whose players made deposits the network kept."""
+    _, zones = store.ig_campaign_stats(campaign_id)
+    good = [(z, v["ftd"] - v["rej"]) for z, v in zones.items() if v["ftd"] - v["rej"] > 0]
+    return [z for z, _ in sorted(good, key=lambda x: -x[1]) if z.isdigit()]
+
+
+def launch_ig_campaign(deps, project_id: int, zones: list[str] | None = None) -> str | None:
+    """New push campaign to the project's lander; with `zones`, a whitelist
+    that runs only there (the owner's pick: the kill rule leaves it alone).
+    The shared 24h limit applies as for any launch. Returns an error or None."""
     from amzagent.agent.runner import committed_24h, media_file
 
     s, store = deps.settings, deps.store
@@ -118,6 +127,8 @@ def launch_ig_campaign(deps, project_id: int) -> str | None:
             return (f"не хватает дневного лимита: занято ${committed:.2f} из "
                     f"${s.max_daily_spend:.2f} (поднимите лимит в настройках)")
     cid = store.add_campaign(IG_NICHE, ig_asin(project_id), "creating", budget)
+    if zones:
+        store.update_campaign(cid, zones_only=",".join(zones), manual_keep=1)
     slug = f"ig{project_id}"
     name = f"ig{project_id}-c{cid}"
     render_creatives(Path(s.data_dir) / "media" / slug, name, p["brand"] or p["name"],
@@ -129,7 +140,7 @@ def launch_ig_campaign(deps, project_id: int) -> str | None:
         title=p["push_title"], text=push_text(p),
         images=[(f"{base}/{name}-icon.png", f"{base}/{name}-image.png")],
         countries=[p["country"].lower()], bid_cpc=p["bid_cpc"], daily_budget=budget,
-        os_types=_os_types(deps, p["platform"]),
+        os_types=_os_types(deps, p["platform"]), zones=zones,
     )
     if not s.push_live:
         store.update_campaign(cid, status=DRY_RUN, payload=payload,
@@ -146,7 +157,8 @@ def launch_ig_campaign(deps, project_id: int) -> str | None:
     store.update_campaign(cid, status=ACTIVE, external_id=external_id, payload=payload,
                           note="sent to PropellerAds moderation")
     deps.say(f"[iGaming {p['name']}] launched campaign #{cid} (PropellerAds {external_id}), "
-             f"{p['country']}, ${budget:.2f}/day, bid ${p['bid_cpc']:.3f}")
+             f"{p['country']}, ${budget:.2f}/day, bid ${p['bid_cpc']:.3f}"
+             + (f", only zones {', '.join(zones)}" if zones else ""))
     return None
 
 
@@ -198,3 +210,73 @@ def apply_ig_rules(deps, manual: bool) -> None:
         elif spend >= 2 * limit and total["revenue"] < spend / 2:
             stop_campaign(deps, c, KILLED, f"spent ${spend:.2f}, earned ${total['revenue']:.2f}"
                                            " (less than half back)")
+
+
+# --- advice for the panel chat (see agent/advice.py) ---------------------------
+
+LANDER_MIN_VISITS = 200
+LANDER_MIN_CTR = 0.05
+REGS_WITHOUT_DEPOSITS = 5
+POSTBACK_SILENT_CLICKS = 300
+
+
+def collect_ig_advice(settings, store, manual: bool) -> list[tuple[str, str]]:
+    """(key, text) for iGaming campaigns: what the owner could do that the
+    agent won't do by itself."""
+    from amzagent.agent.runner import CAPPED, PACED
+
+    out: list[tuple[str, str]] = []
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    for p in store.list_ig_projects():
+        payout = p["payout"]
+        st = store.ig_stats(p["id"])
+        name = f"iGaming «{p['name']}»"
+        if st["click"] >= POSTBACK_SILENT_CLICKS and not (st["reg"] or st["ftd"] or st["rej"]):
+            out.append((f"ig-silent:{p['id']}",
+                        f"{name}: {st['click']} кликов на оффер и ни одного события из "
+                        f"партнёрки. Проверьте постбэк (адрес, {{subid1}} / click_id, что он "
+                        f"активен) и что в ссылке оффера стоит {{click_id}}."))
+        if st["visit"] >= LANDER_MIN_VISITS and st["click"] / st["visit"] < LANDER_MIN_CTR:
+            out.append((f"ig-ctr:{p['id']}:{st['visit'] // 500}",
+                        f"{name}: на кнопку лендинга нажимают только {st['click']} из "
+                        f"{st['visit']} ({st['click'] / st['visit']:.1%}). Попробуйте "
+                        f"переписать лендинг или текст кнопки, проверьте, быстро ли он "
+                        f"открывается на телефоне."))
+        if st["reg"] >= REGS_WITHOUT_DEPOSITS and st["ftd"] == 0:
+            out.append((f"ig-nodep:{p['id']}:{st['reg'] // 10}",
+                        f"{name}: {st['reg']} регистраций и ни одного засчитанного депозита. "
+                        f"Возможно, порог депозита оффера слишком высокий для пушей — "
+                        f"спросите менеджера об оффере с меньшим минимальным депозитом."))
+        if st["rej"] >= 2 and st["rej"] >= 0.3 * max(st["ftd"], 1):
+            out.append((f"ig-rej:{p['id']}:{st['rej']}",
+                        f"{name}: сеть отклонила {st['rej']} из {st['ftd']} депозитов. "
+                        f"Посмотрите в партнёрке причину и какие площадки их дали — такие "
+                        f"площадки лучше исключить."))
+        for c in campaigns_of(store, p["id"]):
+            if c["status"] not in (ACTIVE, PACED, CAPPED) or not c["external_id"]:
+                continue
+            total, zones = store.ig_campaign_stats(c["id"])
+            cname = f"{name}, кампания #{c['id']}"
+            wins = [z for z in deposit_zones(store, c["id"])
+                    if z not in (c.get("zones_only") or "").split(",")]
+            if len(wins) >= 2 and not c.get("zones_only"):
+                shown = ", ".join(f"{z} ({zones[z]['ftd'] - zones[z]['rej']} деп.)"
+                                  for z in wins[:6])
+                out.append((f"ig-win:{c['id']}:{','.join(sorted(wins))}",
+                            f"{cname}: площадки {shown} дали депозиты. Советую запустить "
+                            f"вайт-лист только на них (кнопка «Вайт-лист из площадок с "
+                            f"депозитами» у кампании)."))
+            profit = total["revenue"] - c["spend"]
+            if c["status"] in (PACED, CAPPED) and payout and c["spend"] >= payout and profit > 0:
+                out.append((f"ig-paced:{c['id']}:{today}",
+                            f"{cname} в плюсе (${profit:.2f}), но стоит на паузе "
+                            f"({'растягиваю бюджет' if c['status'] == PACED else 'лимит 24 ч'}). "
+                            f"Можно поднять бюджет проекта или общий лимит."))
+            if ((manual or c.get("manual_keep")) and payout
+                    and c["spend"] >= KILL_CPA_MULTIPLE * payout
+                    and total["revenue"] < c["spend"] / 2):
+                out.append((f"ig-lose:{c['id']}:{today}",
+                            f"{cname} в минусе: потрачено ${c['spend']:.2f}, доход "
+                            f"${total['revenue']:.2f}. Агент её не отключает (ручной режим или "
+                            f"возвращена вручную) — советую остановить или оставить вайт-лист."))
+    return out

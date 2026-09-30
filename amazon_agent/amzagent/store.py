@@ -663,11 +663,13 @@ class Store:
                       " WHERE click_id = ? AND type = ?", (click_id, type_))
         return float(r["m"] or 0)
 
-    def ig_stats(self, project_id: int, since: str | None = None) -> dict:
+    def ig_stats(self, project_id: int, since: str | None = None,
+                 until: str | None = None) -> dict:
         """Counts per event type plus revenue (reg/ftd/dep payouts)."""
         rows = self._all(
             "SELECT type, COUNT(*) AS n, COALESCE(SUM(payout), 0) AS money FROM ig_events"
-            " WHERE project_id = ? AND ts >= ? GROUP BY type", (project_id, since or ""))
+            " WHERE project_id = ? AND ts >= ? AND ts < ? GROUP BY type",
+            (project_id, since or "", until or "9999"))
         out = {t: 0 for t in ("visit", "click", "bot", "reg", "ftd", "dep", "rej")}
         revenue = 0.0
         for r in rows:
@@ -676,12 +678,14 @@ class Store:
         out["revenue"] = round(revenue, 2)
         return out
 
-    def ig_campaign_stats(self, campaign_id: int) -> tuple[dict, dict[str, dict]]:
+    def ig_campaign_stats(self, campaign_id: int, since: str | None = None,
+                          until: str | None = None) -> tuple[dict, dict[str, dict]]:
         """(totals, {zone: counts}) of one push campaign's lander traffic:
-        visit / click / bot / reg / ftd / dep counts and revenue."""
+        visit / click / bot / reg / ftd / dep / rej counts and revenue."""
         rows = self._all(
             "SELECT zone, type, COUNT(*) AS n, COALESCE(SUM(payout), 0) AS money"
-            " FROM ig_events WHERE campaign = ? GROUP BY zone, type", (str(campaign_id),))
+            " FROM ig_events WHERE campaign = ? AND ts >= ? AND ts < ? GROUP BY zone, type",
+            (str(campaign_id), since or "", until or "9999"))
         def blank() -> dict:
             return dict.fromkeys(("visit", "click", "bot", "reg", "ftd", "dep", "rej", "revenue"),
                                  0)
@@ -694,14 +698,16 @@ class Store:
         zones.pop("", None)
         return total, zones
 
-    def ig_zone_stats(self, project_id: int, limit: int = 20) -> list[dict]:
+    def ig_zone_stats(self, project_id: int, limit: int = 20, since: str | None = None,
+                      until: str | None = None) -> list[dict]:
         """Per push zone: visits, clicks, registrations, deposits, revenue."""
         rows = self._all(
             "SELECT zone, SUM(type = 'visit') AS visits, SUM(type = 'click') AS clicks,"
-            " SUM(type = 'reg') AS regs, SUM(type = 'ftd') AS ftds,"
+            " SUM(type = 'reg') AS regs, SUM(type = 'ftd') AS ftds, SUM(type = 'rej') AS rejs,"
             " COALESCE(SUM(payout), 0) AS revenue FROM ig_events"
-            " WHERE project_id = ? AND zone IS NOT NULL AND zone != ''"
-            " GROUP BY zone ORDER BY revenue DESC, visits DESC LIMIT ?", (project_id, limit))
+            " WHERE project_id = ? AND zone IS NOT NULL AND zone != '' AND ts >= ? AND ts < ?"
+            " GROUP BY zone ORDER BY revenue DESC, visits DESC LIMIT ?",
+            (project_id, since or "", until or "9999", limit))
         return [dict(r) for r in rows]
 
     def visit_time(self, event_id: int) -> datetime | None:

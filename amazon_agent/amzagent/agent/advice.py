@@ -133,7 +133,9 @@ def collect_advice(settings, store, manual: bool) -> list[tuple[str, str]]:
                         f"${cpc:.3f}, на Amazon должен переходить каждый "
                         f"{int(round(epc / cpc))}-й посетитель ({cpc / epc:.0%}). "
                         f"Обычно это нереально; лучше товары с EPC от $1."))
-    return out
+    from amzagent.agent.igaming import collect_ig_advice
+
+    return out + collect_ig_advice(settings, store, manual)
 
 
 def post_advice(deps, force: bool = False) -> int:

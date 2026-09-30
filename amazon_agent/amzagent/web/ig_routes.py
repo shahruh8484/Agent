@@ -24,6 +24,7 @@ from fastapi.templating import Jinja2Templates
 from amzagent.agent.igaming import (
     PLATFORMS,
     campaigns_of,
+    deposit_zones,
     forbidden_in_push,
     launch_ig_campaign,
     write_push_text,
@@ -43,10 +44,11 @@ from amzagent.ig.lander import (
     write_lander,
 )
 from amzagent.panel_settings import effective
+from amzagent.web.period import PRESETS, parse_period
 from amzagent.push.propeller import MIN_DAILY_AMOUNT
 
 KEY_FLAG = "ig_postback_key"
-FAILED_RE = re.compile(r"\bне (сохран|создан|удалось|запущена|возвращена)")
+FAILED_RE = re.compile(r"\bне (сохран|создан|удалось|запущен|возвращена)")
 DOMAIN_RE = re.compile(r"^(?=.{4,253}$)([a-z0-9-]{1,63}\.)+[a-z]{2,63}$")
 SAFE_PARAM = re.compile(r"^[A-Za-z0-9_\-.]{1,64}$")
 LANDER_TEMPLATES = Jinja2Templates(
@@ -99,7 +101,7 @@ def _first(params, keys) -> str:
 
 
 def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_login, *,
-                       bot_ua, device_of, client_ip, ip_sig) -> None:
+                       bot_ua, device_of, client_ip, ip_sig, network_stats=None) -> None:
 
     def back(request: Request, message: str, anchor: str = "") -> RedirectResponse:
         request.session["flash"] = message
@@ -153,17 +155,27 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
     # --- admin -----------------------------------------------------------------
 
     @app.get("/admin/ig", response_class=HTMLResponse)
-    def ig_page(request: Request):
+    def ig_page(request: Request, period: str | None = None, date_from: str | None = None,
+                date_to: str | None = None):
         if not logged_in(request):
             return to_login()
-        week = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat(timespec="seconds")
+        # The chosen period sticks (in the session) across button presses.
+        if period or date_from or date_to:
+            request.session["ig_period"] = [period, date_from, date_to]
+        else:
+            period, date_from, date_to = request.session.get("ig_period") or ["7d", None, None]
+        chosen = parse_period(period, date_from, date_to, effective(settings, store).panel_timezone)
+        net, net_zones, period_error = {}, {}, ""
+        if not chosen.is_all and network_stats is not None:
+            net, net_zones, period_error = network_stats(chosen)
+        since, until = chosen.since, chosen.until
         projects = store.list_ig_projects()
         for p in projects:
             p["l"] = load_lander(p["lander"])
             p["issues"] = compliance_issues(lander_text(p["l"]), p["language"])
-            p["stats_week"] = store.ig_stats(p["id"], week)
+            p["stats"] = store.ig_stats(p["id"], since, until)
             p["stats_all"] = store.ig_stats(p["id"])
-            p["zones"] = store.ig_zone_stats(p["id"])
+            p["zones"] = store.ig_zone_stats(p["id"], since=since, until=until)
             warnings = []
             if "{click_id}" not in p["offer_url"]:
                 warnings.append("В ссылке оффера нет {click_id} — депозиты не свяжутся с "
@@ -178,18 +190,25 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
                 warnings.append("Лендинг пустой — нажмите «Агент: написать лендинг».")
             p["push_issues"] = forbidden_in_push(p)
             p["campaigns"] = []
-            for c in campaigns_of(store, p["id"]):
-                total, _ = store.ig_campaign_stats(c["id"])
-                c.update(total=total, profit=total["revenue"] - c["spend"],
-                         excluded=len(store.blacklisted_zones(c["id"])))
-                p["campaigns"].append(c)
             spent_by_zone: dict[str, float] = {}
-            for c in p["campaigns"]:
-                for z in store.zone_stats(c["id"]):
-                    spent_by_zone[z["zone"]] = spent_by_zone.get(z["zone"], 0.0) + z["spent"]
+            for c in campaigns_of(store, p["id"]):
+                total, _ = store.ig_campaign_stats(c["id"], since, until)
+                if chosen.is_all:
+                    spend = c["spend"]
+                    zone_rows = [(z["zone"], z["spent"]) for z in store.zone_stats(c["id"])]
+                else:
+                    spend = (net.get(c["external_id"] or "") or {}).get("spent", 0.0)
+                    zone_rows = [(str(z.get("zone_id")), z.get("spent", 0.0))
+                                 for z in net_zones.get(c["external_id"] or "", [])]
+                for zone, spent in zone_rows:
+                    spent_by_zone[zone] = spent_by_zone.get(zone, 0.0) + spent
+                c.update(total=total, period_spend=spend, profit=total["revenue"] - spend,
+                         excluded=len(store.blacklisted_zones(c["id"])),
+                         winners=deposit_zones(store, c["id"]))
+                p["campaigns"].append(c)
             for z in p["zones"]:
                 z["spent"] = spent_by_zone.get(z["zone"], 0.0)
-            p["spent"] = sum(c["spend"] for c in p["campaigns"])
+            p["spent"] = sum(c["period_spend"] for c in p["campaigns"])
             p["warnings"] = warnings
         flash = request.session.pop("flash", None)
         base = settings.public_base_url()
@@ -198,7 +217,8 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             "postback": f"{base}/pb/ig?key={postback_key()}&click_id={{clickid}}"
                         "&event={event}&payout={payout}",
             "event_names": EVENT_NAMES, "main_domain": settings.domain, "platforms": PLATFORMS,
-            "status_names": STATUS_NAMES,
+            "status_names": STATUS_NAMES, "period": chosen, "presets": PRESETS,
+            "period_error": period_error, "timezone": effective(settings, store).panel_timezone,
             "flash": flash, "flash_bad": bool(flash and FAILED_RE.search(flash)),
         })
 
@@ -320,6 +340,25 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
         stop_campaign(build_deps(settings, store), c, KILLED, "stopped manually")
         return back(request, f"Кампания #{campaign_id} остановлена.",
                     f"#push{c['asin'][2:]}")
+
+    @app.post("/admin/ig/campaigns/{campaign_id}/whitelist")
+    def ig_whitelist(request: Request, campaign_id: int):
+        """New campaign of the same project only on the zones that brought
+        deposits; the original keeps running."""
+        if not logged_in(request):
+            return to_login()
+        c = store.get_campaign(campaign_id)
+        if c is None or c["niche_id"] != 0:
+            raise HTTPException(404)
+        zones = deposit_zones(store, campaign_id)
+        pid = int(c["asin"][2:])
+        if not zones:
+            return back(request, "Вайт-лист не запущен: у кампании нет площадок с "
+                                 "депозитами.", f"#push{pid}")
+        error = launch_ig_campaign(build_deps(settings, store), pid, zones=zones)
+        return back(request, f"Кампания не запущена: {error}" if error else
+                    f"Вайт-лист запущен на площадках {', '.join(zones)}: отправлен на модерацию. "
+                    "Исходная кампания продолжает работать.", f"#push{pid}")
 
     @app.post("/admin/ig/campaigns/{campaign_id}/resume")
     def ig_resume(request: Request, campaign_id: int):

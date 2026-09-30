@@ -1022,7 +1022,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
     register_fb_routes(app, TEMPLATES, settings, store, logged_in, to_login)
     register_ig_routes(app, TEMPLATES, settings, store, logged_in, to_login, bot_ua=BOT_UA,
                        device_of=device_of, client_ip=client_ip,
-                       ip_sig=lambda ip: visit_sig(f"ip:{ip}"))
+                       ip_sig=lambda ip: visit_sig(f"ip:{ip}"),
+                       network_stats=lambda period: _network_stats(
+                           effective(settings, store), store, period, network_cache))
 
     @app.get("/login", response_class=HTMLResponse)
     def login_form(request: Request):

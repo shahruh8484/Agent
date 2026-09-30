@@ -251,3 +251,42 @@ def test_actionpay_style_postback(settings, store):
     st = store.ig_stats(pid)
     assert (st["ftd"], st["rej"], st["revenue"]) == (2, 1, 9.0)
     assert "−1" in client.get("/admin/ig").text
+
+
+def test_period_whitelist_and_advice(settings, store, monkeypatch):
+    from amzagent.agent.advice import ADVICE_PREFIX, post_advice
+    from amzagent.agent.igaming import collect_ig_advice, deposit_zones
+
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)
+    push = FakePush()
+    _live(settings, store)
+    deps = _ig_deps(settings, store, push)
+    launch_ig_campaign(deps, pid)
+    cid = store.list_campaigns()[0]["id"]
+    for zone in ("11", "22"):
+        store.log_ig_event(pid, "click", click_id=f"c{zone}", campaign=str(cid), zone=zone)
+        store.log_ig_event(pid, "ftd", click_id=f"c{zone}", campaign=str(cid), zone=zone,
+                           payout=40)
+    store.log_ig_event(pid, "visit", campaign=str(cid), zone="33")
+    assert deposit_zones(store, cid) == ["11", "22"]
+
+    # period: today shows the events, yesterday doesn't
+    today = client.get("/admin/ig?period=today").text
+    assert "Сегодня" in today and "$80.00" in today
+    yesterday = client.get("/admin/ig?period=yesterday").text
+    assert yesterday.count("$80.00") < today.count("$80.00")  # only in the all-time row
+    assert "Вайт-лист из площадок с депозитами (2)" in client.get("/admin/ig?period=all").text
+
+    # whitelist launch (in code: the panel's own deps have no PropellerAds in tests)
+    assert launch_ig_campaign(deps, pid, zones=deposit_zones(store, cid)) is None
+    wl = store.list_campaigns()[0]
+    assert wl["zones_only"] == "11,22" and wl["manual_keep"] == 1
+    assert push.created[-1]["targeting"]["zone"]["list"] == [11, 22]
+
+    advice = dict(collect_ig_advice(settings, store, manual=False))
+    assert any(k.startswith(f"ig-win:{cid}:") for k in advice)
+    settings.agent_advice = True
+    assert post_advice(deps, force=True) >= 1
+    assert store.list_chat()[-1]["content"].startswith(ADVICE_PREFIX)
+    assert "дали депозиты" in store.list_chat()[-1]["content"]
