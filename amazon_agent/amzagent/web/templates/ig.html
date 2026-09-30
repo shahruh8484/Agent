@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iGaming — агент</title>{% include "_style.html" %}
+<link rel="icon" href="/admin-favicon.svg" type="image/svg+xml"></head>
+<body><div class="wrap">
+{% set tab = "ig" %}
+<div class="row" style="justify-content:space-between">
+  <h1>iGaming <span class="muted" style="font-size:.72rem;font-weight:400">версия {{ app_version }}</span></h1>
+  <div class="row"><a href="/logout">Выйти</a></div>
+</div>
+{% include "_tabs.html" %}
+{% if flash %}<div class="banner{% if flash_bad %} bad{% endif %}"{% if not flash_bad %} style="border-color:var(--ok);color:var(--ok)"{% endif %}>{{ flash }}</div>{% endif %}
+
+<div class="banner">Этап 1: проекты, лендинг на отдельном домене, учёт кликов и постбэк из партнёрки (регистрации и депозиты). Запуск пуш-кампаний на лендинги и отключение площадок по деньгам — следующий этап.
+Только операторы с лицензией в стране показа; на лендинге всегда 18+, проверка возраста и блок об ответственной игре.</div>
+
+<h2 id="postback">1. Постбэк</h2>
+<div class="card">
+  <p class="muted" style="margin-top:0">Вставьте этот адрес в партнёрке в поле Postback / S2S. Замените <code>{clickid}</code>, <code>{event}</code> и <code>{payout}</code> на макросы вашей партнёрки (например <code>{sub1}</code>, <code>{status}</code>, <code>{sum}</code>). События: <code>reg</code> — регистрация, <code>ftd</code> — первый депозит, <code>dep</code> — повторный. Можно сделать отдельный постбэк на каждое событие, вписав его вместо <code>{event}</code>.</p>
+  <pre style="white-space:pre-wrap;word-break:break-all;font-size:.8rem">{{ postback }}</pre>
+</div>
+
+<h2 id="projects">2. Проекты</h2>
+<details class="card"><summary style="cursor:pointer;font-weight:600">+ Новый проект</summary>
+  {% set p = none %}{% include "_ig_project_form.html" %}
+</details>
+
+{% for p in projects %}
+<div class="card" id="p{{ p.id }}" style="margin-top:14px">
+  <div class="row" style="justify-content:space-between">
+    <h3 style="margin:0">{{ p.name }} <span class="muted" style="font-weight:400;font-size:.85rem">· {{ countries.get(p.country, p.country) }} · {{ languages.get(p.language, p.language) }}{% if p.payout %} · CPA ${{ "%.2f"|format(p.payout) }}{% endif %}</span></h3>
+    <div class="row" style="gap:8px">
+      <a href="/l/{{ p.id }}/" target="_blank" rel="noopener">Предпросмотр ↗</a>
+      <form class="inline" method="post" action="/admin/ig/projects/{{ p.id }}/delete" onsubmit="return confirm('Удалить проект «{{ p.name }}» и его статистику?')"><button class="sm danger">Удалить</button></form>
+    </div>
+  </div>
+  <p style="margin:6px 0">{% if p.domain %}Лендинг: <a href="https://{{ p.domain }}/" target="_blank" rel="noopener">https://{{ p.domain }}/</a> <span class="muted">— у домена должна быть та же A-запись (IP), что у {{ main_domain or "панели" }}; сертификат выпустится сам при первом заходе</span>{% else %}<span class="muted">Домен не указан</span>{% endif %}</p>
+  {% for w in p.warnings %}<div class="banner bad" style="margin-top:6px">{{ w }}</div>{% endfor %}
+
+  <table class="mini" style="margin-top:12px;width:100%;border-collapse:collapse;text-align:right">
+    <tr class="muted"><th style="text-align:left;padding:4px 8px">Период</th><th>Визиты</th><th>Клики</th><th>CTR</th><th>Боты</th><th>Регистрации</th><th>Депозиты</th><th>Доход</th><th>Доход / визит</th></tr>
+    {% for label, st in (("7 дней", p.stats_week), ("всё время", p.stats_all)) %}
+    <tr><td style="text-align:left;padding:4px 8px">{{ label }}</td><td>{{ st.visit }}</td><td>{{ st.click }}</td>
+      <td>{% if st.visit %}{{ "%.1f"|format(100 * st.click / st.visit) }}%{% else %}—{% endif %}</td><td>{{ st.bot }}</td>
+      <td>{{ st.reg }}</td><td>{{ st.ftd }}{% if st.dep %} <span class="muted">+{{ st.dep }}</span>{% endif %}</td><td>${{ "%.2f"|format(st.revenue) }}</td>
+      <td>{% if st.visit %}${{ "%.4f"|format(st.revenue / st.visit) }}{% else %}—{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  {% if p.zones %}<details style="margin-top:8px"><summary class="muted" style="cursor:pointer">Площадки ({{ p.zones|length }})</summary>
+    <table class="mini" style="width:100%;border-collapse:collapse;text-align:right">
+      <tr class="muted"><th style="text-align:left;padding:4px 8px">Зона</th><th>Визиты</th><th>Клики</th><th>Рег.</th><th>Деп.</th><th>Доход</th></tr>
+      {% for z in p.zones %}<tr><td style="text-align:left;padding:4px 8px">{{ z.zone }}</td><td>{{ z.visits }}</td><td>{{ z.clicks }}</td><td>{{ z.regs }}</td><td>{{ z.ftds }}</td><td>${{ "%.2f"|format(z.revenue) }}</td></tr>{% endfor %}
+    </table></details>{% endif %}
+
+  <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Изменить проект</summary>{% include "_ig_project_form.html" %}</details>
+
+  <h4 id="lander{{ p.id }}" style="margin:16px 0 6px">Лендинг</h4>
+  {% if p.issues %}<div class="banner bad">Запрещённые для рекламы азартных игр слова: {{ p.issues|join(", ") }} — уберите их перед запуском.</div>{% endif %}
+  <form class="inline" method="post" action="/admin/ig/projects/{{ p.id }}/write" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='агент пишет…'">
+    <button class="primary">Агент: {{ "переписать" if p.l.headline else "написать" }} лендинг</button></form>
+  <form method="post" action="/admin/ig/projects/{{ p.id }}/lander" style="display:grid;gap:8px;margin-top:10px">
+    <div class="set-grid">
+      <label>Заголовок вкладки<input name="title" maxlength="80" value="{{ p.l.title }}"></label>
+      <label>Главный заголовок<input name="headline" maxlength="100" value="{{ p.l.headline }}"></label>
+      <label>Бонус — заголовок<input name="bonus_title" maxlength="80" value="{{ p.l.bonus_title }}"></label>
+      <label>Текст кнопки<input name="cta" maxlength="40" value="{{ p.l.cta }}"></label>
+    </div>
+    <label style="display:grid;gap:4px;font-weight:600">Вступление<textarea name="intro" rows="3" style="width:100%;box-sizing:border-box">{{ p.l.intro }}</textarea></label>
+    <label style="display:grid;gap:4px;font-weight:600">Бонус — текст<textarea name="bonus_text" rows="2" style="width:100%;box-sizing:border-box">{{ p.l.bonus_text }}</textarea></label>
+    <label style="display:grid;gap:4px;font-weight:600">Шаги регистрации <span class="muted" style="font-weight:400">— по одному на строку</span><textarea name="steps" rows="4" style="width:100%;box-sizing:border-box">{{ p.l.steps|join("\n") }}</textarea></label>
+    <label style="display:grid;gap:4px;font-weight:600">Вопросы и ответы <span class="muted" style="font-weight:400">— строка «вопрос | ответ»</span><textarea name="faq" rows="4" style="width:100%;box-sizing:border-box">{% for f in p.l.faq %}{{ f.q }} | {{ f.a }}
+{% endfor %}</textarea></label>
+    <div><button class="primary sm">Сохранить лендинг</button> <span class="muted">18+, проверка возраста, блок об ответственной игре и пометка о рекламе добавляются всегда.</span></div>
+  </form>
+</div>
+{% else %}<p class="muted">Проектов пока нет.</p>{% endfor %}
+
+</div></body></html>

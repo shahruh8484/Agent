@@ -83,6 +83,7 @@ from amzagent.content.sections import OTHER as SECTIONS_OTHER
 from amzagent.models import SiteSection
 from amzagent.web.chat import ChatAgent
 from amzagent.web.fb_routes import register_fb_routes
+from amzagent.web.ig_routes import register_ig_routes, norm_domain
 from amzagent.web.period import PRESETS, Period, parse_period
 
 logger = logging.getLogger(__name__)
@@ -499,6 +500,26 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         https_only=settings.session_https_only,
         same_site="lax",
     )
+    main_host = norm_domain(settings.domain)
+
+    @app.middleware("http")
+    async def ig_domains(request: Request, call_next):
+        """On an iGaming project's own domain serve only its lander: "/" and
+        "/go" map to the project's routes, everything else is not found."""
+        host = norm_domain(request.headers.get("host", ""))
+        if host and host != main_host and "." in host:
+            project = await run_in_threadpool(store.get_ig_project_by_domain, host)
+            if project:
+                path = request.scope["path"]
+                mapped = {"/": f"/l/{project['id']}/", "/go": f"/l/{project['id']}/go"}.get(path)
+                if mapped is None:
+                    if path == "/robots.txt":
+                        return PlainTextResponse("User-agent: *\nDisallow: /\n")
+                    return Response("Not found", status_code=404)
+                request.scope["path"] = mapped
+                request.scope["raw_path"] = mapped.encode()
+        return await call_next(request)
+
     app.state.settings = settings
     app.state.store = store
     store.close_interrupted_runs()
@@ -996,6 +1017,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
         return RedirectResponse("/login", status_code=303)
 
     register_fb_routes(app, TEMPLATES, settings, store, logged_in, to_login)
+    register_ig_routes(app, TEMPLATES, settings, store, logged_in, to_login, bot_ua=BOT_UA,
+                       device_of=device_of, client_ip=client_ip,
+                       ip_sig=lambda ip: visit_sig(f"ip:{ip}"))
 
     @app.get("/login", response_class=HTMLResponse)
     def login_form(request: Request):

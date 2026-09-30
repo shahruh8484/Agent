@@ -8,6 +8,19 @@ cd "$(dirname "$0")/.."  # amazon_agent/
 exec 9>/tmp/amzagent-update.lock
 flock -n 9 || exit 0  # an update is already running
 
+# Caddy reads its config only at start: restart it when deploy/Caddyfile
+# changed (checked on every run, so a change arriving with this very update
+# is picked up on the next one).
+restart_caddy_if_changed() {
+  local sum
+  sum=$(sha1sum deploy/Caddyfile | cut -d' ' -f1)
+  if [ "$sum" != "$(cat /tmp/amzagent-caddy.sum 2>/dev/null)" ]; then
+    docker compose restart caddy >/dev/null && echo "$sum" > /tmp/amzagent-caddy.sum \
+      && echo "$(date '+%F %T') caddy restarted with the new Caddyfile"
+  fi
+}
+restart_caddy_if_changed
+
 branch=$(git rev-parse --abbrev-ref HEAD)
 git fetch -q origin "$branch"
 if [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$branch")" ] && [ "${1:-}" != "--force" ]; then
@@ -33,5 +46,6 @@ export APP_VERSION
 tz=$(grep -E '^PANEL_TIMEZONE=' .env 2>/dev/null | cut -d= -f2- | tr -d "\"' " || true)
 APP_VERSION="$(TZ="${tz:-Asia/Tashkent}" git log -1 --format='%h от %cd' --date=format-local:'%d.%m %H:%M')"
 docker compose up -d --build
+restart_caddy_if_changed
 docker image prune -f >/dev/null
 echo "$(date '+%F %T') done: $APP_VERSION"

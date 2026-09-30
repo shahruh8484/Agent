@@ -126,6 +126,36 @@ CREATE TABLE IF NOT EXISTS fb_projects (
     max_cpl REAL NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
+-- iGaming: a project is one licensed operator's offer + our lander on the
+-- project's own domain. ig_events: visit | click | bot | reg | ftd | dep.
+CREATE TABLE IF NOT EXISTS ig_projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    domain TEXT NOT NULL DEFAULT '',
+    country TEXT NOT NULL DEFAULT 'BR',
+    language TEXT NOT NULL DEFAULT 'pt',
+    brand TEXT NOT NULL DEFAULT '',
+    license_url TEXT NOT NULL DEFAULT '',
+    offer_url TEXT NOT NULL DEFAULT '',
+    payout REAL NOT NULL DEFAULT 0,
+    offer TEXT NOT NULL DEFAULT '',
+    lander TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS ig_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    project_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    click_id TEXT,
+    campaign TEXT,
+    zone TEXT,
+    device TEXT,
+    payout REAL NOT NULL DEFAULT 0,
+    ip TEXT
+);
+CREATE INDEX IF NOT EXISTS ig_events_project ON ig_events (project_id, ts);
+CREATE INDEX IF NOT EXISTS ig_events_click ON ig_events (click_id);
 CREATE TABLE IF NOT EXISTS fb_ads (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL,
@@ -562,6 +592,83 @@ class Store:
 
     def delete_fb_ad(self, ad_id: int) -> None:
         self._exec("DELETE FROM fb_ads WHERE id = ?", (ad_id,))
+
+    # --- iGaming ----------------------------------------------------------------
+
+    IG_PROJECT_FIELDS = ("name", "domain", "country", "language", "brand", "license_url",
+                         "offer_url", "payout", "offer", "lander")
+
+    def add_ig_project(self, **fields) -> int:
+        cols = [k for k in self.IG_PROJECT_FIELDS if k in fields]
+        cur = self._exec(
+            f"INSERT INTO ig_projects ({', '.join(cols)}, created_at) VALUES "
+            f"({', '.join('?' for _ in cols)}, ?)", (*[fields[k] for k in cols], now_iso()))
+        return cur.lastrowid
+
+    def update_ig_project(self, project_id: int, **fields) -> None:
+        cols = [k for k in self.IG_PROJECT_FIELDS if k in fields]
+        if cols:
+            self._exec(f"UPDATE ig_projects SET {', '.join(f'{k} = ?' for k in cols)} WHERE id = ?",
+                       (*[fields[k] for k in cols], project_id))
+
+    def list_ig_projects(self) -> list[dict]:
+        return [dict(r) for r in self._all("SELECT * FROM ig_projects ORDER BY id DESC")]
+
+    def get_ig_project(self, project_id: int) -> dict | None:
+        r = self._one("SELECT * FROM ig_projects WHERE id = ?", (project_id,))
+        return dict(r) if r else None
+
+    def get_ig_project_by_domain(self, domain: str) -> dict | None:
+        if not domain:
+            return None
+        r = self._one("SELECT * FROM ig_projects WHERE domain = ? ORDER BY id LIMIT 1", (domain,))
+        return dict(r) if r else None
+
+    def delete_ig_project(self, project_id: int) -> None:
+        self._exec("DELETE FROM ig_events WHERE project_id = ?", (project_id,))
+        self._exec("DELETE FROM ig_projects WHERE id = ?", (project_id,))
+
+    def log_ig_event(self, project_id: int, type_: str, click_id: str | None = None,
+                     campaign: str | None = None, zone: str | None = None,
+                     device: str | None = None, payout: float = 0.0,
+                     ip: str | None = None) -> int:
+        cur = self._exec(
+            "INSERT INTO ig_events (ts, project_id, type, click_id, campaign, zone, device,"
+            " payout, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (now_iso(), project_id, type_, click_id, campaign, zone, device, payout, ip))
+        return cur.lastrowid
+
+    def get_ig_click(self, click_id: str) -> dict | None:
+        r = self._one("SELECT * FROM ig_events WHERE click_id = ? AND type = 'click'"
+                      " ORDER BY id LIMIT 1", (click_id,))
+        return dict(r) if r else None
+
+    def has_ig_conversion(self, click_id: str, type_: str) -> bool:
+        return self._one("SELECT 1 FROM ig_events WHERE click_id = ? AND type = ? LIMIT 1",
+                         (click_id, type_)) is not None
+
+    def ig_stats(self, project_id: int, since: str | None = None) -> dict:
+        """Counts per event type plus revenue (reg/ftd/dep payouts)."""
+        rows = self._all(
+            "SELECT type, COUNT(*) AS n, COALESCE(SUM(payout), 0) AS money FROM ig_events"
+            " WHERE project_id = ? AND ts >= ? GROUP BY type", (project_id, since or ""))
+        out = {t: 0 for t in ("visit", "click", "bot", "reg", "ftd", "dep")}
+        revenue = 0.0
+        for r in rows:
+            out[r["type"]] = int(r["n"])
+            revenue += float(r["money"] or 0)
+        out["revenue"] = round(revenue, 2)
+        return out
+
+    def ig_zone_stats(self, project_id: int, limit: int = 20) -> list[dict]:
+        """Per push zone: visits, clicks, registrations, deposits, revenue."""
+        rows = self._all(
+            "SELECT zone, SUM(type = 'visit') AS visits, SUM(type = 'click') AS clicks,"
+            " SUM(type = 'reg') AS regs, SUM(type = 'ftd') AS ftds,"
+            " COALESCE(SUM(payout), 0) AS revenue FROM ig_events"
+            " WHERE project_id = ? AND zone IS NOT NULL AND zone != ''"
+            " GROUP BY zone ORDER BY revenue DESC, visits DESC LIMIT ?", (project_id, limit))
+        return [dict(r) for r in rows]
 
     def visit_time(self, event_id: int) -> datetime | None:
         rows = self._all("SELECT ts FROM events WHERE id = ? AND type = 'visit'", (event_id,))

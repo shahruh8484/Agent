@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="{{ lang }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{{ l.title or l.headline or project.brand }}</title>
+<style>
+:root{--bg:#0f1720;--card:#16212d;--fg:#eef3f7;--muted:#9fb0c0;--acc:#22c55e;--line:#263444}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:720px;margin:0 auto;padding:16px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:.85rem;color:var(--muted)}
+.age{border:2px solid #ef4444;color:#fca5a5;border-radius:999px;padding:2px 10px;font-weight:800}
+h1{font-size:1.7rem;line-height:1.2;margin:18px 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:16px 0}
+.cta{display:block;text-align:center;background:var(--acc);color:#05230f;font-weight:800;font-size:1.1rem;padding:16px;border-radius:12px;text-decoration:none;margin:18px 0}
+.note{font-size:.8rem;color:var(--muted)}
+ol{padding-left:22px}li{margin:6px 0}
+details{border-top:1px solid var(--line);padding:10px 0}summary{cursor:pointer;font-weight:600}
+footer{border-top:1px solid var(--line);margin-top:28px;padding-top:14px;font-size:.8rem;color:var(--muted)}
+footer a{color:var(--muted)}
+#gate[hidden],[hidden]{display:none!important}
+#gate{position:fixed;inset:0;background:rgba(5,10,15,.96);display:grid;place-items:center;z-index:9}
+#gate .card{max-width:360px;text-align:center}
+#gate button{font:inherit;font-weight:700;padding:12px 18px;border-radius:10px;border:0;margin:6px;cursor:pointer}
+#gate .yes{background:var(--acc);color:#05230f}#gate .no{background:var(--line);color:var(--fg)}
+</style></head>
+<body>
+<div id="gate" hidden><div class="card"><p style="font-size:1.15rem;font-weight:700">{{ s.gate_q }}</p>
+  <button class="yes" id="gate-yes">{{ s.gate_yes }}</button><button class="no" id="gate-no">{{ s.gate_no }}</button>
+  <p class="note" id="gate-bye" hidden>{{ s.gate_bye }}</p></div></div>
+<div class="wrap">
+  <div class="top"><span>{{ s.operator }}: <b style="color:var(--fg)">{{ project.brand or project.name }}</b></span><span class="age">18+</span></div>
+  <h1>{{ l.headline }}</h1>
+  <p>{{ l.intro }}</p>
+  {% if l.bonus_title or l.bonus_text %}<div class="card"><h2 style="margin:0 0 6px;font-size:1.2rem">{{ l.bonus_title }}</h2><p style="margin:0">{{ l.bonus_text }}</p></div>{% endif %}
+  <a class="cta" href="{{ go_url }}" rel="nofollow sponsored noopener">{{ l.cta or "→" }}</a>
+  {% if l.steps %}<div class="card"><h2 style="margin:0;font-size:1.1rem">{{ s.how }}</h2><ol>{% for step in l.steps %}<li>{{ step }}</li>{% endfor %}</ol></div>{% endif %}
+  {% if l.faq %}<div class="card"><h2 style="margin:0 0 4px;font-size:1.1rem">{{ s.faq }}</h2>
+    {% for f in l.faq %}<details><summary>{{ f.q }}</summary><p>{{ f.a }}</p></details>{% endfor %}</div>{% endif %}
+  <a class="cta" href="{{ go_url }}" rel="nofollow sponsored noopener">{{ l.cta or "→" }}</a>
+  <footer>
+    <p><b>18+</b> · {{ s.age }} {{ s.responsible }}</p>
+    <p>{{ s.help }} <a href="{{ help_url }}" rel="nofollow noopener" target="_blank">gamblingtherapy.org</a></p>
+    {% if project.license_url %}<p>{{ s.operator }}: <a href="{{ project.license_url }}" rel="nofollow noopener" target="_blank">{{ project.license_url }}</a></p>{% endif %}
+    <p>{{ s.ad }}</p>
+  </footer>
+</div>
+<script>
+(function(){
+  var ok=false;try{ok=localStorage.getItem("age18")==="1"}catch(e){}
+  var g=document.getElementById("gate");if(!ok)g.hidden=false;
+  document.getElementById("gate-yes").onclick=function(){try{localStorage.setItem("age18","1")}catch(e){}g.hidden=true};
+  document.getElementById("gate-no").onclick=function(){document.getElementById("gate-bye").hidden=false;
+    this.hidden=true;document.getElementById("gate-yes").hidden=true};
+  var links=document.querySelectorAll("a.cta");
+  for(var i=0;i<links.length;i++)links[i].addEventListener("click",function(){
+    if(!navigator.webdriver&&this.href.indexOf("js=1")<0)this.href+=(this.href.indexOf("?")<0?"?":"&")+"js=1"});
+})();
+</script>
+</body></html>

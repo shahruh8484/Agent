@@ -45,6 +45,11 @@ class FakeLLM:
 
     def generate(self, system, prompt, max_tokens=2048):
         self.prompts.append(prompt)
+        if prompt.startswith("TASK: write a betting lander"):
+            return json.dumps({"title": "Apostas", "headline": "Apostas esportivas 18+",
+                               "intro": "Conheça o operador.", "bonus_title": "Bônus",
+                               "bonus_text": "Termos no site.", "steps": ["Cadastre-se", "Deposite"],
+                               "faq": [{"q": "Como sacar?", "a": "Via PIX."}], "cta": "Cadastrar"})
         if prompt.startswith("TASK: write facebook ads"):
             return json.dumps([{"primary_text": f"Variant {i}: honest text.",
                                 "headline": f"Headline {i}", "description": "Delivery"}

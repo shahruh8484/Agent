@@ -1,7 +1,22 @@
+{
+    # Certificates for iGaming lander domains are issued on their first
+    # visit, only for domains the app knows (see /caddy/ask).
+    on_demand_tls {
+        ask http://app:8000/caddy/ask
+    }
+}
+
 {$DOMAIN} {
     reverse_proxy app:8000
 }
 
 www.{$DOMAIN} {
     redir https://{$DOMAIN}{uri} permanent
+}
+
+https:// {
+    tls {
+        on_demand
+    }
+    reverse_proxy app:8000
 }
