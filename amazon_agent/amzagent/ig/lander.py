@@ -18,26 +18,35 @@ COUNTRY_LANGUAGE = {"BR": "pt", "MX": "es", "PE": "es", "CL": "es", "CO": "es", 
 SAFETY = {
     "pt": {"age": "Somente para maiores de 18 anos.",
            "responsible": "Jogue com responsabilidade. Apostas envolvem risco de perda e não "
-                          "são uma forma de ganhar dinheiro. Defina limites de tempo e valor.",
+                          "são uma forma de ganhar dinheiro. Defina limites de tempo e valor; o operador "
+                          "oferece ferramentas de limite de depósito e autoexclusão.",
            "ad": "Conteúdo publicitário: recebemos comissão se você se cadastrar pelo nosso link.",
            "operator": "Operador licenciado", "help": "Precisa de ajuda com o jogo?",
+           "support": "Termos do bônus, suporte ao cliente e ferramentas de jogo responsável: "
+                      "no site do operador.",
            "gate_q": "Você tem 18 anos ou mais?", "gate_yes": "Sim, tenho 18+",
            "gate_no": "Não", "gate_bye": "Este site é apenas para maiores de 18 anos.",
            "faq": "Perguntas frequentes", "how": "Como começar"},
     "es": {"age": "Solo para mayores de 18 años.",
            "responsible": "Juega con responsabilidad. Las apuestas implican riesgo de pérdida y "
-                          "no son una forma de ganar dinero. Pon límites de tiempo y dinero.",
+                          "no son una forma de ganar dinero. Pon límites de tiempo y dinero; el operador "
+                          "ofrece herramientas de límite de depósito y autoexclusión.",
            "ad": "Contenido publicitario: recibimos una comisión si te registras con nuestro "
                  "enlace.",
            "operator": "Operador con licencia", "help": "¿Necesitas ayuda con el juego?",
+           "support": "Términos del bono, atención al cliente y herramientas de juego "
+                      "responsable: en el sitio del operador.",
            "gate_q": "¿Tienes 18 años o más?", "gate_yes": "Sí, tengo 18+", "gate_no": "No",
            "gate_bye": "Este sitio es solo para mayores de 18 años.",
            "faq": "Preguntas frecuentes", "how": "Cómo empezar"},
     "en": {"age": "18+ only.",
            "responsible": "Gamble responsibly. Betting carries a risk of loss and is not a way "
-                          "to make money. Set time and spending limits.",
+                          "to make money. Set time and spending limits; the operator offers deposit limit and "
+                          "self-exclusion tools.",
            "ad": "Advertising: we earn a commission if you sign up through our link.",
            "operator": "Licensed operator", "help": "Need help with gambling?",
+           "support": "Bonus terms, customer support and responsible gambling tools: on the "
+                      "operator's site.",
            "gate_q": "Are you 18 or older?", "gate_yes": "Yes, I'm 18+", "gate_no": "No",
            "gate_bye": "This site is for adults 18+ only.",
            "faq": "Frequently asked questions", "how": "How to start"},
