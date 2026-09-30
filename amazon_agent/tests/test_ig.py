@@ -113,8 +113,10 @@ def test_lander_edit_and_forbidden_words(settings, store):
         "headline": "Ganhe dinheiro garantido", "intro": "x", "steps": "Um\n\nDois",
         "faq": "Como sacar? | Via PIX\nsem resposta"})
     page = client.get("/admin/ig").text
-    assert "Запрещённые" in page and "ganhe dinheiro" in page
+    assert "Исправьте перед запуском" in page and "ganhe dinheiro" in page
     assert compliance_issues("Aposte com calma", "pt") == []
+    assert compliance_issues("Oferecemos bônus no nosso site", "pt") == ["nosso", "nosso site",
+                                                                         "oferecemos"]
     import json
     lander = json.loads(store.get_ig_project(pid)["lander"])
     assert lander["steps"] == ["Um", "Dois"] and len(lander["faq"]) == 1

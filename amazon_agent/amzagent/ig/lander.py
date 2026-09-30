@@ -64,6 +64,14 @@ FORBIDDEN = {
            "risk-free", "risk free", "easy money", "sure win"),
 }
 
+# Copy that speaks as the operator ("our site", "we offer"): the lander is
+# the affiliate's, and the advertiser must be clearly identified.
+FIRST_PERSON = {
+    "pt": ("nosso", "nossa", "oferecemos", "temos ", "nosso site"),
+    "es": ("nuestro", "nuestra", "ofrecemos", "tenemos "),
+    "en": (" our ", "we offer", "we have "),
+}
+
 FIELDS = ("title", "headline", "intro", "bonus_title", "bonus_text", "cta")
 
 SYSTEM = ("You write landing page copy for a licensed betting operator's affiliate. The copy "
@@ -99,7 +107,9 @@ def lander_text(lander: dict) -> str:
 def compliance_issues(text: str, language: str) -> list[str]:
     """Forbidden phrases found in the text (for the owner to fix)."""
     low = (text or "").lower()
-    found = [w.strip() for w in FORBIDDEN.get(language, ()) + FORBIDDEN["en"] if w in low]
+    low = f" {low} "
+    words = FORBIDDEN.get(language, ()) + FORBIDDEN["en"] + FIRST_PERSON.get(language, ())
+    found = [w.strip() for w in words if w in low]
     return sorted(set(found))
 
 
@@ -120,6 +130,11 @@ def write_lander(llm: LLM, project: dict) -> dict:
         "reviews, no celebrities;\n"
         "- use only bonus terms given above; if none are given, say the bonus terms are on "
         "the operator's site; mention that bonus wagering conditions apply;\n"
+        "- you are an independent affiliate, NOT the operator: never write in the first person "
+        "as the operator (no 'we offer', 'our site', 'our bonus'); name the operator and say "
+        "'on the operator's site' for terms, support and tools;\n"
+        "- the first signup step is always to click the button on this page (never tell the "
+        "reader to type the operator's address);\n"
         "- calm, factual tone; short sentences.\n"
         "Fields: title (browser title, max 60 chars), headline (max 70), intro (2-3 sentences), "
         "bonus_title (max 50), bonus_text (1-2 sentences), steps (3-4 short signup steps), "

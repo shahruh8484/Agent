@@ -77,7 +77,7 @@
   </table>{% else %}<p class="muted">Кампаний пока нет.</p>{% endif %}
 
   <h4 id="lander{{ p.id }}" style="margin:16px 0 6px">Лендинг</h4>
-  {% if p.issues %}<div class="banner bad">Запрещённые для рекламы азартных игр слова: {{ p.issues|join(", ") }} — уберите их перед запуском.</div>{% endif %}
+  {% if p.issues %}<div class="banner bad">Исправьте перед запуском: {{ p.issues|join(", ") }}. Это запрещённые в рекламе азартных игр слова или речь от лица оператора («наш сайт», «мы предлагаем») — лендинг ваш, рекламодатель должен быть назван прямо.</div>{% endif %}
   <form class="inline" method="post" action="/admin/ig/projects/{{ p.id }}/write" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='агент пишет…'">
     <button class="primary">Агент: {{ "переписать" if p.l.headline else "написать" }} лендинг</button></form>
   <form method="post" action="/admin/ig/projects/{{ p.id }}/lander" style="display:grid;gap:8px;margin-top:10px">
