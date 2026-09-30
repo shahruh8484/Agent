@@ -579,16 +579,16 @@ def test_pacing_spreads_the_daily_budget(settings, store, monkeypatch):
     store.set_flag(runner.TODAY_SPEND_FLAG, json.dumps({
         "at": datetime.now(timezone.utc).isoformat(), "by_campaign": {str(c["id"]): 3.5}}))
 
-    monkeypatch.setattr(runner, "pace_allowance", lambda budget, now: 2.0)  # early in the day
+    monkeypatch.setattr(runner, "pace_allowance", lambda budget, now, start=None: 2.0)  # early in the day
     runner.pace_campaigns(_deps(settings, store, push))
     assert store.get_campaign(c["id"])["status"] == runner.PACED
     assert c["external_id"] in push.stopped
 
-    monkeypatch.setattr(runner, "pace_allowance", lambda budget, now: 3.6)  # barely caught up
+    monkeypatch.setattr(runner, "pace_allowance", lambda budget, now, start=None: 3.6)  # barely caught up
     runner.pace_campaigns(_deps(settings, store, push))
     assert store.get_campaign(c["id"])["status"] == runner.PACED  # no flapping
 
-    monkeypatch.setattr(runner, "pace_allowance", lambda budget, now: 5.0)  # later
+    monkeypatch.setattr(runner, "pace_allowance", lambda budget, now, start=None: 5.0)  # later
     runner.pace_campaigns(_deps(settings, store, push))
     assert store.get_campaign(c["id"])["status"] == ACTIVE
     assert push.started == [c["external_id"]]
@@ -603,6 +603,12 @@ def test_pace_allowance_is_an_even_share_with_a_head_start():
     assert round(pace_allowance(10, noon), 2) == round(10 * 780 / 1440, 2)  # 13h of 24
     late = datetime(2026, 9, 27, 23, 30, tzinfo=timezone.utc)
     assert pace_allowance(10, late) == 10  # capped at the budget
+    # launched at 17:00 today: from the launch, not from midnight
+    launched = datetime(2026, 9, 27, 17, 0, tzinfo=timezone.utc)
+    at_1837 = datetime(2026, 9, 27, 18, 37, tzinfo=timezone.utc)
+    assert round(pace_allowance(10, at_1837, launched), 2) == round(10 * 157 / 1440, 2)
+    yesterday = datetime(2026, 9, 26, 17, 0, tzinfo=timezone.utc)
+    assert pace_allowance(10, noon, yesterday) == pace_allowance(10, noon)
 
 
 def test_busy_reports_a_running_cycle(settings, store, monkeypatch):

@@ -579,11 +579,22 @@ def spent_since_budget_day(deps: Deps, c: dict, now: datetime | None = None) -> 
     return visits * deps.settings.push_bid_cpc / VISITS_PER_PAID_CLICK
 
 
-def pace_allowance(budget: float, now: datetime) -> float:
+def pace_allowance(budget: float, now: datetime, start: datetime | None = None) -> float:
     """How much of a daily budget may be spent by `now`: an even share of
-    the UTC day so far, plus PACE_LEAD_MINUTES of head start."""
-    minutes = now.hour * 60 + now.minute + PACE_LEAD_MINUTES
-    return budget * min(1.0, minutes / 1440)
+    the UTC day so far, plus PACE_LEAD_MINUTES of head start. A campaign
+    launched today counts from its launch, not from midnight — otherwise one
+    started in the evening may burn most of its budget in its first hour."""
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    since = max(midnight, start) if start else midnight
+    minutes = (now - since).total_seconds() / 60 + PACE_LEAD_MINUTES
+    return budget * min(1.0, max(0.0, minutes) / 1440)
+
+
+def _launched_at(c: dict) -> datetime | None:
+    try:
+        return datetime.fromisoformat(c["created_at"])
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 def pace_campaigns(deps: Deps) -> None:
@@ -599,7 +610,7 @@ def pace_campaigns(deps: Deps) -> None:
             if not c["external_id"]:
                 continue
             spent = spent_since_budget_day(deps, c, now)
-            allowed = pace_allowance(c["daily_budget"], now)
+            allowed = pace_allowance(c["daily_budget"], now, _launched_at(c))
             if spent <= allowed:
                 continue
             try:
@@ -617,7 +628,8 @@ def pace_campaigns(deps: Deps) -> None:
     for c in store.list_campaigns(statuses=(PACED,)):
         spent = spent_since_budget_day(deps, c, now)
         # Resume a little below the line so it doesn't flap every check.
-        behind = spent <= pace_allowance(c["daily_budget"], now) - c["daily_budget"] / 48
+        behind = (spent <= pace_allowance(c["daily_budget"], now, _launched_at(c))
+                  - c["daily_budget"] / 48)
         if s.pace_daily_budget and not behind:
             continue
         if not room or store.get_flag(PAUSE_FLAG) == "1":
