@@ -8,8 +8,9 @@ postback:
 - a campaign that spent KILL_SPEND (default 3 x CPA) without a single
   deposit is stopped; one that spent twice that and earned back less than
   half of it too;
-- a zone that spent half a CPA without a registration, or a whole CPA
-  without a deposit, is excluded;
+- a zone that spent half a CPA without a registration (only when the
+  partner program reports registrations at all), or a whole CPA without a
+  deposit, is excluded;
 (deposits the network rejected after its check don't count)
 - a zone sending bots (clicks held back) is excluded in either mode."""
 from __future__ import annotations
@@ -196,6 +197,9 @@ def apply_ig_rules(deps, manual: bool) -> None:
                 if z["bot"] >= s.bot_zone_min and z["bot"] >= z["click"]:
                     reasons[zone] = f"bots: {z['bot']} clicks held back, {z['click']} real"
         payout = p["payout"]
+        # Some offers report only the paid deposit (Actionpay CPA): without
+        # registrations in the postbacks, "no registration" means nothing.
+        reports_regs = store.ig_stats(p["id"])["reg"] > 0
         prune = payout > 0 and not whitelist and (not manual or s.manual_prune_zones)
         if prune:
             spent = {z["zone"]: z["spent"] for z in store.zone_stats(c["id"])}
@@ -205,7 +209,8 @@ def apply_ig_rules(deps, manual: bool) -> None:
                     continue
                 if z["ftd"] - z["rej"] <= 0 and zone_spent >= payout:
                     reasons[zone] = f"${zone_spent:.2f} spent (>= CPA ${payout:.2f}), no deposits"
-                elif z["reg"] == 0 and zone_spent >= payout * ZONE_NO_REG_CPA_SHARE:
+                elif (reports_regs and z["reg"] == 0
+                      and zone_spent >= payout * ZONE_NO_REG_CPA_SHARE):
                     reasons[zone] = f"${zone_spent:.2f} spent, no registrations"
         for zone, reason in reasons.items():
             if zone not in excluded:

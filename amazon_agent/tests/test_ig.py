@@ -197,6 +197,9 @@ def test_rules_judge_by_deposits(settings, store, monkeypatch):
             store.log_ig_event(pid, t, click_id=click, campaign=str(cid), zone=zone,
                                payout=40 if t == "ftd" else 0)
 
+    store.upsert_zone_stats(cid, "66", 1000, 100, 25)
+    apply_ig_rules(deps, manual=False)  # no registrations reported yet: only CPA spent counts
+    assert "66" not in store.blacklisted_zones(cid)
     conv("77")                  # $25 spent, no registration -> out
     conv("88", "reg")           # $45 spent, registration but no deposit -> out
     conv("99", "reg", "ftd")    # $50 spent, deposit -> stays
@@ -208,7 +211,7 @@ def test_rules_judge_by_deposits(settings, store, monkeypatch):
     apply_kill_rules(deps)  # the Amazon rules leave it alone
     assert store.get_campaign(cid)["status"] == "active"
     apply_ig_rules(deps, manual=False)
-    assert store.blacklisted_zones(cid) == {"77", "88"}
+    assert store.blacklisted_zones(cid) == {"66", "77", "88"}  # registrations now reported
     assert store.get_campaign(cid)["status"] == "active"  # one deposit: not killed
 
     store.update_campaign(cid, spend=260)  # 2 x limit, earned $40 < half
