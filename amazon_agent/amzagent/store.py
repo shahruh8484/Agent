@@ -710,6 +710,7 @@ class Store:
         """Per push zone: visits, clicks, registrations, deposits, revenue."""
         rows = self._all(
             "SELECT zone, SUM(type = 'visit') AS visits, SUM(type = 'click') AS clicks,"
+            " SUM(type = 'bot') AS bots,"
             " SUM(type = 'reg') AS regs, SUM(type = 'ftd') AS ftds, SUM(type = 'rej') AS rejs,"
             " COALESCE(SUM(payout), 0) AS revenue FROM ig_events"
             " WHERE project_id = ? AND zone IS NOT NULL AND zone != '' AND ts >= ? AND ts < ?"

@@ -11,7 +11,8 @@ postback:
 - a zone that spent half a CPA without a registration (only when the
   partner program reports registrations at all), or a whole CPA without a
   deposit, is excluded;
-(deposits the network rejected after its check don't count)
+(deposits the network rejected after its check don't count). Zones are
+judged over all campaigns of the project and excluded from each of them.
 - a zone whose visitors don't press the lander's button (ZONE_NO_CLICK_VISITS
   visits, no click) is excluded early, long before it spends a CPA;
 - a zone sending bots (clicks held back) is excluded in either mode."""
@@ -278,6 +279,20 @@ def launch_ig_campaign(deps, project_id: int, zones: list[str] | None = None) ->
     return None
 
 
+def project_zones(store, project_id: int) -> tuple[dict[str, dict], dict[str, float]]:
+    """Per zone over all campaigns of a project: ({zone: visit/click/bot/reg/
+    ftd/rej counts}, {zone: spend at PropellerAds})."""
+    counts = {r["zone"]: {"visit": r["visits"] or 0, "click": r["clicks"] or 0,
+                          "bot": r["bots"] or 0, "reg": r["regs"] or 0, "ftd": r["ftds"] or 0,
+                          "rej": r["rejs"] or 0}
+              for r in store.ig_zone_stats(project_id, limit=100_000)}
+    spent: dict[str, float] = {}
+    for c in campaigns_of(store, project_id):
+        for z in store.zone_stats(c["id"]):
+            spent[z["zone"]] = spent.get(z["zone"], 0.0) + z["spent"]
+    return counts, spent
+
+
 def apply_ig_rules(deps, manual: bool) -> None:
     """Kill and zone rules for iGaming campaigns (see the module docstring).
     Bot zones go in both modes; the rest only in auto mode (zone pruning
@@ -295,7 +310,10 @@ def apply_ig_rules(deps, manual: bool) -> None:
         if p is None:
             stop_campaign(deps, c, STOPPED, "iGaming project deleted")
             continue
-        total, zones = store.ig_campaign_stats(c["id"])
+        total, _ = store.ig_campaign_stats(c["id"])
+        # Zones are judged on the whole project: same lander, same offer, so a
+        # zone that failed in one campaign is excluded from the others too.
+        zones, zone_spent_all = project_zones(store, p["id"])
         excluded = store.blacklisted_zones(c["id"])
         whitelist = bool(c.get("zones_only"))
         reasons: dict[str, str] = {}
@@ -316,8 +334,7 @@ def apply_ig_rules(deps, manual: bool) -> None:
                         and z["click"] == 0 and z["ftd"] == 0):
                     reasons[zone] = f"{z['visit']} lander visits, nobody pressed the button"
         if prune:
-            spent = {z["zone"]: z["spent"] for z in store.zone_stats(c["id"])}
-            for zone, zone_spent in spent.items():
+            for zone, zone_spent in zone_spent_all.items():
                 z = zones.get(zone) or {"reg": 0, "ftd": 0, "rej": 0}
                 if zone in reasons:
                     continue

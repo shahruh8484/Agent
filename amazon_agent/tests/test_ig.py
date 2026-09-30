@@ -381,3 +381,20 @@ def test_push_pictures_drawn_uploaded_and_used(settings, store, monkeypatch):
 
     assert launch_ig_campaign(deps, pid) is None
     assert len(push.created[-1]["creatives"]) == 2  # both pictures rotate
+
+
+def test_zones_are_judged_over_the_whole_project(settings, store, monkeypatch):
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)
+    push = FakePush()
+    _live(settings, store)
+    deps = _ig_deps(settings, store, push)
+    launch_ig_campaign(deps, pid)
+    launch_ig_campaign(deps, pid)
+    a, b = [c["id"] for c in store.list_campaigns()[:2]]
+    for cid in (a, b):  # 30 + 30 visits, no button press: 60 over the project
+        for _ in range(30):
+            store.log_ig_event(pid, "visit", campaign=str(cid), zone="41")
+    apply_ig_rules(deps, manual=False)
+    assert "41" in store.blacklisted_zones(a) and "41" in store.blacklisted_zones(b)
+    assert "отключено 1" in client.get("/admin/ig?period=all").text
