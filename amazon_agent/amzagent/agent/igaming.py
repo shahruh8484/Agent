@@ -12,6 +12,8 @@ postback:
   partner program reports registrations at all), or a whole CPA without a
   deposit, is excluded;
 (deposits the network rejected after its check don't count)
+- a zone whose visitors don't press the lander's button (ZONE_NO_CLICK_VISITS
+  visits, no click) is excluded early, long before it spends a CPA;
 - a zone sending bots (clicks held back) is excluded in either mode."""
 from __future__ import annotations
 
@@ -27,6 +29,7 @@ from amzagent.store import ACTIVE, DRY_RUN, ERROR
 
 IG_NICHE = 0
 KILL_CPA_MULTIPLE = 3.0
+ZONE_NO_CLICK_VISITS = 50  # this many lander visits and nobody pressed the button
 ZONE_NO_REG_CPA_SHARE = 0.5
 PLATFORMS = {"mobile": "Телефоны и планшеты", "all": "Все устройства", "desktop": "Компьютеры"}
 
@@ -57,6 +60,28 @@ def estimated_ig_spend(store, campaign: dict, since: str | None = None) -> float
     p = project_of(store, campaign)
     bid = p["bid_cpc"] if p else 0.0
     return store.count_ig_visits(campaign["id"], since) * bid / VISITS_PER_PAID_CLICK
+
+
+def set_zone(deps, project_id: int, zone: str, off: bool) -> str | None:
+    """Exclude a zone from (or return it to) every running campaign of a
+    project. Returns an error or None."""
+    from amzagent.agent.runner import AT_NETWORK, exclude_zone, include_zone
+
+    running = [c for c in campaigns_of(deps.store, project_id)
+               if c["status"] in AT_NETWORK and not c.get("zones_only")]
+    if not running:
+        return "нет работающих кампаний"
+    for c in running:
+        excluded = zone in deps.store.blacklisted_zones(c["id"])
+        if off and not excluded:
+            error = exclude_zone(deps, c["id"], zone, "manual")
+        elif not off and excluded:
+            error = include_zone(deps, c["id"], zone)
+        else:
+            continue
+        if error:
+            return error
+    return None
 
 
 def write_push_text(llm: LLM, project: dict) -> tuple[str, str]:
@@ -201,6 +226,13 @@ def apply_ig_rules(deps, manual: bool) -> None:
         # registrations in the postbacks, "no registration" means nothing.
         reports_regs = store.ig_stats(p["id"])["reg"] > 0
         prune = payout > 0 and not whitelist and (not manual or s.manual_prune_zones)
+        if not whitelist and (not manual or s.manual_prune_zones):
+            # Early signal, long before a zone spends a whole CPA: people from
+            # it don't even press the lander's button.
+            for zone, z in zones.items():
+                if (zone not in reasons and z["visit"] >= ZONE_NO_CLICK_VISITS
+                        and z["click"] == 0 and z["ftd"] == 0):
+                    reasons[zone] = f"{z['visit']} lander visits, nobody pressed the button"
         if prune:
             spent = {z["zone"]: z["spent"] for z in store.zone_stats(c["id"])}
             for zone, zone_spent in spent.items():

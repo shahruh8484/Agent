@@ -25,6 +25,7 @@ from amzagent.agent.igaming import (
     PLATFORMS,
     campaigns_of,
     deposit_zones,
+    set_zone,
     forbidden_in_push,
     launch_ig_campaign,
     write_push_text,
@@ -48,7 +49,7 @@ from amzagent.web.period import PRESETS, parse_period
 from amzagent.push.propeller import MIN_DAILY_AMOUNT
 
 KEY_FLAG = "ig_postback_key"
-FAILED_RE = re.compile(r"\bне (сохран|создан|удалось|запущен|возвращена)")
+FAILED_RE = re.compile(r"\bне (сохран|создан|удалось|запущен|возвращена|отключена)")
 DOMAIN_RE = re.compile(r"^(?=.{4,253}$)([a-z0-9-]{1,63}\.)+[a-z]{2,63}$")
 SAFE_PARAM = re.compile(r"^[A-Za-z0-9_\-.]{1,64}$")
 LANDER_TEMPLATES = Jinja2Templates(
@@ -175,7 +176,7 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             p["issues"] = compliance_issues(lander_text(p["l"]), p["language"])
             p["stats"] = store.ig_stats(p["id"], since, until)
             p["stats_all"] = store.ig_stats(p["id"])
-            p["zones"] = store.ig_zone_stats(p["id"], since=since, until=until)
+            p["zones"] = store.ig_zone_stats(p["id"], limit=1000, since=since, until=until)
             warnings = []
             if "{click_id}" not in p["offer_url"]:
                 warnings.append("В ссылке оффера нет {click_id} — депозиты не свяжутся с "
@@ -206,8 +207,14 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
                          excluded=len(store.blacklisted_zones(c["id"])),
                          winners=deposit_zones(store, c["id"]))
                 p["campaigns"].append(c)
+            running = [c for c in p["campaigns"]
+                       if c["status"] in ("active", "paced", "capped") and not c["zones_only"]]
+            off = set.intersection(*[store.blacklisted_zones(c["id"]) for c in running]) \
+                if running else set()
             for z in p["zones"]:
                 z["spent"] = spent_by_zone.get(z["zone"], 0.0)
+                z["off"] = z["zone"] in off
+            p["can_toggle"] = bool(running)
             p["spent"] = sum(c["period_spend"] for c in p["campaigns"])
             p["warnings"] = warnings
         flash = request.session.pop("flash", None)
@@ -340,6 +347,18 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
         stop_campaign(build_deps(settings, store), c, KILLED, "stopped manually")
         return back(request, f"Кампания #{campaign_id} остановлена.",
                     f"#push{c['asin'][2:]}")
+
+    @app.post("/admin/ig/projects/{project_id}/zones/{zone}/{action}")
+    def ig_zone(request: Request, project_id: int, zone: str, action: str):
+        if not logged_in(request):
+            return to_login()
+        if not zone.isdigit() or action not in ("off", "on"):
+            raise HTTPException(404)
+        error = set_zone(build_deps(settings, store), project_id, zone, action == "off")
+        verb = "отключена" if action == "off" else "возвращена"
+        return back(request, f"Площадка {zone} не {verb[:-1]}а: {error}" if error else
+                    f"Площадка {zone} {verb} во всех работающих кампаниях проекта.",
+                    f"#zones{project_id}")
 
     @app.post("/admin/ig/campaigns/{campaign_id}/whitelist")
     def ig_whitelist(request: Request, campaign_id: int):

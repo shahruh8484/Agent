@@ -315,3 +315,29 @@ def test_pacing_counts_lander_visits_at_the_project_bid(settings, store, monkeyp
     now = datetime.now(timezone.utc)
     if now.hour * 60 + now.minute + 60 < 1440 * 8 / 12:  # ahead of an even schedule
         assert store.get_campaign(c["id"])["status"] == PACED
+
+
+def test_early_zone_rule_and_manual_toggle(settings, store, monkeypatch):
+    from amzagent.agent.igaming import set_zone
+
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)
+    push = FakePush()
+    _live(settings, store)
+    deps = _ig_deps(settings, store, push)
+    launch_ig_campaign(deps, pid)
+    cid = store.list_campaigns()[0]["id"]
+    for _ in range(50):  # nobody presses the button
+        store.log_ig_event(pid, "visit", campaign=str(cid), zone="31")
+    for i in range(50):  # people press it here
+        store.log_ig_event(pid, "visit", campaign=str(cid), zone="32")
+    store.log_ig_event(pid, "click", click_id="k", campaign=str(cid), zone="32")
+    apply_ig_rules(deps, manual=True)  # manual mode, zone pruning on by default
+    assert store.blacklisted_zones(cid) == {"31"}
+
+    assert set_zone(deps, pid, "32", off=True) is None
+    assert store.blacklisted_zones(cid) == {"31", "32"}
+    assert set_zone(deps, pid, "31", off=False) is None
+    assert store.blacklisted_zones(cid) == {"32"}
+    page = client.get("/admin/ig?period=all").text
+    assert "отключено 1" in page and "Вернуть" in page and "Отключить" in page

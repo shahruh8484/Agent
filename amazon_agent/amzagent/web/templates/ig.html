@@ -60,11 +60,15 @@
       <td>{% if st.visit %}${{ "%.4f"|format(st.revenue / st.visit) }}{% else %}—{% endif %}</td></tr>
     {% endfor %}
   </table>
-  {% if p.zones %}<details style="margin-top:8px"><summary class="muted" style="cursor:pointer">Площадки ({{ p.zones|length }})</summary>
-    <table class="mini" style="width:100%;border-collapse:collapse;text-align:right">
-      <tr class="muted"><th style="text-align:left;padding:4px 8px">Зона</th><th>Визиты</th><th>Клики</th><th>Рег.</th><th>Деп.</th><th>Расход</th><th>Доход</th></tr>
-      {% for z in p.zones %}<tr><td style="text-align:left;padding:4px 8px">{{ z.zone }}</td><td>{{ z.visits }}</td><td>{{ z.clicks }}</td><td>{{ z.regs }}</td><td>{{ z.ftds }}{% if z.rejs %} <span class="bad">−{{ z.rejs }}</span>{% endif %}</td><td>${{ "%.2f"|format(z.spent) }}</td><td>${{ "%.2f"|format(z.revenue) }}</td></tr>{% endfor %}
-    </table></details>{% endif %}
+  {% if p.zones %}<details id="zones{{ p.id }}" style="margin-top:8px"><summary class="muted" style="cursor:pointer">Площадки ({{ p.zones|length }}{% set n_off = p.zones|selectattr("off")|list|length %}{% if n_off %}, отключено {{ n_off }}{% endif %})</summary>
+    <div style="max-height:520px;overflow:auto;margin-top:6px">
+    <table class="mini zones" data-kind="ig" style="width:100%;border-collapse:collapse;text-align:right">
+      <thead><tr class="muted"><th style="text-align:left;padding:4px 8px">Зона</th><th>Визиты</th><th>Клики</th><th>CTR</th><th>Рег.</th><th>Деп.</th><th>Расход</th><th>Доход</th><th data-nosort="1"></th></tr></thead>
+      <tbody>{% for z in p.zones %}<tr{% if z.off %} style="opacity:.5"{% endif %}><td style="text-align:left;padding:4px 8px">{{ z.zone }}{% if z.off %} <span class="muted">· отключена</span>{% endif %}</td><td>{{ z.visits }}</td><td>{{ z.clicks }}</td>
+        <td>{% if z.visits %}{{ "%.1f"|format(100 * z.clicks / z.visits) }}%{% else %}—{% endif %}</td><td>{{ z.regs }}</td><td>{{ z.ftds }}{% if z.rejs %} <span class="bad">−{{ z.rejs }}</span>{% endif %}</td>
+        <td>${{ "%.2f"|format(z.spent) }}</td><td>${{ "%.2f"|format(z.revenue) }}</td>
+        <td>{% if p.can_toggle %}<form class="inline" method="post" action="/admin/ig/projects/{{ p.id }}/zones/{{ z.zone }}/{{ 'on' if z.off else 'off' }}"><button class="sm{% if not z.off %} danger{% endif %}">{{ "Вернуть" if z.off else "Отключить" }}</button></form>{% endif %}</td></tr>{% endfor %}</tbody>
+    </table></div></details>{% endif %}
 
   <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Изменить проект</summary>{% include "_ig_project_form.html" %}</details>
 
@@ -115,5 +119,19 @@
 {% else %}<p class="muted">Проектов пока нет.</p>{% endfor %}
 
 <script>(function(){var d=location.hash&&document.getElementById(location.hash.slice(1));
-if(d&&d.tagName==="DETAILS")d.open=true;})();</script>
+if(d&&d.tagName==="DETAILS")d.open=true;
+function val(td){var t=(td.innerText||"").trim().split(/\s/)[0];var n=parseFloat(t.replace(/[$,%]/g,""));
+  return t==="—"||t===""?null:(isNaN(n)?t:n);}
+document.querySelectorAll("table.zones").forEach(function(table){
+  var head=table.tHead.rows[0];
+  Array.prototype.forEach.call(head.cells,function(th,i){
+    if(th.dataset.nosort)return;th.classList.add("sortable");th.title="Сортировать";
+    th.addEventListener("click",function(){var desc=th.dataset.dir!=="desc";
+      var rows=Array.prototype.slice.call(table.tBodies[0].rows);
+      rows.sort(function(a,b){var x=val(a.cells[i]),y=val(b.cells[i]);
+        if(x===null)return y===null?0:1;if(y===null)return -1;
+        var r=typeof x==="number"&&typeof y==="number"?x-y:String(x).localeCompare(String(y));return desc?-r:r;});
+      rows.forEach(function(r){table.tBodies[0].appendChild(r);});
+      Array.prototype.forEach.call(head.cells,function(h,k){h.dataset.dir=k===i?(desc?"desc":"asc"):"";});});});});
+})();</script>
 </div></body></html>
