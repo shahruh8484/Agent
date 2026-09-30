@@ -407,9 +407,11 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
         else:
             # Amounts in another currency (Actionpay sends reais) aren't
             # converted: the project's CPA in dollars is used instead.
-            raw_payout = _first(params, PAYOUT_KEYS)
+            # A macro the network doesn't know arrives as literal text
+            # ("{payout}"): that counts as no amount at all.
             currency = str(params.get("currency") or "usd").lower()
-            payout = _money(raw_payout) if raw_payout and currency == "usd" else (
+            sent = _money(_first(params, PAYOUT_KEYS), -1.0)
+            payout = sent if sent >= 0 and currency == "usd" else (
                 project["payout"] if project and event == "ftd" else 0.0)
         store.log_ig_event(click["project_id"], event, click_id=click_id,
                            campaign=click["campaign"], zone=click["zone"],

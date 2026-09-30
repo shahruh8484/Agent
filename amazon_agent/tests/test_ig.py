@@ -242,7 +242,7 @@ def test_actionpay_style_postback(settings, store):
     base = f"/pb/ig?key={key}&apid=x&aptime=1&appayment=49"
     assert anon.get(f"{base}&click_id=a1&event=created&payout=49&currency=BRL").text == "ok"
     assert anon.get(f"{base}&click_id=a1&event=accepted").text == "duplicate"
-    assert anon.get(f"{base}&click_id=a2&event=created").text == "ok"
+    assert anon.get(f"{base}&click_id=a2&event=created&payout={{payout}}").text == "ok"
     assert store.ig_stats(pid)["revenue"] == 18.0  # 2 x $9 CPA, reais not taken as dollars
     assert anon.get(f"{base}&click_id=a2&event=rejected").text == "ok"
     assert anon.get(f"{base}&click_id=a2&event=rejected").text == "duplicate"
