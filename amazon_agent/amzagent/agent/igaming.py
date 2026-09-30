@@ -47,6 +47,17 @@ def campaigns_of(store, project_id: int) -> list[dict]:
     return [c for c in store.list_campaigns(niche_id=IG_NICHE) if c["asin"] == ig_asin(project_id)]
 
 
+def estimated_ig_spend(store, campaign: dict, since: str | None = None) -> float:
+    """Real-time lower bound of what a campaign spent (since `since`): every
+    visit to the lander is a paid click at the project's bid. PropellerAds'
+    own figure lags up to an hour or more."""
+    from amzagent.agent.runner import VISITS_PER_PAID_CLICK
+
+    p = project_of(store, campaign)
+    bid = p["bid_cpc"] if p else 0.0
+    return store.count_ig_visits(campaign["id"], since) * bid / VISITS_PER_PAID_CLICK
+
+
 def write_push_text(llm: LLM, project: dict) -> tuple[str, str]:
     language = project.get("language") or "pt"
     prompt = (
@@ -204,7 +215,7 @@ def apply_ig_rules(deps, manual: bool) -> None:
         if manual or c.get("manual_keep") or payout <= 0:
             continue
         limit = p["kill_spend"] or payout * KILL_CPA_MULTIPLE
-        spend = c["spend"]
+        spend = max(c["spend"], estimated_ig_spend(store, c))
         if spend >= limit and total["ftd"] - total["rej"] <= 0:
             stop_campaign(deps, c, KILLED, f"spent ${spend:.2f} (limit ${limit:.2f}), no deposits")
         elif spend >= 2 * limit and total["revenue"] < spend / 2:

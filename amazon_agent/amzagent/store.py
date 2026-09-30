@@ -658,6 +658,11 @@ class Store:
         return self._one("SELECT 1 FROM ig_events WHERE click_id = ? AND type = ? LIMIT 1",
                          (click_id, type_)) is not None
 
+    def count_ig_visits(self, campaign_id: int, since: str | None = None) -> int:
+        r = self._one("SELECT COUNT(*) AS n FROM ig_events WHERE campaign = ? AND type = 'visit'"
+                      " AND ts >= ?", (str(campaign_id), since or ""))
+        return int(r["n"] or 0)
+
     def ig_click_revenue(self, click_id: str, type_: str) -> float:
         r = self._one("SELECT COALESCE(SUM(payout), 0) AS m FROM ig_events"
                       " WHERE click_id = ? AND type = ?", (click_id, type_))

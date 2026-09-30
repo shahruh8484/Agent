@@ -40,7 +40,7 @@ from amzagent.content.sections import (
     write_guide,
     write_versus,
 )
-from amzagent.agent.igaming import apply_ig_rules, is_ig
+from amzagent.agent.igaming import apply_ig_rules, estimated_ig_spend, is_ig
 from amzagent.models import COPY_VERSION, Niche, SitePlan
 from amzagent.panel_settings import effective, save_overrides
 from amzagent.push import propeller
@@ -573,6 +573,8 @@ def spent_since_budget_day(deps: Deps, c: dict, now: datetime | None = None) -> 
     PropellerAds' own numbers lag up to an hour."""
     now = now or datetime.now(timezone.utc)
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if is_ig(c):  # visits to the iGaming lander, at the project's own bid
+        return estimated_ig_spend(deps.store, c, midnight.isoformat(timespec="seconds"))
     visits = deps.store.count_events(c["id"], "visit", midnight.isoformat(timespec="seconds"))
     return visits * deps.settings.push_bid_cpc / VISITS_PER_PAID_CLICK
 

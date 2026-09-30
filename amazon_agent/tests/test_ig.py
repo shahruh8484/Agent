@@ -290,3 +290,25 @@ def test_period_whitelist_and_advice(settings, store, monkeypatch):
     assert post_advice(deps, force=True) >= 1
     assert store.list_chat()[-1]["content"].startswith(ADVICE_PREFIX)
     assert "дали депозиты" in store.list_chat()[-1]["content"]
+
+
+def test_pacing_counts_lander_visits_at_the_project_bid(settings, store, monkeypatch):
+    from datetime import datetime, timezone
+
+    from amzagent.agent.runner import PACED, pace_campaigns, spent_since_budget_day
+
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)  # bid $0.008, $12/day
+    push = FakePush()
+    _live(settings, store)
+    settings.pace_daily_budget = True
+    deps = _ig_deps(settings, store, push)
+    launch_ig_campaign(deps, pid)
+    c = store.list_campaigns()[0]
+    for _ in range(850):
+        store.log_ig_event(pid, "visit", campaign=str(c["id"]), zone="1")
+    assert round(spent_since_budget_day(deps, c), 2) == 8.0  # 850 x $0.008 / 0.85
+    pace_campaigns(deps)
+    now = datetime.now(timezone.utc)
+    if now.hour * 60 + now.minute + 60 < 1440 * 8 / 12:  # ahead of an even schedule
+        assert store.get_campaign(c["id"])["status"] == PACED
