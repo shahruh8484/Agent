@@ -40,6 +40,7 @@ from amzagent.content.sections import (
     write_guide,
     write_versus,
 )
+from amzagent.agent.igaming import apply_ig_rules, is_ig
 from amzagent.models import COPY_VERSION, Niche, SitePlan
 from amzagent.panel_settings import effective, save_overrides
 from amzagent.push import propeller
@@ -1003,6 +1004,8 @@ def apply_kill_rules(deps: Deps, by_results: bool = True) -> None:
     the ones that failed the product test."""
     s, store = deps.settings, deps.store
     for c in store.list_campaigns(statuses=(ACTIVE,)):
+        if is_ig(c):
+            continue  # judged by deposits: agent/igaming.py
         if c.get("manual_keep"):
             continue  # resumed by hand: the owner decides
         if store.get_product(c["niche_id"], c["asin"]) is None:
@@ -1047,6 +1050,8 @@ def blacklist_bad_zones(deps: Deps, every_campaign: bool = False) -> None:
         return
     s, store = deps.settings, deps.store
     for c in store.list_campaigns(statuses=(ACTIVE,)):
+        if is_ig(c):
+            continue  # judged by deposits: agent/igaming.py
         if not c["external_id"] or c.get("zones_only"):
             continue  # a whitelist runs only on the zones the owner picked
         visits_by_zone = store.events_by_zone(c["id"], "visit")
@@ -1092,6 +1097,8 @@ def exclude_bot_zones(deps: Deps) -> None:
     if deps.push is None or (s.bot_zone_min <= 0 and s.bounce_zone_min_visits <= 0):
         return
     for c in store.list_campaigns(statuses=(ACTIVE,)):
+        if is_ig(c):
+            continue  # judged by deposits: agent/igaming.py
         if not c["external_id"]:
             continue
         clicks = store.events_by_zone(c["id"], "click")
@@ -1414,6 +1421,7 @@ def manage_campaigns(deps: Deps) -> None:
     elif deps.settings.manual_prune_zones:
         blacklist_bad_zones(deps, every_campaign=True)
     exclude_bot_zones(deps)
+    apply_ig_rules(deps, manual)
     sync_today_spend(deps)  # right before launching: the cap needs fresh numbers
     enforce_spend_cap(deps)
     pace_campaigns(deps)

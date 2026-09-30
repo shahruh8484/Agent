@@ -118,3 +118,113 @@ def test_lander_edit_and_forbidden_words(settings, store):
     import json
     lander = json.loads(store.get_ig_project(pid)["lander"])
     assert lander["steps"] == ["Um", "Dois"] and len(lander["faq"]) == 1
+
+
+# --- stage 2: push campaigns ---------------------------------------------------
+
+import json as _json  # noqa: E402
+from datetime import datetime, timezone  # noqa: E402
+
+from amzagent.agent.igaming import apply_ig_rules, launch_ig_campaign  # noqa: E402
+from amzagent.agent.runner import TODAY_SPEND_FLAG, Deps, apply_kill_rules  # noqa: E402
+from tests.conftest import FakeCatalog, FakePush  # noqa: E402
+
+
+def _ig_deps(settings, store, push=None):
+    return Deps(settings=settings, store=store, catalog=FakeCatalog([]), llm=FakeLLM(), push=push)
+
+
+def _live(settings, store):
+    settings.push_live = True
+    store.set_flag(TODAY_SPEND_FLAG, _json.dumps({
+        "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "by_campaign": {}}))
+
+
+def _ready_project(client, store, monkeypatch):
+    import amzagent.web.ig_routes as ig_routes
+    monkeypatch.setattr(ig_routes, "get_llm", lambda s: FakeLLM())
+    _project(client, bid_cpc="0.008", daily_budget="12", platform="all")
+    pid = store.list_ig_projects()[0]["id"]
+    client.post(f"/admin/ig/projects/{pid}/push/write")
+    return pid
+
+
+def test_launch_builds_a_push_campaign_to_the_lander(settings, store, monkeypatch):
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)
+    p = store.get_ig_project(pid)
+    assert p["push_title"] == "Bônus de boas-vindas" and p["bid_cpc"] == 0.008
+
+    assert launch_ig_campaign(_ig_deps(settings, store), pid) is None  # dry run
+    c = store.list_campaigns()[0]
+    payload = _json.loads(c["payload"])
+    assert c["status"] == "dry_run" and c["niche_id"] == 0 and c["asin"] == f"ig{pid}"
+    assert payload["target_url"] == f"https://apostas-exemplo.com/?c={c['id']}&z={{zoneid}}"
+    assert payload["targeting"]["country"]["list"] == ["br"]
+    assert payload["rates"][0]["amount"] == 0.008 and payload["daily_amount"] == 12
+    assert payload["creatives"][0]["description"].endswith("18+")
+    assert "os_type" not in payload["targeting"]  # all devices
+    # shown on the iGaming tab, not among the Amazon campaigns
+    assert f"ig{pid}" not in client.get("/admin").text
+    assert "Кампаний пока нет" not in client.get("/admin/ig").text
+
+    push = FakePush()
+    _live(settings, store)
+    assert launch_ig_campaign(_ig_deps(settings, store, push), pid) is None
+    assert len(push.created) == 1
+    store.update_ig_project(pid, push_title="Lucro garantido")
+    assert "запрещённые" in launch_ig_campaign(_ig_deps(settings, store, push), pid)
+    store.update_ig_project(pid, push_title="")
+    assert "нет текста пуша" in launch_ig_campaign(_ig_deps(settings, store, push), pid)
+
+
+def test_rules_judge_by_deposits(settings, store, monkeypatch):
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)  # CPA $40
+    push = FakePush()
+    _live(settings, store)
+    deps = _ig_deps(settings, store, push)
+    launch_ig_campaign(deps, pid)
+    c = store.list_campaigns()[0]
+    cid = c["id"]
+
+    def conv(zone, *types):
+        click = f"k{zone}{len(types)}"
+        store.log_ig_event(pid, "click", click_id=click, campaign=str(cid), zone=zone)
+        for t in types:
+            store.log_ig_event(pid, t, click_id=click, campaign=str(cid), zone=zone,
+                               payout=40 if t == "ftd" else 0)
+
+    conv("77")                  # $25 spent, no registration -> out
+    conv("88", "reg")           # $45 spent, registration but no deposit -> out
+    conv("99", "reg", "ftd")    # $50 spent, deposit -> stays
+    conv("55")                  # $10 spent: too early to judge
+    for zone, spent in (("77", 25), ("88", 45), ("99", 50), ("55", 10)):
+        store.upsert_zone_stats(cid, zone, 1000, 100, spent)
+    store.update_campaign(cid, spend=130)
+
+    apply_kill_rules(deps)  # the Amazon rules leave it alone
+    assert store.get_campaign(cid)["status"] == "active"
+    apply_ig_rules(deps, manual=False)
+    assert store.blacklisted_zones(cid) == {"77", "88"}
+    assert store.get_campaign(cid)["status"] == "active"  # one deposit: not killed
+
+    store.update_campaign(cid, spend=260)  # 2 x limit, earned $40 < half
+    apply_ig_rules(deps, manual=False)
+    c = store.get_campaign(cid)
+    assert c["status"] == "killed" and "less than half" in c["note"]
+
+    # a fresh campaign with no deposits at all after 3 x CPA
+    launch_ig_campaign(deps, pid)
+    c2 = store.list_campaigns()[0]
+    store.update_campaign(c2["id"], spend=121)
+    apply_ig_rules(deps, manual=True)  # manual mode: no kill
+    assert store.get_campaign(c2["id"])["status"] == "active"
+    apply_ig_rules(deps, manual=False)
+    assert "no deposits" in store.get_campaign(c2["id"])["note"]
+
+    page = client.get("/admin/ig").text
+    assert f"#{c2['id']}" in page and "отключена" in page
+    # the panel builds its own deps: no PropellerAds token in tests
+    answer = client.post(f"/admin/ig/campaigns/{c2['id']}/resume").text
+    assert "не возвращена" in answer and 'class="banner bad"' in answer

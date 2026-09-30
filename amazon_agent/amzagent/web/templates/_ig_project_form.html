@@ -8,6 +8,10 @@
     <label>Домен лендинга<input name="domain" value="{{ p.domain if p else '' }}" placeholder="apostas-exemplo.com"><span class="muted">отдельный, не {{ main_domain or "домен Amazon-сайта" }}</span></label>
     <label>Страна<select name="country">{% for code, name in countries.items() %}<option value="{{ code }}"{% if (p.country if p else 'BR') == code %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
     <label>Язык лендинга<select name="language">{% for code, name in languages.items() %}<option value="{{ code }}"{% if (p.language if p else 'pt') == code %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
+    <label>Ставка за клик (CPC), $<input name="bid_cpc" type="number" step="0.001" min="0.001" max="1" value="{{ '%.3f'|format(p.bid_cpc) if p else '0.010' }}"><span class="muted">для пушей в Бразилии обычно $0.005–0.02</span></label>
+    <label>Бюджет кампании, $/день<input name="daily_budget" type="number" step="0.01" min="10" value="{{ '%.2f'|format(p.daily_budget) if p else '10.00' }}"><span class="muted">минимум PropellerAds — $10; общий лимит за 24 ч из настроек действует и здесь</span></label>
+    <label>Устройства<select name="platform">{% for code, name in platforms.items() %}<option value="{{ code }}"{% if (p.platform if p else 'mobile') == code %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
+    <label>Отключать кампанию без депозитов после, $<input name="kill_spend" type="number" step="0.01" min="0" value="{{ '%.2f'|format(p.kill_spend) if p else '0.00' }}"><span class="muted">0 = 3 × выплата за депозит</span></label>
   </div>
   <label style="display:grid;gap:4px;font-weight:600">Оффер<textarea name="offer" rows="4" maxlength="3000" style="width:100%;box-sizing:border-box" placeholder="Бонус и его условия (вейджер), минимальный депозит, способы оплаты (PIX), какие виды спорта — только то, что написано в условиях партнёрки">{{ p.offer if p else '' }}</textarea></label>
   <div><button class="primary">{{ "Сохранить проект" if p else "Создать проект" }}</button></div>

@@ -49,7 +49,7 @@ def collect_advice(settings, store, manual: bool) -> list[tuple[str, str]]:
     whitelisted = {(c["asin"], z) for c in running if c.get("zones_only")
                    for z in c["zones_only"].split(",")}
     for c in running:
-        if not c["external_id"]:
+        if not c["external_id"] or c["niche_id"] == 0:  # iGaming: judged by deposits
             continue
         found = store.get_product(c["niche_id"], c["asin"])
         product = found[0] if found else None

@@ -69,6 +69,7 @@ from amzagent.agent.runner import (
     sync_stats,
 )
 from amzagent.agent.advice import ADVICE_PREFIX
+from amzagent.agent.igaming import is_ig
 from amzagent.amazon.creator_connections import (
     marketplace_host,
     parse_opportunities,
@@ -237,6 +238,8 @@ def _campaign_rows(store: Store, bid: float = 0.0, period: Period | None = None,
     until = period.until if period else None
     rows = []
     for c in store.list_campaigns()[:300]:
+        if is_ig(c):
+            continue  # shown on the iGaming tab
         found = store.get_product(c["niche_id"], c["asin"])
         niche = niches.get(c["niche_id"])
         # Creator Connections' "Estimated EPC: up to $X" = the most a click

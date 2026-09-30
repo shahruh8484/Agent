@@ -11,7 +11,7 @@
 {% include "_tabs.html" %}
 {% if flash %}<div class="banner{% if flash_bad %} bad{% endif %}"{% if not flash_bad %} style="border-color:var(--ok);color:var(--ok)"{% endif %}>{{ flash }}</div>{% endif %}
 
-<div class="banner">Этап 1: проекты, лендинг на отдельном домене, учёт кликов и постбэк из партнёрки (регистрации и депозиты). Запуск пуш-кампаний на лендинги и отключение площадок по деньгам — следующий этап.
+<div class="banner">Лендинг на отдельном домене, учёт кликов, постбэк из партнёрки и пуш-кампании PropellerAds на лендинг. Агент судит по деньгам: кампания без депозитов после 3 выплат (или своего лимита) отключается; зона, потратившая половину выплаты без регистрации или целую выплату без депозита, исключается; зоны с ботами — в любом режиме.
 Только операторы с лицензией в стране показа; на лендинге всегда 18+, проверка возраста и блок об ответственной игре.</div>
 
 <h2 id="postback">1. Постбэк</h2>
@@ -28,7 +28,7 @@
 {% for p in projects %}
 <div class="card" id="p{{ p.id }}" style="margin-top:14px">
   <div class="row" style="justify-content:space-between">
-    <h3 style="margin:0">{{ p.name }} <span class="muted" style="font-weight:400;font-size:.85rem">· {{ countries.get(p.country, p.country) }} · {{ languages.get(p.language, p.language) }}{% if p.payout %} · CPA ${{ "%.2f"|format(p.payout) }}{% endif %}</span></h3>
+    <h3 style="margin:0">{{ p.name }} <span class="muted" style="font-weight:400;font-size:.85rem">· {{ countries.get(p.country, p.country) }} · {{ languages.get(p.language, p.language) }}{% if p.payout %} · CPA ${{ "%.2f"|format(p.payout) }}{% endif %} · ставка ${{ "%.3f"|format(p.bid_cpc) }} · ${{ "%.2f"|format(p.daily_budget) }}/день</span></h3>
     <div class="row" style="gap:8px">
       <a href="/l/{{ p.id }}/" target="_blank" rel="noopener">Предпросмотр ↗</a>
       <form class="inline" method="post" action="/admin/ig/projects/{{ p.id }}/delete" onsubmit="return confirm('Удалить проект «{{ p.name }}» и его статистику?')"><button class="sm danger">Удалить</button></form>
@@ -48,11 +48,33 @@
   </table>
   {% if p.zones %}<details style="margin-top:8px"><summary class="muted" style="cursor:pointer">Площадки ({{ p.zones|length }})</summary>
     <table class="mini" style="width:100%;border-collapse:collapse;text-align:right">
-      <tr class="muted"><th style="text-align:left;padding:4px 8px">Зона</th><th>Визиты</th><th>Клики</th><th>Рег.</th><th>Деп.</th><th>Доход</th></tr>
-      {% for z in p.zones %}<tr><td style="text-align:left;padding:4px 8px">{{ z.zone }}</td><td>{{ z.visits }}</td><td>{{ z.clicks }}</td><td>{{ z.regs }}</td><td>{{ z.ftds }}</td><td>${{ "%.2f"|format(z.revenue) }}</td></tr>{% endfor %}
+      <tr class="muted"><th style="text-align:left;padding:4px 8px">Зона</th><th>Визиты</th><th>Клики</th><th>Рег.</th><th>Деп.</th><th>Расход</th><th>Доход</th></tr>
+      {% for z in p.zones %}<tr><td style="text-align:left;padding:4px 8px">{{ z.zone }}</td><td>{{ z.visits }}</td><td>{{ z.clicks }}</td><td>{{ z.regs }}</td><td>{{ z.ftds }}</td><td>${{ "%.2f"|format(z.spent) }}</td><td>${{ "%.2f"|format(z.revenue) }}</td></tr>{% endfor %}
     </table></details>{% endif %}
 
   <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Изменить проект</summary>{% include "_ig_project_form.html" %}</details>
+
+  <h4 id="push{{ p.id }}" style="margin:16px 0 6px">Пуш-кампании <span class="muted" style="font-weight:400">· расход ${{ "%.2f"|format(p.spent) }} · доход ${{ "%.2f"|format(p.stats_all.revenue) }} · итог <span class="{{ 'bad' if p.stats_all.revenue - p.spent < 0 else '' }}">${{ "%.2f"|format(p.stats_all.revenue - p.spent) }}</span></span></h4>
+  {% if p.push_issues %}<div class="banner bad">В тексте пуша запрещённые слова: {{ p.push_issues|join(", ") }}.</div>{% endif %}
+  <div class="row" style="gap:10px;align-items:end;flex-wrap:wrap">
+    <form method="post" action="/admin/ig/projects/{{ p.id }}/push" class="row" style="gap:8px;align-items:end;flex-wrap:wrap">
+      <label style="display:grid;gap:4px;font-weight:600">Заголовок пуша<input name="push_title" maxlength="30" value="{{ p.push_title }}" style="width:220px"></label>
+      <label style="display:grid;gap:4px;font-weight:600">Текст <span class="muted" style="font-weight:400">(«18+» добавится)</span><input name="push_text" maxlength="50" value="{{ p.push_text }}" style="width:300px"></label>
+      <button class="sm">Сохранить</button></form>
+    <form class="inline" method="post" action="/admin/ig/projects/{{ p.id }}/push/write" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='агент пишет…'"><button class="sm">Агент: написать пуш</button></form>
+    <form class="inline" method="post" action="/admin/ig/projects/{{ p.id }}/launch" onsubmit="return confirm('Запустить новую кампанию в PropellerAds: {{ countries.get(p.country, p.country) }}, ${{ "%.2f"|format(p.daily_budget) }}/день?')"><button class="primary">Запустить кампанию</button></form>
+  </div>
+  {% if p.campaigns %}<table class="mini" style="margin-top:10px;width:100%;border-collapse:collapse;text-align:right">
+    <tr class="muted"><th style="text-align:left;padding:4px 8px">Кампания</th><th style="text-align:left">Статус</th><th>Расход</th><th>Визиты</th><th>Клики</th><th>Рег.</th><th>Деп.</th><th>Доход</th><th>Итог</th><th>Зоны искл.</th><th></th></tr>
+    {% for c in p.campaigns %}<tr>
+      <td style="text-align:left;padding:4px 8px">#{{ c.id }}{% if c.external_id %} <span class="muted">PA {{ c.external_id }}</span>{% endif %}</td>
+      <td style="text-align:left" title="{{ c.note }}">{{ status_names.get(c.status, c.status) }}{% if c.note %}<br><span class="muted" style="font-size:.75rem">{{ c.note[:80] }}</span>{% endif %}</td>
+      <td>${{ "%.2f"|format(c.spend) }}</td><td>{{ c.total.visit }}</td><td>{{ c.total.click }}</td><td>{{ c.total.reg }}</td><td>{{ c.total.ftd }}</td>
+      <td>${{ "%.2f"|format(c.total.revenue) }}</td><td class="{{ 'bad' if c.profit < 0 else '' }}">${{ "%.2f"|format(c.profit) }}</td><td>{{ c.excluded }}</td>
+      <td>{% if c.status in ("active", "capped", "paced") %}<form class="inline" method="post" action="/admin/ig/campaigns/{{ c.id }}/stop"><button class="sm danger">Стоп</button></form>
+        {% elif c.status in ("killed", "stopped") and c.external_id %}<form class="inline" method="post" action="/admin/ig/campaigns/{{ c.id }}/resume"><button class="sm">Вернуть</button></form>{% endif %}</td>
+    </tr>{% endfor %}
+  </table>{% else %}<p class="muted">Кампаний пока нет.</p>{% endif %}
 
   <h4 id="lander{{ p.id }}" style="margin:16px 0 6px">Лендинг</h4>
   {% if p.issues %}<div class="banner bad">Запрещённые для рекламы азартных игр слова: {{ p.issues|join(", ") }} — уберите их перед запуском.</div>{% endif %}

@@ -243,6 +243,16 @@ class Store:
                 if col not in cols:
                     self._db.execute(f"ALTER TABLE events ADD COLUMN {col} TEXT")
             self._db.execute("CREATE INDEX IF NOT EXISTS events_ip ON events (ip, ts)")
+            # iGaming push campaign settings (added with stage 2).
+            cols = {r[1] for r in self._db.execute("PRAGMA table_info(ig_projects)")}
+            for col, decl in (("bid_cpc", "REAL NOT NULL DEFAULT 0.01"),
+                              ("daily_budget", "REAL NOT NULL DEFAULT 10"),
+                              ("platform", "TEXT NOT NULL DEFAULT 'mobile'"),
+                              ("push_title", "TEXT NOT NULL DEFAULT ''"),
+                              ("push_text", "TEXT NOT NULL DEFAULT ''"),
+                              ("kill_spend", "REAL NOT NULL DEFAULT 0")):
+                if col not in cols:
+                    self._db.execute(f"ALTER TABLE ig_projects ADD COLUMN {col} {decl}")
             self._db.commit()
 
     def _exec(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
@@ -596,7 +606,8 @@ class Store:
     # --- iGaming ----------------------------------------------------------------
 
     IG_PROJECT_FIELDS = ("name", "domain", "country", "language", "brand", "license_url",
-                         "offer_url", "payout", "offer", "lander")
+                         "offer_url", "payout", "offer", "lander", "bid_cpc", "daily_budget",
+                         "platform", "push_title", "push_text", "kill_spend")
 
     def add_ig_project(self, **fields) -> int:
         cols = [k for k in self.IG_PROJECT_FIELDS if k in fields]
@@ -659,6 +670,23 @@ class Store:
             revenue += float(r["money"] or 0)
         out["revenue"] = round(revenue, 2)
         return out
+
+    def ig_campaign_stats(self, campaign_id: int) -> tuple[dict, dict[str, dict]]:
+        """(totals, {zone: counts}) of one push campaign's lander traffic:
+        visit / click / bot / reg / ftd / dep counts and revenue."""
+        rows = self._all(
+            "SELECT zone, type, COUNT(*) AS n, COALESCE(SUM(payout), 0) AS money"
+            " FROM ig_events WHERE campaign = ? GROUP BY zone, type", (str(campaign_id),))
+        def blank() -> dict:
+            return dict.fromkeys(("visit", "click", "bot", "reg", "ftd", "dep", "revenue"), 0)
+
+        total, zones = blank(), {}
+        for r in rows:
+            for bucket in (total, zones.setdefault(r["zone"] or "", blank())):
+                bucket[r["type"]] += int(r["n"])
+                bucket["revenue"] += float(r["money"] or 0)
+        zones.pop("", None)
+        return total, zones
 
     def ig_zone_stats(self, project_id: int, limit: int = 20) -> list[dict]:
         """Per push zone: visits, clicks, registrations, deposits, revenue."""

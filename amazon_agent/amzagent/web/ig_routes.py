@@ -21,6 +21,14 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
+from amzagent.agent.igaming import (
+    PLATFORMS,
+    campaigns_of,
+    forbidden_in_push,
+    launch_ig_campaign,
+    write_push_text,
+)
+from amzagent.agent.runner import KILLED, build_deps, resume_campaign, stop_campaign
 from amzagent.content.llm import LLMError, get_llm
 from amzagent.ig.lander import (
     COUNTRIES,
@@ -35,9 +43,10 @@ from amzagent.ig.lander import (
     write_lander,
 )
 from amzagent.panel_settings import effective
+from amzagent.push.propeller import MIN_DAILY_AMOUNT
 
 KEY_FLAG = "ig_postback_key"
-FAILED_RE = re.compile(r"\bне (сохран|создан|удалось)")
+FAILED_RE = re.compile(r"\bне (сохран|создан|удалось|запущена|возвращена)")
 DOMAIN_RE = re.compile(r"^(?=.{4,253}$)([a-z0-9-]{1,63}\.)+[a-z]{2,63}$")
 SAFE_PARAM = re.compile(r"^[A-Za-z0-9_\-.]{1,64}$")
 LANDER_TEMPLATES = Jinja2Templates(
@@ -49,6 +58,9 @@ PAYOUT_KEYS = ("payout", "sum", "amount", "revenue")
 EVENTS = {"reg": "reg", "registration": "reg", "lead": "reg", "signup": "reg",
           "ftd": "ftd", "deposit": "ftd", "first_deposit": "ftd", "sale": "ftd", "dep": "dep",
           "redeposit": "dep", "rdep": "dep"}
+STATUS_NAMES = {"active": "работает", "capped": "пауза: лимит", "paced": "растягиваю бюджет",
+                "dry_run": "тест (не отправлена)", "killed": "отключена", "stopped": "остановлена",
+                "error": "ошибка", "creating": "создаётся"}
 EVENT_NAMES = {"reg": "регистрация", "ftd": "первый депозит", "dep": "повторный депозит"}
 
 
@@ -65,9 +77,9 @@ def _clean(value: str | None) -> str | None:
     return value if value and SAFE_PARAM.match(value) else None
 
 
-def _money(raw, default: float = 0.0) -> float:
+def _money(raw, default: float = 0.0, digits: int = 2) -> float:
     try:
-        return max(0.0, round(float(str(raw).replace(",", ".")), 2))
+        return max(0.0, round(float(str(raw).replace(",", ".")), digits))
     except (TypeError, ValueError):
         return default
 
@@ -107,6 +119,12 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             "offer_url": str(form.get("offer_url") or "").strip()[:1000],
             "payout": _money(form.get("payout")),
             "offer": str(form.get("offer") or "").strip()[:3000],
+            "bid_cpc": min(max(_money(form.get("bid_cpc"), 0.01, 4) or 0.01, 0.001), 1.0),
+            "daily_budget": max(_money(form.get("daily_budget"), MIN_DAILY_AMOUNT),
+                                MIN_DAILY_AMOUNT),
+            "platform": str(form.get("platform")) if form.get("platform") in PLATFORMS
+            else "mobile",
+            "kill_spend": _money(form.get("kill_spend")),
         }
         if not fields["name"]:
             return fields, "нужно название"
@@ -151,6 +169,20 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
                                 "(сайт на .bet.br). Укажите сайт оператора.")
             if not p["l"]["headline"]:
                 warnings.append("Лендинг пустой — нажмите «Агент: написать лендинг».")
+            p["push_issues"] = forbidden_in_push(p)
+            p["campaigns"] = []
+            for c in campaigns_of(store, p["id"]):
+                total, _ = store.ig_campaign_stats(c["id"])
+                c.update(total=total, profit=total["revenue"] - c["spend"],
+                         excluded=len(store.blacklisted_zones(c["id"])))
+                p["campaigns"].append(c)
+            spent_by_zone: dict[str, float] = {}
+            for c in p["campaigns"]:
+                for z in store.zone_stats(c["id"]):
+                    spent_by_zone[z["zone"]] = spent_by_zone.get(z["zone"], 0.0) + z["spent"]
+            for z in p["zones"]:
+                z["spent"] = spent_by_zone.get(z["zone"], 0.0)
+            p["spent"] = sum(c["spend"] for c in p["campaigns"])
             p["warnings"] = warnings
         flash = request.session.pop("flash", None)
         base = settings.public_base_url()
@@ -158,7 +190,8 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             "projects": projects, "countries": COUNTRIES, "languages": LANGUAGES,
             "postback": f"{base}/pb/ig?key={postback_key()}&click_id={{clickid}}"
                         "&event={event}&payout={payout}",
-            "event_names": EVENT_NAMES, "main_domain": settings.domain,
+            "event_names": EVENT_NAMES, "main_domain": settings.domain, "platforms": PLATFORMS,
+            "status_names": STATUS_NAMES,
             "flash": flash, "flash_bad": bool(flash and FAILED_RE.search(flash)),
         })
 
@@ -234,6 +267,64 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
         lander["faq"] = faq
         store.update_ig_project(project_id, lander=json.dumps(lander, ensure_ascii=False))
         return back(request, "Лендинг сохранён.", f"#lander{project_id}")
+
+    @app.post("/admin/ig/projects/{project_id}/push")
+    async def ig_save_push(request: Request, project_id: int):
+        if not logged_in(request):
+            return to_login()
+        if store.get_ig_project(project_id) is None:
+            raise HTTPException(404)
+        form = await request.form()
+        store.update_ig_project(project_id,
+                                push_title=str(form.get("push_title") or "").strip()[:30],
+                                push_text=str(form.get("push_text") or "").strip()[:50])
+        return back(request, "Текст пуша сохранён.", f"#push{project_id}")
+
+    @app.post("/admin/ig/projects/{project_id}/push/write")
+    def ig_write_push(request: Request, project_id: int):
+        if not logged_in(request):
+            return to_login()
+        project = store.get_ig_project(project_id)
+        if project is None:
+            raise HTTPException(404)
+        try:
+            title, text = write_push_text(get_llm(effective(settings, store)), project)
+        except LLMError as exc:
+            return back(request, f"Пуш не создан: {exc}", f"#push{project_id}")
+        store.update_ig_project(project_id, push_title=title, push_text=text)
+        return back(request, "Агент написал текст пуша — проверьте его.", f"#push{project_id}")
+
+    @app.post("/admin/ig/projects/{project_id}/launch")
+    def ig_launch(request: Request, project_id: int):
+        if not logged_in(request):
+            return to_login()
+        error = launch_ig_campaign(build_deps(settings, store), project_id)
+        return back(request, f"Кампания не запущена: {error}" if error else
+                    "Кампания отправлена на модерацию PropellerAds; начнёт работать после "
+                    "одобрения.", f"#push{project_id}")
+
+    @app.post("/admin/ig/campaigns/{campaign_id}/stop")
+    def ig_stop(request: Request, campaign_id: int):
+        if not logged_in(request):
+            return to_login()
+        c = store.get_campaign(campaign_id)
+        if c is None or c["niche_id"] != 0:
+            raise HTTPException(404)
+        stop_campaign(build_deps(settings, store), c, KILLED, "stopped manually")
+        return back(request, f"Кампания #{campaign_id} остановлена.",
+                    f"#push{c['asin'][2:]}")
+
+    @app.post("/admin/ig/campaigns/{campaign_id}/resume")
+    def ig_resume(request: Request, campaign_id: int):
+        if not logged_in(request):
+            return to_login()
+        c = store.get_campaign(campaign_id)
+        if c is None or c["niche_id"] != 0:
+            raise HTTPException(404)
+        error = resume_campaign(build_deps(settings, store), campaign_id)
+        return back(request, f"Кампания #{campaign_id} не возвращена: {error}" if error else
+                    f"Кампания #{campaign_id} возвращена; агент не будет отключать её по "
+                    "результатам, только её плохие зоны.", f"#push{c['asin'][2:]}")
 
     # --- public ------------------------------------------------------------------
 
