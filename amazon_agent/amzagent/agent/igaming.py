@@ -282,10 +282,13 @@ def apply_ig_rules(deps, manual: bool) -> None:
     """Kill and zone rules for iGaming campaigns (see the module docstring).
     Bot zones go in both modes; the rest only in auto mode (zone pruning
     also in manual mode when manual_prune_zones is on)."""
-    from amzagent.agent.runner import STOPPED, KILLED, exclude_zone, stop_campaign
+    from amzagent.agent.runner import (
+        AT_NETWORK, KILLED, STOPPED, exclude_zone, stop_campaign)
 
     s, store = deps.settings, deps.store
-    for c in store.list_campaigns(niche_id=IG_NICHE, statuses=(ACTIVE,)):
+    # Paused ones too (budget pacing, 24h limit): they resume on their own,
+    # and should come back without the zones already judged bad.
+    for c in store.list_campaigns(niche_id=IG_NICHE, statuses=AT_NETWORK):
         if not c["external_id"]:
             continue
         p = project_of(store, c)

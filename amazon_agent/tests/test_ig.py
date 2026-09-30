@@ -332,8 +332,10 @@ def test_early_zone_rule_and_manual_toggle(settings, store, monkeypatch):
     for i in range(50):  # people press it here
         store.log_ig_event(pid, "visit", campaign=str(cid), zone="32")
     store.log_ig_event(pid, "click", click_id="k", campaign=str(cid), zone="32")
+    store.update_campaign(cid, status="paced")  # paused by budget pacing: still judged
     apply_ig_rules(deps, manual=True)  # manual mode, zone pruning on by default
     assert store.blacklisted_zones(cid) == {"31"}
+    store.update_campaign(cid, status="active")
 
     assert set_zone(deps, pid, "32", off=True) is None
     assert store.blacklisted_zones(cid) == {"31", "32"}
