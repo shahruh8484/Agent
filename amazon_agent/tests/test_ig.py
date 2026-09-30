@@ -228,3 +228,24 @@ def test_rules_judge_by_deposits(settings, store, monkeypatch):
     # the panel builds its own deps: no PropellerAds token in tests
     answer = client.post(f"/admin/ig/campaigns/{c2['id']}/resume").text
     assert "не возвращена" in answer and 'class="banner bad"' in answer
+
+
+def test_actionpay_style_postback(settings, store):
+    """Status names instead of events, amounts in reais, rejections."""
+    client = _client(settings, store)
+    _project(client, payout="9")
+    pid = store.list_ig_projects()[0]["id"]
+    for cid in ("a1", "a2"):
+        store.log_ig_event(pid, "click", click_id=cid, campaign="5", zone="7")
+    key = store.get_flag(KEY_FLAG)
+    anon = TestClient(create_app(settings, store, start_loop=False))
+    base = f"/pb/ig?key={key}&apid=x&aptime=1&appayment=49"
+    assert anon.get(f"{base}&click_id=a1&event=created&payout=49&currency=BRL").text == "ok"
+    assert anon.get(f"{base}&click_id=a1&event=accepted").text == "duplicate"
+    assert anon.get(f"{base}&click_id=a2&event=created").text == "ok"
+    assert store.ig_stats(pid)["revenue"] == 18.0  # 2 x $9 CPA, reais not taken as dollars
+    assert anon.get(f"{base}&click_id=a2&event=rejected").text == "ok"
+    assert anon.get(f"{base}&click_id=a2&event=rejected").text == "duplicate"
+    st = store.ig_stats(pid)
+    assert (st["ftd"], st["rej"], st["revenue"]) == (2, 1, 9.0)
+    assert "−1" in client.get("/admin/ig").text

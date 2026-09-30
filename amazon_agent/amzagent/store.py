@@ -658,12 +658,17 @@ class Store:
         return self._one("SELECT 1 FROM ig_events WHERE click_id = ? AND type = ? LIMIT 1",
                          (click_id, type_)) is not None
 
+    def ig_click_revenue(self, click_id: str, type_: str) -> float:
+        r = self._one("SELECT COALESCE(SUM(payout), 0) AS m FROM ig_events"
+                      " WHERE click_id = ? AND type = ?", (click_id, type_))
+        return float(r["m"] or 0)
+
     def ig_stats(self, project_id: int, since: str | None = None) -> dict:
         """Counts per event type plus revenue (reg/ftd/dep payouts)."""
         rows = self._all(
             "SELECT type, COUNT(*) AS n, COALESCE(SUM(payout), 0) AS money FROM ig_events"
             " WHERE project_id = ? AND ts >= ? GROUP BY type", (project_id, since or ""))
-        out = {t: 0 for t in ("visit", "click", "bot", "reg", "ftd", "dep")}
+        out = {t: 0 for t in ("visit", "click", "bot", "reg", "ftd", "dep", "rej")}
         revenue = 0.0
         for r in rows:
             out[r["type"]] = int(r["n"])
@@ -678,7 +683,8 @@ class Store:
             "SELECT zone, type, COUNT(*) AS n, COALESCE(SUM(payout), 0) AS money"
             " FROM ig_events WHERE campaign = ? GROUP BY zone, type", (str(campaign_id),))
         def blank() -> dict:
-            return dict.fromkeys(("visit", "click", "bot", "reg", "ftd", "dep", "revenue"), 0)
+            return dict.fromkeys(("visit", "click", "bot", "reg", "ftd", "dep", "rej", "revenue"),
+                                 0)
 
         total, zones = blank(), {}
         for r in rows:

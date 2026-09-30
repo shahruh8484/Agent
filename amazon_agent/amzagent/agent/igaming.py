@@ -10,6 +10,7 @@ postback:
   half of it too;
 - a zone that spent half a CPA without a registration, or a whole CPA
   without a deposit, is excluded;
+(deposits the network rejected after its check don't count)
 - a zone sending bots (clicks held back) is excluded in either mode."""
 from __future__ import annotations
 
@@ -176,10 +177,10 @@ def apply_ig_rules(deps, manual: bool) -> None:
         if prune:
             spent = {z["zone"]: z["spent"] for z in store.zone_stats(c["id"])}
             for zone, zone_spent in spent.items():
-                z = zones.get(zone) or {"reg": 0, "ftd": 0}
+                z = zones.get(zone) or {"reg": 0, "ftd": 0, "rej": 0}
                 if zone in reasons:
                     continue
-                if z["ftd"] == 0 and zone_spent >= payout:
+                if z["ftd"] - z["rej"] <= 0 and zone_spent >= payout:
                     reasons[zone] = f"${zone_spent:.2f} spent (>= CPA ${payout:.2f}), no deposits"
                 elif z["reg"] == 0 and zone_spent >= payout * ZONE_NO_REG_CPA_SHARE:
                     reasons[zone] = f"${zone_spent:.2f} spent, no registrations"
@@ -192,7 +193,7 @@ def apply_ig_rules(deps, manual: bool) -> None:
             continue
         limit = p["kill_spend"] or payout * KILL_CPA_MULTIPLE
         spend = c["spend"]
-        if spend >= limit and total["ftd"] == 0:
+        if spend >= limit and total["ftd"] - total["rej"] <= 0:
             stop_campaign(deps, c, KILLED, f"spent ${spend:.2f} (limit ${limit:.2f}), no deposits")
         elif spend >= 2 * limit and total["revenue"] < spend / 2:
             stop_campaign(deps, c, KILLED, f"spent ${spend:.2f}, earned ${total['revenue']:.2f}"

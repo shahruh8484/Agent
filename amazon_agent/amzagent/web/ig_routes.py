@@ -57,11 +57,18 @@ EVENT_KEYS = ("event", "status", "goal", "type")
 PAYOUT_KEYS = ("payout", "sum", "amount", "revenue")
 EVENTS = {"reg": "reg", "registration": "reg", "lead": "reg", "signup": "reg",
           "ftd": "ftd", "deposit": "ftd", "first_deposit": "ftd", "sale": "ftd", "dep": "dep",
-          "redeposit": "dep", "rdep": "dep"}
+          "redeposit": "dep", "rdep": "dep",
+          # CPA networks that pay for one action (e.g. Actionpay) report its
+          # status instead: created -> accepted / rejected -> paid.
+          "created": "ftd", "pending": "ftd", "accepted": "ftd", "approved": "ftd",
+          "confirmed": "ftd", "paid": "ftd",
+          "rejected": "rej", "declined": "rej", "canceled": "rej", "cancelled": "rej",
+          "rej": "rej"}
 STATUS_NAMES = {"active": "работает", "capped": "пауза: лимит", "paced": "растягиваю бюджет",
                 "dry_run": "тест (не отправлена)", "killed": "отключена", "stopped": "остановлена",
                 "error": "ошибка", "creating": "создаётся"}
-EVENT_NAMES = {"reg": "регистрация", "ftd": "первый депозит", "dep": "повторный депозит"}
+EVENT_NAMES = {"reg": "регистрация", "ftd": "первый депозит", "dep": "повторный депозит",
+               "rej": "отклонён сетью"}
 
 
 def norm_domain(raw: str) -> str:
@@ -390,12 +397,20 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
         click = store.get_ig_click(click_id) if click_id else None
         if click is None or event is None:
             return PlainTextResponse("unknown click or event")  # 200: don't make them retry
-        if event in ("reg", "ftd") and store.has_ig_conversion(click_id, event):
+        if event in ("reg", "ftd", "rej") and store.has_ig_conversion(click_id, event):
             return PlainTextResponse("duplicate")
         project = store.get_ig_project(click["project_id"])
-        raw_payout = _first(params, PAYOUT_KEYS)
-        payout = _money(raw_payout) if raw_payout else (
-            project["payout"] if project and event == "ftd" else 0.0)
+        if event == "rej":
+            # The network turned the player down after its check: take back
+            # what the deposit was credited with.
+            payout = -store.ig_click_revenue(click_id, "ftd")
+        else:
+            # Amounts in another currency (Actionpay sends reais) aren't
+            # converted: the project's CPA in dollars is used instead.
+            raw_payout = _first(params, PAYOUT_KEYS)
+            currency = str(params.get("currency") or "usd").lower()
+            payout = _money(raw_payout) if raw_payout and currency == "usd" else (
+                project["payout"] if project and event == "ftd" else 0.0)
         store.log_ig_event(click["project_id"], event, click_id=click_id,
                            campaign=click["campaign"], zone=click["zone"],
                            device=click["device"], payout=payout)

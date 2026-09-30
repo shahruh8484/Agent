@@ -42,7 +42,7 @@
     {% for label, st in (("7 дней", p.stats_week), ("всё время", p.stats_all)) %}
     <tr><td style="text-align:left;padding:4px 8px">{{ label }}</td><td>{{ st.visit }}</td><td>{{ st.click }}</td>
       <td>{% if st.visit %}{{ "%.1f"|format(100 * st.click / st.visit) }}%{% else %}—{% endif %}</td><td>{{ st.bot }}</td>
-      <td>{{ st.reg }}</td><td>{{ st.ftd }}{% if st.dep %} <span class="muted">+{{ st.dep }}</span>{% endif %}</td><td>${{ "%.2f"|format(st.revenue) }}</td>
+      <td>{{ st.reg }}</td><td>{{ st.ftd }}{% if st.dep %} <span class="muted">+{{ st.dep }}</span>{% endif %}{% if st.rej %} <span class="bad" title="отклонены сетью после проверки">−{{ st.rej }}</span>{% endif %}</td><td>${{ "%.2f"|format(st.revenue) }}</td>
       <td>{% if st.visit %}${{ "%.4f"|format(st.revenue / st.visit) }}{% else %}—{% endif %}</td></tr>
     {% endfor %}
   </table>
