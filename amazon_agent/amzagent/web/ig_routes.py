@@ -20,11 +20,16 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from starlette.datastructures import UploadFile
 
 from amzagent.agent.igaming import (
     PLATFORMS,
     campaigns_of,
+    add_creative,
+    creatives_of,
     deposit_zones,
+    draw_ig_creatives,
+    remove_creative,
     set_zone,
     forbidden_in_push,
     launch_ig_campaign,
@@ -46,6 +51,7 @@ from amzagent.ig.lander import (
 )
 from amzagent.panel_settings import effective
 from amzagent.web.period import PRESETS, parse_period
+from amzagent.push.ai_creatives import CreativeError
 from amzagent.push.propeller import MIN_DAILY_AMOUNT
 
 KEY_FLAG = "ig_postback_key"
@@ -190,6 +196,7 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             if not p["l"]["headline"]:
                 warnings.append("Лендинг пустой — нажмите «Агент: написать лендинг».")
             p["push_issues"] = forbidden_in_push(p)
+            p["pictures"] = creatives_of(p)
             p["campaigns"] = []
             spent_by_zone: dict[str, float] = {}
             for c in campaigns_of(store, p["id"]):
@@ -327,6 +334,47 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             return back(request, f"Пуш не создан: {exc}", f"#push{project_id}")
         store.update_ig_project(project_id, push_title=title, push_text=text)
         return back(request, "Агент написал текст пуша — проверьте его.", f"#push{project_id}")
+
+    @app.post("/admin/ig/projects/{project_id}/pictures/draw")
+    def ig_draw_pictures(request: Request, project_id: int):
+        if not logged_in(request):
+            return to_login()
+        if store.get_ig_project(project_id) is None:
+            raise HTTPException(404)
+        try:
+            made = draw_ig_creatives(build_deps(settings, store), project_id)
+        except (CreativeError, LLMError) as exc:
+            return back(request, f"Картинки не созданы: {exc}", f"#push{project_id}")
+        return back(request, f"Агент нарисовал картинок: {made}. Проверьте их — лишние можно "
+                             "удалить. Новые картинки пойдут в следующую запущенную кампанию.",
+                    f"#push{project_id}")
+
+    @app.post("/admin/ig/projects/{project_id}/pictures/upload")
+    async def ig_upload_picture(request: Request, project_id: int):
+        if not logged_in(request):
+            return to_login()
+        if store.get_ig_project(project_id) is None:
+            raise HTTPException(404)
+        upload = (await request.form()).get("image")
+        if not (isinstance(upload, UploadFile) and upload.filename):
+            return back(request, "Картинка не сохранена: выберите файл.", f"#push{project_id}")
+        data = await upload.read(8 * 1024 * 1024 + 1)
+        if len(data) > 8 * 1024 * 1024:
+            return back(request, "Картинка не сохранена: больше 8 МБ.", f"#push{project_id}")
+        try:
+            add_creative(store, settings, project_id, data)
+        except (OSError, ValueError):
+            return back(request, "Картинка не сохранена: это не изображение JPG/PNG.",
+                        f"#push{project_id}")
+        return back(request, "Картинка добавлена: обрезана под пуш (492×328) и иконку (192×192).",
+                    f"#push{project_id}")
+
+    @app.post("/admin/ig/projects/{project_id}/pictures/{image}/delete")
+    def ig_delete_picture(request: Request, project_id: int, image: str):
+        if not logged_in(request):
+            return to_login()
+        remove_creative(store, project_id, image)
+        return back(request, "Картинка убрана из проекта.", f"#push{project_id}")
 
     @app.post("/admin/ig/projects/{project_id}/launch")
     def ig_launch(request: Request, project_id: int):

@@ -17,12 +17,15 @@ postback:
 - a zone sending bots (clicks held back) is excluded in either mode."""
 from __future__ import annotations
 
+import json
+import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 
 from amzagent.content.llm import LLM, LLMError, parse_json
 from amzagent.ig.lander import FORBIDDEN, LANGUAGES
 from amzagent.push import propeller
+from amzagent.push.ai_creatives import IMAGE_RULES, CreativeError, cut_push_images
 from amzagent.push.creatives import render_creatives
 from amzagent.push.propeller import PropellerError
 from amzagent.store import ACTIVE, DRY_RUN, ERROR
@@ -82,6 +85,79 @@ def set_zone(deps, project_id: int, zone: str, off: bool) -> str | None:
         if error:
             return error
     return None
+
+
+MAX_CREATIVES = 6
+SCENE_SYSTEM = ("You are an art director for push-notification ads of a licensed sports betting "
+                "operator. You describe photos for an image model and follow gambling ad rules. "
+                "Reply with JSON only.")
+
+
+def creatives_of(project: dict) -> list[list[str]]:
+    try:
+        data = json.loads(project.get("creatives") or "[]")
+    except ValueError:
+        return []
+    return [c for c in data if isinstance(c, list) and len(c) == 2]
+
+
+def media_dir(settings, project_id: int) -> Path:
+    return Path(settings.data_dir) / "media" / f"ig{project_id}"
+
+
+def add_creative(store, settings, project_id: int, png: bytes) -> str:
+    """Cut a picture into push image + icon and add it to the project."""
+    p = store.get_ig_project(project_id)
+    items = creatives_of(p)
+    icon, image = cut_push_images(png, media_dir(settings, project_id),
+                                  f"ig{project_id}-art-{secrets.token_hex(4)}")
+    items.append([icon.name, image.name])
+    store.update_ig_project(project_id, creatives=json.dumps(items[-MAX_CREATIVES:]))
+    return image.name
+
+
+def remove_creative(store, project_id: int, image_name: str) -> None:
+    p = store.get_ig_project(project_id)
+    items = [c for c in creatives_of(p) if c[1] != image_name]
+    store.update_ig_project(project_id, creatives=json.dumps(items))
+
+
+def describe_ig_scenes(llm: LLM, project: dict, n: int) -> list[str]:
+    prompt = (
+        "TASK: describe betting push photos.\n"
+        f"Country: {project.get('country')}. Operator: licensed sports betting and casino site.\n"
+        f"Push headline: {project.get('push_title')}\n\n"
+        f"Describe {n} clearly different photo scenes about the excitement of watching sport "
+        "(e.g. adult friends watching a football match on TV at home, a stadium crowd at "
+        "night, a football on the pitch under floodlights, an adult checking a match on a "
+        "phone on the sofa). Rules: people clearly adults (30+); no children or teenagers; "
+        "no money, cash, coins, chips, luxury, winning or celebrating a win; no real players, "
+        "celebrities, team crests, jerseys of real clubs or brand logos; no alcohol; no text "
+        "in the image. Return a JSON array of strings, one short paragraph each."
+    )
+    data = parse_json(llm.generate(SCENE_SYSTEM, prompt, max_tokens=800))
+    scenes = [x for x in data if isinstance(x, str) and x.strip()] if isinstance(data, list) else []
+    if not scenes:
+        raise LLMError("No image scenes in model reply")
+    return scenes[:n]
+
+
+def draw_ig_creatives(deps, project_id: int, n: int = 3) -> int:
+    """AI-drawn pictures for a project's pushes. Returns how many were made."""
+    if deps.painter is None or deps.llm is None:
+        raise CreativeError("рисование картинок не настроено (нужен OPENAI_API_KEY)")
+    p = deps.store.get_ig_project(project_id)
+    made, errors = 0, []
+    for scene in describe_ig_scenes(deps.llm, p, n):
+        try:
+            png = deps.painter.draw(scene + IMAGE_RULES)
+            add_creative(deps.store, deps.settings, project_id, png)
+            made += 1
+        except (CreativeError, OSError, ValueError) as exc:
+            errors.append(str(exc))
+    if not made:
+        raise CreativeError("; ".join(errors) or "картинки не получились")
+    return made
 
 
 def write_push_text(llm: LLM, project: dict) -> tuple[str, str]:
@@ -167,15 +243,18 @@ def launch_ig_campaign(deps, project_id: int, zones: list[str] | None = None) ->
     if zones:
         store.update_campaign(cid, zones_only=",".join(zones), manual_keep=1)
     slug = f"ig{project_id}"
-    name = f"ig{project_id}-c{cid}"
-    render_creatives(Path(s.data_dir) / "media" / slug, name, p["brand"] or p["name"],
-                     p["push_title"])
     base = f"{s.public_base_url()}/media/{slug}"
+    pictures = creatives_of(p)
+    if not pictures:  # no pictures of its own yet: the plain generated one
+        name = f"ig{project_id}-c{cid}"
+        render_creatives(media_dir(s, project_id), name, p["brand"] or p["name"],
+                         p["push_title"])
+        pictures = [[f"{name}-icon.png", f"{name}-image.png"]]
     payload = propeller.build_campaign_payload(
         name=f"iGaming {p['name']} #{cid}",
         target_url=f"https://{p['domain']}/?c={cid}&z={propeller.ZONE_MACRO}",
         title=p["push_title"], text=push_text(p),
-        images=[(f"{base}/{name}-icon.png", f"{base}/{name}-image.png")],
+        images=[(f"{base}/{icon}", f"{base}/{image}") for icon, image in pictures],
         countries=[p["country"].lower()], bid_cpc=p["bid_cpc"], daily_budget=budget,
         os_types=_os_types(deps, p["platform"]), zones=zones,
     )

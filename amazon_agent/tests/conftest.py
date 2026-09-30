@@ -45,6 +45,9 @@ class FakeLLM:
 
     def generate(self, system, prompt, max_tokens=2048):
         self.prompts.append(prompt)
+        if prompt.startswith("TASK: describe betting push photos"):
+            return json.dumps(["Adult friends watching football on TV.",
+                               "A stadium crowd at night.", "A ball under floodlights."])
         if prompt.startswith("TASK: write a betting push notification"):
             return json.dumps({"title": "Bônus de boas-vindas", "text": "Conheça a oferta"})
         if prompt.startswith("TASK: write a betting lander"):

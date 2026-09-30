@@ -250,7 +250,9 @@ class Store:
                               ("platform", "TEXT NOT NULL DEFAULT 'mobile'"),
                               ("push_title", "TEXT NOT NULL DEFAULT ''"),
                               ("push_text", "TEXT NOT NULL DEFAULT ''"),
-                              ("kill_spend", "REAL NOT NULL DEFAULT 0")):
+                              ("kill_spend", "REAL NOT NULL DEFAULT 0"),
+                              # JSON list of [icon file, image file] push pictures
+                              ("creatives", "TEXT NOT NULL DEFAULT '[]'")):
                 if col not in cols:
                     self._db.execute(f"ALTER TABLE ig_projects ADD COLUMN {col} {decl}")
             self._db.commit()
@@ -607,7 +609,7 @@ class Store:
 
     IG_PROJECT_FIELDS = ("name", "domain", "country", "language", "brand", "license_url",
                          "offer_url", "payout", "offer", "lander", "bid_cpc", "daily_budget",
-                         "platform", "push_title", "push_text", "kill_spend")
+                         "platform", "push_title", "push_text", "kill_spend", "creatives")
 
     def add_ig_project(self, **fields) -> int:
         cols = [k for k in self.IG_PROJECT_FIELDS if k in fields]

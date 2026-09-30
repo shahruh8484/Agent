@@ -341,3 +341,41 @@ def test_early_zone_rule_and_manual_toggle(settings, store, monkeypatch):
     assert store.blacklisted_zones(cid) == {"32"}
     page = client.get("/admin/ig?period=all").text
     assert "отключено 1" in page and "Вернуть" in page and "Отключить" in page
+
+
+def test_push_pictures_drawn_uploaded_and_used(settings, store, monkeypatch):
+    import io as _io
+
+    from PIL import Image
+
+    from amzagent.agent.igaming import creatives_of, draw_ig_creatives
+    from tests.test_ai_creatives import FakePainter
+
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)
+    push = FakePush()
+    _live(settings, store)
+    deps = _ig_deps(settings, store, push)
+    painter = FakePainter(fail_first=True)
+    deps.painter = painter
+    assert draw_ig_creatives(deps, pid) == 2  # one of three failed
+    assert "no text" in painter.prompts[0].lower() or "No text" in painter.prompts[0]
+
+    buf = _io.BytesIO()
+    Image.new("RGB", (1200, 800), (10, 120, 60)).save(buf, "JPEG")
+    client.post(f"/admin/ig/projects/{pid}/pictures/upload",
+                files={"image": ("mine.jpg", buf.getvalue(), "image/jpeg")})
+    pics = creatives_of(store.get_ig_project(pid))
+    assert len(pics) == 3
+    page = client.get("/admin/ig").text
+    assert f"/media/ig{pid}/{pics[0][1]}" in page
+    assert client.get(f"/media/ig{pid}/{pics[0][1]}").status_code == 200
+
+    client.post(f"/admin/ig/projects/{pid}/pictures/{pics[0][1]}/delete")
+    assert len(creatives_of(store.get_ig_project(pid))) == 2
+    assert "не изображение" in client.post(
+        f"/admin/ig/projects/{pid}/pictures/upload",
+        files={"image": ("x.jpg", b"not an image", "image/jpeg")}).text
+
+    assert launch_ig_campaign(deps, pid) is None
+    assert len(push.created[-1]["creatives"]) == 2  # both pictures rotate
