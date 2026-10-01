@@ -120,7 +120,7 @@
       <td style="text-align:left" title="{{ c.note }}">{{ status_names.get(c.status, c.status) }}{% if c.note %}<br><span class="muted" style="font-size:.75rem">{{ c.note[:80] }}</span>{% endif %}</td>
       <td>${{ "%.2f"|format(c.period_spend) }}</td><td>{{ c.total.visit }}</td><td>{{ c.total.click }}</td><td>{{ c.total.reg }}</td><td>{{ c.total.ftd }}{% if c.total.rej %} <span class="bad">−{{ c.total.rej }}</span>{% endif %}</td>
       <td>${{ "%.2f"|format(c.total.revenue) }}</td><td class="{{ 'bad' if c.profit < 0 else '' }}">${{ "%.2f"|format(c.profit) }}</td><td>{{ c.excluded }}</td>
-      <td>{% if c.status in ("active", "capped", "paced", "dry_run") %}<form class="inline row" method="post" action="/admin/ig/campaigns/{{ c.id }}/budget" style="gap:4px;justify-content:flex-end"><input name="budget" type="number" step="1" min="10" value="{{ '%.0f'|format(c.daily_budget) }}" style="width:70px"><button class="sm" title="Сохранить бюджет кампании">OK</button></form>{% else %}${{ "%.0f"|format(c.daily_budget) }}{% endif %}</td>
+      <td>{% if c.status in ("active", "capped", "paced", "dry_run") %}<form class="budget" method="post" action="/admin/ig/campaigns/{{ c.id }}/budget" title="Дневной бюджет кампании: поменяйте число и нажмите ✓"><span>$</span><input name="budget" type="number" step="1" min="10" value="{{ '%.0f'|format(c.daily_budget) }}" data-was="{{ '%.0f'|format(c.daily_budget) }}"><button title="Сохранить бюджет">✓</button></form>{% else %}${{ "%.0f"|format(c.daily_budget) }}{% endif %}</td>
       <td>{% if c.status in ("active", "capped", "paced") %}<form class="inline" method="post" action="/admin/ig/campaigns/{{ c.id }}/stop"><button class="sm danger">Стоп</button></form>
         {% elif c.status in ("killed", "stopped") and c.external_id %}<form class="inline" method="post" action="/admin/ig/campaigns/{{ c.id }}/resume"><button class="sm">Вернуть</button></form>{% endif %}
         {% if c.winners and not c.zones_only and c.external_id %}<form class="inline" method="post" action="/admin/ig/campaigns/{{ c.id }}/whitelist" onsubmit="return confirm('Запустить новую кампанию только на площадках {{ c.winners|join(', ') }}?')"><button class="sm" title="Новая кампания только на площадках, давших депозиты: {{ c.winners|join(', ') }}">Вайт-лист из площадок с депозитами ({{ c.winners|length }})</button></form>{% endif %}</td>
@@ -150,6 +150,18 @@
 </div>
 {% else %}<p class="muted">Проектов пока нет.</p>{% endfor %}
 
+<style>
+form.budget{display:inline-flex;align-items:center;white-space:nowrap;border:1px solid var(--line);border-radius:8px;background:var(--card);overflow:hidden;height:30px}
+form.budget span{padding:0 2px 0 8px;color:var(--muted);font-size:.85rem}
+form.budget input{width:46px;border:0;background:transparent;padding:0 4px;font:inherit;font-size:.9rem;height:28px;-moz-appearance:textfield;box-shadow:none}
+form.budget input::-webkit-inner-spin-button,form.budget input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+form.budget input:focus{outline:none}
+form.budget:focus-within{border-color:var(--accent)}
+form.budget button{border:0;border-left:1px solid var(--line);border-radius:0;height:28px;padding:0 9px;margin:0;background:var(--bg);color:var(--muted);cursor:pointer;display:none}
+form.budget.changed button{display:block;background:var(--accent);color:#fff}
+</style>
+<script>document.querySelectorAll("form.budget input").forEach(function(i){
+  i.addEventListener("input",function(){i.form.classList.toggle("changed",i.value!==i.dataset.was);});});</script>
 <script>(function(){var d=location.hash&&document.getElementById(location.hash.slice(1));
 if(d&&d.tagName==="DETAILS")d.open=true;
 function val(td){var t=(td.innerText||"").trim().split(/\s/)[0];var n=parseFloat(t.replace(/[$,%]/g,""));
