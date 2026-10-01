@@ -564,7 +564,10 @@ def test_casino_theme_reaches_every_prompt(settings, store, monkeypatch):
     assert "roulette" in llm.prompts[2] and "football" not in llm.prompts[2]
     assert "Казино" in client.get("/admin/ig").text
     anon = TestClient(create_app(settings, store, start_loop=False))
-    assert anon.get("/", headers={**BROWSER, "host": "cassino.apostas-exemplo.com"}).status_code == 200
+    casino_page = anon.get("/", headers={**BROWSER, "host": "cassino.apostas-exemplo.com"})
+    sport_page = anon.get("/", headers={**BROWSER, "host": "apostas-exemplo.com"})
+    assert casino_page.status_code == 200
+    assert "%237c1d3a" in casino_page.text and "%237c1d3a" not in sport_page.text  # own favicon
 
 
 def test_push_flags_operator_voice():
