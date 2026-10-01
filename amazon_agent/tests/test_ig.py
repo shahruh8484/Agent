@@ -544,3 +544,24 @@ def test_budget_panel_only_after_a_refusal(settings, store, monkeypatch):
     assert store.get_campaign(c["id"])["daily_budget"] == 12
     assert set_campaign_budget(deps, c["id"], 20, panel_only=True) is None
     assert store.get_campaign(c["id"])["daily_budget"] == 20
+
+
+def test_casino_theme_reaches_every_prompt(settings, store, monkeypatch):
+    import amzagent.web.ig_routes as ig_routes
+    from amzagent.agent.igaming import describe_ig_scenes, write_push_text
+    from amzagent.ig.lander import write_lander
+
+    client = _client(settings, store)
+    _project(client)  # sport, apostas-exemplo.com
+    _project(client, name="Cassino", theme="casino", domain="cassino.apostas-exemplo.com")
+    casino = [p for p in store.list_ig_projects() if p["name"] == "Cassino"][0]
+    assert casino["theme"] == "casino" and casino["domain"] == "cassino.apostas-exemplo.com"
+    llm = FakeLLM()
+    write_lander(llm, casino)
+    write_push_text(llm, casino)
+    describe_ig_scenes(llm, {**casino, "push_title": "x"}, 3)
+    assert "online casino" in llm.prompts[0] and "online casino" in llm.prompts[1]
+    assert "roulette" in llm.prompts[2] and "football" not in llm.prompts[2]
+    assert "Казино" in client.get("/admin/ig").text
+    anon = TestClient(create_app(settings, store, start_loop=False))
+    assert anon.get("/", headers={**BROWSER, "host": "cassino.apostas-exemplo.com"}).status_code == 200

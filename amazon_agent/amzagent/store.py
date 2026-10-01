@@ -256,7 +256,9 @@ class Store:
                               ("creatives", "TEXT NOT NULL DEFAULT '[]'"),
                               # operator's licence as shown on the lander, owner contact
                               ("license_note", "TEXT NOT NULL DEFAULT ''"),
-                              ("contact", "TEXT NOT NULL DEFAULT ''")):
+                              ("contact", "TEXT NOT NULL DEFAULT ''"),
+                              # what the lander and pushes are about: sport | casino
+                              ("theme", "TEXT NOT NULL DEFAULT 'sport'")):
                 if col not in cols:
                     self._db.execute(f"ALTER TABLE ig_projects ADD COLUMN {col} {decl}")
             # Why a lander click was held back as automated (bot filter).
@@ -618,7 +620,7 @@ class Store:
     IG_PROJECT_FIELDS = ("name", "domain", "country", "language", "brand", "license_url",
                          "offer_url", "payout", "offer", "lander", "bid_cpc", "daily_budget",
                          "platform", "push_title", "push_text", "kill_spend", "creatives",
-                         "license_note", "contact")
+                         "license_note", "contact", "theme")
 
     def add_ig_project(self, **fields) -> int:
         cols = [k for k in self.IG_PROJECT_FIELDS if k in fields]

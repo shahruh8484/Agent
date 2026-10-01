@@ -82,7 +82,8 @@ HELP_URL = "https://www.gamblingtherapy.org/"
 # panel, lower-case substrings).
 FORBIDDEN = {
     "pt": ("garantid", "ganhar dinheiro", "ganhe dinheiro", "renda extra", "investimento",
-           "invista", "lucro", "fique rico", "sem risco", "dinheiro fácil", "vitória certa"),
+           "invista", "lucro", "fique rico", "sem risco", "dinheiro fácil", "vitória certa",
+           "milionário", "jackpot garantido", "ganho certo", "multiplique seu dinheiro"),
     "es": ("garantiz", "ganar dinero", "gana dinero", "ingreso extra", "inversión", "invierte",
            "ganancia segura", "hazte rico", "sin riesgo", "dinero fácil"),
     "en": ("guarantee", "make money", "extra income", "investment", "invest ", "get rich",
@@ -146,6 +147,16 @@ PRIVACY = {
            ], "back": "Back"},
 }
 
+THEMES = {"sport": "Ставки на спорт", "casino": "Казино"}
+# What the copy is about, per theme (the offer details still decide the facts).
+THEME_BRIEF = {
+    "sport": "The page is about sports betting (football first): following matches and "
+             "placing bets as entertainment.",
+    "casino": "The page is about the operator's online casino (slots, live casino, table and "
+              "crash games) as entertainment. Never claim odds, RTP, jackpots, 'easy wins' or "
+              "'hot' games; no 'spin to win'.",
+}
+
 FIELDS = ("title", "headline", "intro", "bonus_title", "bonus_text", "cta")
 
 SYSTEM = ("You write landing page copy for a licensed betting operator's affiliate. The copy "
@@ -191,6 +202,7 @@ def write_lander(llm: LLM, project: dict) -> dict:
     language = project.get("language") or "pt"
     prompt = (
         "TASK: write a betting lander.\n"
+        f"Theme: {THEME_BRIEF.get(project.get('theme') or 'sport', THEME_BRIEF['sport'])}\n"
         f"Language: {LANGUAGES.get(language, language)}\n"
         f"Country: {project.get('country')}\n"
         f"Operator (licensed): {project.get('brand') or project.get('name')}\n"

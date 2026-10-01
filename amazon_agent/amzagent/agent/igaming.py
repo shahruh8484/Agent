@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from amzagent.content.llm import LLM, LLMError, parse_json
-from amzagent.ig.lander import FORBIDDEN, LANGUAGES
+from amzagent.ig.lander import FORBIDDEN, LANGUAGES, THEME_BRIEF
 from amzagent.push import propeller
 from amzagent.push.ai_creatives import IMAGE_RULES, CreativeError, cut_push_images
 from amzagent.push.creatives import render_creatives
@@ -123,18 +123,28 @@ def remove_creative(store, project_id: int, image_name: str) -> None:
     store.update_ig_project(project_id, creatives=json.dumps(items))
 
 
+SCENE_SUBJECT = {
+    "sport": "about the excitement of watching sport (e.g. adult friends watching a football "
+             "match on TV at home, a stadium crowd at night, a football on the pitch under "
+             "floodlights, an adult checking a match on a phone on the sofa)",
+    "casino": "about an evening of casino-style entertainment at home or in a stylish lounge "
+              "(e.g. an adult relaxing on a sofa playing a colourful game on a phone, a roulette "
+              "wheel spinning in close-up with soft bokeh lights, an elegant dark lounge with "
+              "warm neon accents, a live-dealer style table seen from a player's chair)",
+}
+
+
 def describe_ig_scenes(llm: LLM, project: dict, n: int) -> list[str]:
+    theme = project.get("theme") if project.get("theme") in SCENE_SUBJECT else "sport"
     prompt = (
         "TASK: describe betting push photos.\n"
         f"Country: {project.get('country')}. Operator: licensed sports betting and casino site.\n"
         f"Push headline: {project.get('push_title')}\n\n"
-        f"Describe {n} clearly different photo scenes about the excitement of watching sport "
-        "(e.g. adult friends watching a football match on TV at home, a stadium crowd at "
-        "night, a football on the pitch under floodlights, an adult checking a match on a "
-        "phone on the sofa). Rules: people clearly adults (30+); no children or teenagers; "
-        "no money, cash, coins, chips, luxury, winning or celebrating a win; no real players, "
-        "celebrities, team crests, jerseys of real clubs or brand logos; no alcohol; no text "
-        "in the image. Return a JSON array of strings, one short paragraph each."
+        f"Describe {n} clearly different photo scenes {SCENE_SUBJECT[theme]}. Rules: people "
+        "clearly adults (30+); no children or teenagers; no money, cash, coins, chips, "
+        "jackpots, luxury, winning or celebrating a win; no real players, celebrities, team "
+        "crests, jerseys of real clubs, game or brand logos; no alcohol; no text, numbers or "
+        "symbols in the image. Return a JSON array of strings, one short paragraph each."
     )
     data = parse_json(llm.generate(SCENE_SYSTEM, prompt, max_tokens=800))
     scenes = [x for x in data if isinstance(x, str) and x.strip()] if isinstance(data, list) else []
@@ -165,6 +175,7 @@ def write_push_text(llm: LLM, project: dict) -> tuple[str, str]:
     language = project.get("language") or "pt"
     prompt = (
         "TASK: write a betting push notification.\n"
+        f"Theme: {THEME_BRIEF.get(project.get('theme') or 'sport', THEME_BRIEF['sport'])}\n"
         f"Language: {LANGUAGES.get(language, language)}\n"
         f"Operator (licensed): {project.get('brand') or project.get('name')}\n"
         f"Offer details (the only facts you may use):\n{(project.get('offer') or '')[:1500]}\n\n"

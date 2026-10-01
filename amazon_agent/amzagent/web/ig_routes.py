@@ -59,6 +59,7 @@ from amzagent.ig.lander import (
     LANGUAGES,
     PRIVACY,
     SAFETY,
+    THEMES,
     badges_for,
     compliance_issues,
     lander_text,
@@ -182,6 +183,7 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             "platform": str(form.get("platform")) if form.get("platform") in PLATFORMS
             else "mobile",
             "kill_spend": _money(form.get("kill_spend")),
+            "theme": str(form.get("theme")) if form.get("theme") in THEMES else "sport",
             "license_note": str(form.get("license_note") or "").strip()[:300],
             "contact": str(form.get("contact") or "").strip()[:120],
         }
@@ -292,7 +294,7 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             "postback": f"{base}/pb/ig?key={postback_key()}&click_id={{clickid}}"
                         "&event={event}&payout={payout}",
             "event_names": EVENT_NAMES, "main_domain": settings.domain, "platforms": PLATFORMS,
-            "status_names": STATUS_NAMES, "period": chosen, "presets": PRESETS,
+            "status_names": STATUS_NAMES, "period": chosen, "presets": PRESETS, "themes": THEMES,
             "campaign": campaign, "device": device, "devices": DEVICES,
             "all_campaigns": all_campaigns,
             "period_error": period_error, "timezone": effective(settings, store).panel_timezone,

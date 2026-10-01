@@ -58,7 +58,7 @@ color:var(--fg);box-shadow:0 10px 30px rgba(0,0,0,.25);font-weight:600}
 {% for p in projects %}
 <div class="card" id="p{{ p.id }}" style="margin-top:14px">
   <div class="row" style="justify-content:space-between">
-    <h3 style="margin:0">{{ p.name }} <span class="muted" style="font-weight:400;font-size:.85rem">· {{ countries.get(p.country, p.country) }} · {{ languages.get(p.language, p.language) }}{% if p.payout %} · CPA ${{ "%.2f"|format(p.payout) }}{% endif %} · ставка ${{ "%.3f"|format(p.bid_cpc) }} · ${{ "%.2f"|format(p.daily_budget) }}/день</span></h3>
+    <h3 style="margin:0">{{ p.name }} <span class="muted" style="font-weight:400;font-size:.85rem">· {{ themes.get(p.theme, p.theme) }} · {{ countries.get(p.country, p.country) }} · {{ languages.get(p.language, p.language) }}{% if p.payout %} · CPA ${{ "%.2f"|format(p.payout) }}{% endif %} · ставка ${{ "%.3f"|format(p.bid_cpc) }} · ${{ "%.2f"|format(p.daily_budget) }}/день</span></h3>
     <div class="row" style="gap:8px">
       <a href="/l/{{ p.id }}/" target="_blank" rel="noopener">Предпросмотр ↗</a>
       <form class="inline" method="post" action="/admin/ig/projects/{{ p.id }}/delete" onsubmit="return confirm('Удалить проект «{{ p.name }}» и его статистику?')"><button class="sm danger">Удалить</button></form>
