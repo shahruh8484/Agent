@@ -398,3 +398,31 @@ def test_zones_are_judged_over_the_whole_project(settings, store, monkeypatch):
     apply_ig_rules(deps, manual=False)
     assert "41" in store.blacklisted_zones(a) and "41" in store.blacklisted_zones(b)
     assert "отключено 1" in client.get("/admin/ig?period=all").text
+
+
+def test_filters_by_campaign_device_and_daily_table(settings, store, monkeypatch):
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)
+    push = FakePush()
+    _live(settings, store)
+    deps = _ig_deps(settings, store, push)
+    launch_ig_campaign(deps, pid)
+    launch_ig_campaign(deps, pid)
+    a, b = sorted(c["id"] for c in store.list_campaigns()[:2])
+    for _ in range(7):
+        store.log_ig_event(pid, "visit", campaign=str(a), zone="1", device="mobile")
+    for _ in range(3):
+        store.log_ig_event(pid, "visit", campaign=str(b), zone="2", device="desktop")
+    assert store.ig_stats(pid)["visit"] == 10
+    assert store.ig_stats(pid, campaign=str(a))["visit"] == 7
+    assert store.ig_stats(pid, device="desktop")["visit"] == 3
+    days = store.ig_daily(pid, offset_minutes=300)
+    assert len(days) == 1 and days[0]["visits"] == 10
+
+    page = client.get(f"/admin/ig?period=all&campaign={b}&device=").text
+    assert f"кампания #{b}" in page and "По дням (1)" in page
+    assert f"#{a} <span" not in page  # the other campaign's row is hidden
+    # the filter sticks across reloads
+    assert f"кампания #{b}" in client.get("/admin/ig").text
+    page = client.get("/admin/ig?period=all&campaign=&device=mobile").text
+    assert "Телефоны и планшеты</option>" in page and "сбросить фильтры" in page

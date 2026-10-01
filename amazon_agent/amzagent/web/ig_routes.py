@@ -80,6 +80,19 @@ EVENT_NAMES = {"reg": "регистрация", "ftd": "первый депоз�
                "rej": "отклонён сетью"}
 
 
+DEVICES = {"mobile": "Телефоны и планшеты", "desktop": "Компьютеры"}
+
+
+def _utc_offset_minutes(tz_name: str) -> int:
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        offset = datetime.now(ZoneInfo(tz_name)).utcoffset()
+    except (ZoneInfoNotFoundError, ValueError):
+        return 0
+    return int(offset.total_seconds() // 60) if offset else 0
+
+
 def norm_domain(raw: str) -> str:
     host = re.sub(r"^[a-z]+://", "", (raw or "").strip().lower()).split("/")[0].split(":")[0]
     return host[4:] if host.startswith("www.") else host
@@ -163,26 +176,40 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
 
     @app.get("/admin/ig", response_class=HTMLResponse)
     def ig_page(request: Request, period: str | None = None, date_from: str | None = None,
-                date_to: str | None = None):
+                date_to: str | None = None, campaign: str | None = None,
+                device: str | None = None):
         if not logged_in(request):
             return to_login()
-        # The chosen period sticks (in the session) across button presses.
-        if period or date_from or date_to:
-            request.session["ig_period"] = [period, date_from, date_to]
+        # The chosen period and filters stick (in the session) across button presses.
+        if any(v is not None for v in (period, date_from, date_to, campaign, device)):
+            request.session["ig_filters"] = [period, date_from, date_to, campaign, device]
         else:
-            period, date_from, date_to = request.session.get("ig_period") or ["7d", None, None]
-        chosen = parse_period(period, date_from, date_to, effective(settings, store).panel_timezone)
+            period, date_from, date_to, campaign, device = (
+                request.session.get("ig_filters") or ["7d", None, None, None, None])
+        campaign = campaign if campaign and campaign.isdigit() else None
+        device = device if device in DEVICES else None
+        tz_name = effective(settings, store).panel_timezone
+        chosen = parse_period(period, date_from, date_to, tz_name)
+        offset = _utc_offset_minutes(tz_name)
         net, net_zones, period_error = {}, {}, ""
         if not chosen.is_all and network_stats is not None:
             net, net_zones, period_error = network_stats(chosen)
         since, until = chosen.since, chosen.until
         projects = store.list_ig_projects()
+        all_campaigns = []
         for p in projects:
+            all_campaigns += [(c["id"], p["name"]) for c in campaigns_of(store, p["id"])]
+        for p in projects:
+            mine = {str(c["id"]) for c in campaigns_of(store, p["id"])}
+            only = campaign if campaign in mine else None
+            p["only"] = only
             p["l"] = load_lander(p["lander"])
             p["issues"] = compliance_issues(lander_text(p["l"]), p["language"])
-            p["stats"] = store.ig_stats(p["id"], since, until)
-            p["stats_all"] = store.ig_stats(p["id"])
-            p["zones"] = store.ig_zone_stats(p["id"], limit=1000, since=since, until=until)
+            p["stats"] = store.ig_stats(p["id"], since, until, only, device)
+            p["stats_all"] = store.ig_stats(p["id"], campaign=only, device=device)
+            p["zones"] = store.ig_zone_stats(p["id"], limit=1000, since=since, until=until,
+                                             campaign=only, device=device)
+            p["daily"] = store.ig_daily(p["id"], since, until, only, device, offset)
             warnings = []
             if "{click_id}" not in p["offer_url"]:
                 warnings.append("В ссылке оффера нет {click_id} — депозиты не свяжутся с "
@@ -200,7 +227,9 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             p["campaigns"] = []
             spent_by_zone: dict[str, float] = {}
             for c in campaigns_of(store, p["id"]):
-                total, _ = store.ig_campaign_stats(c["id"], since, until)
+                if only and str(c["id"]) != only:
+                    continue
+                total = store.ig_stats(p["id"], since, until, str(c["id"]), device)
                 if chosen.is_all:
                     spend = c["spend"]
                     zone_rows = [(z["zone"], z["spent"]) for z in store.zone_stats(c["id"])]
@@ -232,6 +261,8 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
                         "&event={event}&payout={payout}",
             "event_names": EVENT_NAMES, "main_domain": settings.domain, "platforms": PLATFORMS,
             "status_names": STATUS_NAMES, "period": chosen, "presets": PRESETS,
+            "campaign": campaign, "device": device, "devices": DEVICES,
+            "all_campaigns": all_campaigns,
             "period_error": period_error, "timezone": effective(settings, store).panel_timezone,
             "flash": flash, "flash_bad": bool(flash and FAILED_RE.search(flash)),
         })

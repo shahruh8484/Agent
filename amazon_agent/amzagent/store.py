@@ -670,13 +670,26 @@ class Store:
                       " WHERE click_id = ? AND type = ?", (click_id, type_))
         return float(r["m"] or 0)
 
-    def ig_stats(self, project_id: int, since: str | None = None,
-                 until: str | None = None) -> dict:
+    @staticmethod
+    def _ig_filter(project_id: int, since: str | None, until: str | None,
+                   campaign: str | None = None, device: str | None = None) -> tuple[str, list]:
+        sql = "project_id = ? AND ts >= ? AND ts < ?"
+        params: list = [project_id, since or "", until or "9999"]
+        if campaign:
+            sql += " AND campaign = ?"
+            params.append(str(campaign))
+        if device:
+            sql += " AND device = ?"
+            params.append(device)
+        return sql, params
+
+    def ig_stats(self, project_id: int, since: str | None = None, until: str | None = None,
+                 campaign: str | None = None, device: str | None = None) -> dict:
         """Counts per event type plus revenue (reg/ftd/dep payouts)."""
+        where, params = self._ig_filter(project_id, since, until, campaign, device)
         rows = self._all(
             "SELECT type, COUNT(*) AS n, COALESCE(SUM(payout), 0) AS money FROM ig_events"
-            " WHERE project_id = ? AND ts >= ? AND ts < ? GROUP BY type",
-            (project_id, since or "", until or "9999"))
+            f" WHERE {where} GROUP BY type", tuple(params))
         out = {t: 0 for t in ("visit", "click", "bot", "reg", "ftd", "dep", "rej")}
         revenue = 0.0
         for r in rows:
@@ -684,6 +697,21 @@ class Store:
             revenue += float(r["money"] or 0)
         out["revenue"] = round(revenue, 2)
         return out
+
+    def ig_daily(self, project_id: int, since: str | None = None, until: str | None = None,
+                 campaign: str | None = None, device: str | None = None,
+                 offset_minutes: int = 0) -> list[dict]:
+        """Per day (in the panel's time zone, given as a UTC offset): visits,
+        clicks, registrations, deposits, rejections, revenue. Newest first."""
+        where, params = self._ig_filter(project_id, since, until, campaign, device)
+        rows = self._all(
+            "SELECT date(ts, ?) AS day, SUM(type = 'visit') AS visits,"
+            " SUM(type = 'click') AS clicks, SUM(type = 'reg') AS regs,"
+            " SUM(type = 'ftd') AS ftds, SUM(type = 'rej') AS rejs,"
+            " COALESCE(SUM(payout), 0) AS revenue FROM ig_events"
+            f" WHERE {where} GROUP BY day ORDER BY day DESC",
+            (f"{offset_minutes:+d} minutes", *params))
+        return [dict(r) for r in rows]
 
     def ig_campaign_stats(self, campaign_id: int, since: str | None = None,
                           until: str | None = None) -> tuple[dict, dict[str, dict]]:
@@ -706,16 +734,17 @@ class Store:
         return total, zones
 
     def ig_zone_stats(self, project_id: int, limit: int = 20, since: str | None = None,
-                      until: str | None = None) -> list[dict]:
+                      until: str | None = None, campaign: str | None = None,
+                      device: str | None = None) -> list[dict]:
         """Per push zone: visits, clicks, registrations, deposits, revenue."""
+        where, params = self._ig_filter(project_id, since, until, campaign, device)
         rows = self._all(
             "SELECT zone, SUM(type = 'visit') AS visits, SUM(type = 'click') AS clicks,"
             " SUM(type = 'bot') AS bots,"
             " SUM(type = 'reg') AS regs, SUM(type = 'ftd') AS ftds, SUM(type = 'rej') AS rejs,"
             " COALESCE(SUM(payout), 0) AS revenue FROM ig_events"
-            " WHERE project_id = ? AND zone IS NOT NULL AND zone != '' AND ts >= ? AND ts < ?"
-            " GROUP BY zone ORDER BY revenue DESC, visits DESC LIMIT ?",
-            (project_id, since or "", until or "9999", limit))
+            f" WHERE {where} AND zone IS NOT NULL AND zone != ''"
+            " GROUP BY zone ORDER BY revenue DESC, visits DESC LIMIT ?", (*params, limit))
         return [dict(r) for r in rows]
 
     def visit_time(self, event_id: int) -> datetime | None:

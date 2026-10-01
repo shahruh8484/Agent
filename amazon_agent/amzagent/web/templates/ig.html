@@ -21,19 +21,26 @@
 </div>
 
 <h2 id="projects">2. Проекты</h2>
+{% set keep = ("&campaign=" ~ (campaign or "") ~ "&device=" ~ (device or "")) %}
 <form class="period card" method="get" action="/admin/ig#projects">
   <div class="presets">
-    {% for key, name in presets.items() %}<a class="preset{% if period.key == key %} on{% endif %}" href="/admin/ig?period={{ key }}#projects">{{ name }}</a>{% endfor %}
+    {% for key, name in presets.items() %}<a class="preset{% if period.key == key %} on{% endif %}" href="/admin/ig?period={{ key }}{{ keep }}#projects">{{ name }}</a>{% endfor %}
   </div>
   <div class="range">
     <label>с <input type="date" name="date_from" value="{{ period.day_from.isoformat() if period.day_from else '' }}"></label>
     <label>по <input type="date" name="date_to" value="{{ period.day_to.isoformat() if period.day_to else '' }}"></label>
-    <button class="sm primary">Показать</button>
+    {% if period.key != "custom" %}<input type="hidden" name="period" value="{{ period.key }}">{% endif %}
   </div>
-  <span class="muted">Период: <b>{{ period.label() }}</b> · время {{ timezone }}</span>
+  <div class="range">
+    <label>Кампания <select name="campaign" onchange="this.form.submit()"><option value="">все</option>{% for cid, pname in all_campaigns %}<option value="{{ cid }}"{% if campaign == cid|string %} selected{% endif %}>#{{ cid }} · {{ pname }}</option>{% endfor %}</select></label>
+    <label>Устройства <select name="device" onchange="this.form.submit()"><option value="">все</option>{% for key, name in devices.items() %}<option value="{{ key }}"{% if device == key %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
+    <button class="sm primary">Показать</button>
+    {% if campaign or device %}<a href="/admin/ig?period={{ period.key if period.key != 'custom' else '7d' }}&campaign=&device=#projects">сбросить фильтры</a>{% endif %}
+  </div>
+  <span class="muted">Период: <b>{{ period.label() }}</b>{% if campaign %} · кампания #{{ campaign }}{% endif %}{% if device %} · {{ devices[device] }}{% endif %} · время {{ timezone }}</span>
 </form>
 {% if period_error %}<div class="banner bad">Не удалось получить расход PropellerAds за период: {{ period_error }}. Показаны только данные лендинга и постбэка.</div>{% endif %}
-<p class="muted" style="margin:6px 0 10px;font-size:.82rem">Цифры за выбранный период; агент решает по данным за всё время кампании.</p>
+<p class="muted" style="margin:6px 0 10px;font-size:.82rem">Цифры за выбранный период; агент решает по данным за всё время кампании. Фильтр «Устройства» не делит расход — PropellerAds отдаёт его общим.</p>
 <details class="card"><summary style="cursor:pointer;font-weight:600">+ Новый проект</summary>
   {% set p = none %}{% include "_ig_project_form.html" %}
 </details>
@@ -60,6 +67,15 @@
       <td>{% if st.visit %}${{ "%.4f"|format(st.revenue / st.visit) }}{% else %}—{% endif %}</td></tr>
     {% endfor %}
   </table>
+  {% if p.daily %}<details id="daily{{ p.id }}" style="margin-top:8px"><summary class="muted" style="cursor:pointer">По дням ({{ p.daily|length }})</summary>
+    <table class="mini zones" data-kind="igdaily" style="width:100%;border-collapse:collapse;text-align:right;margin-top:6px">
+      <thead><tr class="muted"><th style="text-align:left;padding:4px 8px">День</th><th>Визиты</th><th>Клики</th><th>CTR</th><th>Рег.</th><th>Деп.</th><th>Доход</th></tr></thead>
+      <tbody>{% for d in p.daily %}<tr><td style="text-align:left;padding:4px 8px">{{ d.day[8:10] }}.{{ d.day[5:7] }}.{{ d.day[:4] }}</td><td>{{ d.visits }}</td><td>{{ d.clicks }}</td>
+        <td>{% if d.visits %}{{ "%.1f"|format(100 * d.clicks / d.visits) }}%{% else %}—{% endif %}</td><td>{{ d.regs }}</td>
+        <td>{{ d.ftds }}{% if d.rejs %} <span class="bad">−{{ d.rejs }}</span>{% endif %}</td><td>${{ "%.2f"|format(d.revenue) }}</td></tr>{% endfor %}</tbody>
+    </table>
+    <p class="muted" style="font-size:.78rem;margin:4px 0 0">Расход по дням — в кабинете PropellerAds; здесь он за весь выбранный период, в строке «Пуш-кампании».</p>
+  </details>{% endif %}
   {% if p.zones %}<details id="zones{{ p.id }}" style="margin-top:8px"><summary class="muted" style="cursor:pointer">Площадки ({{ p.zones|length }}{% set n_off = p.zones|selectattr("off")|list|length %}{% if n_off %}, отключено {{ n_off }}{% endif %})</summary>
     <div style="max-height:520px;overflow:auto;margin-top:6px">
     <table class="mini zones" data-kind="ig" style="width:100%;border-collapse:collapse;text-align:right">
