@@ -30,6 +30,7 @@ from starlette.datastructures import UploadFile
 
 from amzagent.agent.igaming import (
     PLATFORMS,
+    PUSH_TEXT_MAX,
     campaigns_of,
     add_creative,
     creatives_of,
@@ -383,7 +384,7 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
         form = await request.form()
         store.update_ig_project(project_id,
                                 push_title=str(form.get("push_title") or "").strip()[:30],
-                                push_text=str(form.get("push_text") or "").strip()[:50])
+                                push_text=str(form.get("push_text") or "").strip()[:PUSH_TEXT_MAX])
         return back(request, "Текст пуша сохранён.", f"#push{project_id}")
 
     @app.post("/admin/ig/projects/{project_id}/push/write")

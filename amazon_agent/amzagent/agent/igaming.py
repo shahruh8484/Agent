@@ -28,11 +28,12 @@ from amzagent.ig.lander import FIRST_PERSON, FORBIDDEN, LANGUAGES, THEME_BRIEF
 from amzagent.push import propeller
 from amzagent.push.ai_creatives import IMAGE_RULES, CreativeError, cut_push_images
 from amzagent.push.creatives import render_creatives
-from amzagent.push.propeller import PropellerError
+from amzagent.push.propeller import DESCRIPTION_MAX, PropellerError
 from amzagent.store import ACTIVE, DRY_RUN, ERROR
 
 IG_NICHE = 0
 KILL_CPA_MULTIPLE = 3.0
+PUSH_TEXT_MAX = DESCRIPTION_MAX - 4  # room for " 18+"
 ZONE_NO_CLICK_VISITS = 50  # this many lander visits and nobody pressed the button
 ZONE_NO_REG_CPA_SHARE = 0.5
 PLATFORMS = {"mobile": "Телефоны и планшеты", "all": "Все устройства", "desktop": "Компьютеры"}
@@ -183,19 +184,21 @@ def write_push_text(llm: LLM, project: dict) -> tuple[str, str]:
         "'risk-free', no fake urgency, no ALL CAPS; at most one emoji. Mention the welcome "
         "bonus only as the offer details describe it. You are an independent affiliate, not "
         "the operator: name the operator, never 'our casino', 'we offer' or other first person.\n"
-        "title: max 30 chars; text: max 50 chars (\"18+\" is added after it).\n"
+        f"title: max 30 chars; text: max {PUSH_TEXT_MAX} chars (\"18+\" is added after it).\n"
         'Return JSON: {"title": "...", "text": "..."}'
     )
     data = parse_json(llm.generate("You write compliant gambling ad copy.", prompt,
                                    max_tokens=300))
     if not isinstance(data, dict) or not data.get("title"):
         raise LLMError("Expected a JSON object with title and text")
-    return str(data["title"])[:30], str(data.get("text", ""))[:50]
+    return str(data["title"])[:30], str(data.get("text", ""))[:PUSH_TEXT_MAX]
 
 
 def push_text(project: dict) -> str:
     text = (project.get("push_text") or "").strip()
-    return text if "18+" in text else f"{text} 18+".strip()
+    if "18+" in text:
+        return text[:DESCRIPTION_MAX]
+    return f"{text[:PUSH_TEXT_MAX].rstrip()} 18+".strip()
 
 
 def forbidden_in_push(project: dict) -> list[str]:

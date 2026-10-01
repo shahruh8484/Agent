@@ -70,6 +70,9 @@ CLICK_MACRO = "${SUBID}"
 OLD_ZONE_MACROS = ("${ZONEID}",)
 URL_PATH = "/adv/campaigns/{id}/url/"
 
+# PropellerAds refuses push descriptions longer than this.
+DESCRIPTION_MAX = 40
+
 
 def _network_tz():
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -208,7 +211,7 @@ def build_campaign_payload(
         "creatives": [
             {
                 "title": title[:30],
-                "description": text[:60],
+                "description": text[:DESCRIPTION_MAX],
                 "status": 1,  # 1 = active; the API refuses all-disabled creatives
                 "icon": icon_url,
                 "image": image_url,

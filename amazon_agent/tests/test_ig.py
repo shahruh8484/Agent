@@ -573,3 +573,12 @@ def test_push_flags_operator_voice():
                "push_text": "Depósito mínimo de R$49 em nosso cassino"}
     assert "nosso" in forbidden_in_push(project)
     assert forbidden_in_push({**project, "push_text": "Cassino da PlayBet"}) == []
+
+
+def test_push_text_fits_propeller_limit():
+    from amzagent.agent.igaming import push_text
+    from amzagent.push.propeller import DESCRIPTION_MAX
+    long = "Depósito mínimo de R$49 em cassino online da PlayBet"
+    assert len(push_text({"push_text": long})) <= DESCRIPTION_MAX
+    assert push_text({"push_text": long}).endswith("18+")
+    assert push_text({"push_text": "Cassino da PlayBet"}) == "Cassino da PlayBet 18+"

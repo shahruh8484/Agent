@@ -24,7 +24,7 @@ def test_payload_shape():
     assert p["targeting"]["traffic_categories"] == ["propeller"]
     assert "frequency" not in p and "capping" not in p  # unsupported for push CPC
     assert len(p["creatives"][0]["title"]) == 30
-    assert len(p["creatives"][0]["description"]) == 60
+    assert len(p["creatives"][0]["description"]) == 40
     assert [c["image"] for c in p["creatives"]] == ["https://m1", "https://m2"]
 
 
