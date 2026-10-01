@@ -9,7 +9,13 @@
   <div class="row"><a href="/logout">Выйти</a></div>
 </div>
 {% include "_tabs.html" %}
-{% if flash %}<div class="banner{% if flash_bad %} bad{% endif %}"{% if not flash_bad %} style="border-color:var(--ok);color:var(--ok)"{% endif %}>{{ flash }}</div>{% endif %}
+{% if flash %}<div class="toast{% if flash_bad %} bad{% endif %}" id="toast" role="status"><span>{{ flash }}</span><button type="button" onclick="this.parentNode.remove()" title="Закрыть">×</button></div>
+<style>.toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:50;max-width:min(680px,calc(100vw - 24px));
+display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:var(--card);border:2px solid var(--ok);
+color:var(--fg);box-shadow:0 10px 30px rgba(0,0,0,.25);font-weight:600}
+.toast.bad{border-color:var(--bad);color:var(--bad)}
+.toast button{border:0;background:transparent;font-size:1.2rem;line-height:1;cursor:pointer;color:inherit;padding:0 2px}</style>
+<script>setTimeout(function(){var t=document.getElementById("toast");if(t&&!t.classList.contains("bad"))t.remove();},7000);</script>{% endif %}
 
 <div class="banner">Лендинг на отдельном домене, учёт кликов, постбэк из партнёрки и пуш-кампании PropellerAds на лендинг. Агент судит по деньгам: кампания без депозитов после 3 выплат (или своего лимита) отключается; зона, потратившая половину выплаты без регистрации или целую выплату без депозита, исключается; зоны с ботами — в любом режиме.
 Только операторы с лицензией в стране показа; на лендинге всегда 18+, проверка возраста и блок об ответственной игре.</div>

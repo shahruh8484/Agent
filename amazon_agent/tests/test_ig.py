@@ -232,7 +232,7 @@ def test_rules_judge_by_deposits(settings, store, monkeypatch):
     assert f"#{c2['id']}" in page and "отключена" in page
     # the panel builds its own deps: no PropellerAds token in tests
     answer = client.post(f"/admin/ig/campaigns/{c2['id']}/resume").text
-    assert "не возвращена" in answer and 'class="banner bad"' in answer
+    assert "не возвращена" in answer and 'class="toast bad"' in answer
 
 
 def test_actionpay_style_postback(settings, store):
@@ -502,3 +502,23 @@ def test_bot_filter_on_the_lander_button_and_privacy_page(settings, store):
     for _ in range(5):
         anon.get(f"/go?v={v}&js=1", headers=host, follow_redirects=False)
     assert anon.get(f"/go?v={v}&js=1", headers=host).status_code == 403
+
+
+def test_campaign_update_falls_back_to_put():
+    from amzagent.push.propeller import PropellerClient, PropellerError
+
+    calls = []
+
+    def fake(self, method, path, **kw):
+        calls.append(method)
+        if method == "PATCH":
+            raise PropellerError("PATCH -> HTTP 405", status=405)
+        return {}
+
+    client = PropellerClient("token")
+    PropellerClient._request, orig = fake, PropellerClient._request
+    try:
+        client.update_campaign("11949973", {"daily_amount": 20})
+    finally:
+        PropellerClient._request = orig
+    assert calls == ["PATCH", "PUT"]

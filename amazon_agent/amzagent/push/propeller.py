@@ -321,7 +321,14 @@ class PropellerClient:
         self._request("PUT", URL_PATH.format(id=campaign_id), json={"target_url": url})
 
     def update_campaign(self, campaign_id: str, fields: dict[str, Any]) -> None:
-        self._request("PATCH", f"{CAMPAIGNS_PATH}/{campaign_id}", json=fields)
+        """Change campaign fields (e.g. daily_amount). PATCH first; some API
+        versions only take PUT on this path, so a 404/405 retries with PUT."""
+        try:
+            self._request("PATCH", f"{CAMPAIGNS_PATH}/{campaign_id}", json=fields)
+        except PropellerError as exc:
+            if exc.status not in (404, 405):
+                raise
+            self._request("PUT", f"{CAMPAIGNS_PATH}/{campaign_id}", json=fields)
 
     def campaign_status(self, campaign_id: str) -> int | None:
         data = self._request("GET", f"{CAMPAIGNS_PATH}/{campaign_id}")
