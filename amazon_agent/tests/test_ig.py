@@ -426,3 +426,28 @@ def test_filters_by_campaign_device_and_daily_table(settings, store, monkeypatch
     assert f"кампания #{b}" in client.get("/admin/ig").text
     page = client.get("/admin/ig?period=all&campaign=&device=mobile").text
     assert "Телефоны и планшеты</option>" in page and "сбросить фильтры" in page
+
+
+def test_budget_per_campaign(settings, store, monkeypatch):
+    from amzagent.agent.runner import apply_daily_budget, set_campaign_budget
+
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)  # $12/day
+    push = FakePush()
+    _live(settings, store)
+    deps = _ig_deps(settings, store, push)
+    launch_ig_campaign(deps, pid)
+    c = store.list_campaigns()[0]
+    assert set_campaign_budget(deps, c["id"], 20) is None
+    assert store.get_campaign(c["id"])["daily_budget"] == 20
+    assert push.updates[-1] == (c["external_id"], {"daily_amount": 20})
+    assert "минимум" in set_campaign_budget(deps, c["id"], 5)
+    assert "общего лимита" in set_campaign_budget(deps, c["id"], 100)  # limit is $30
+    assert apply_daily_budget(deps, 15) == 0  # the Amazon setting leaves it alone
+    assert store.get_campaign(c["id"])["daily_budget"] == 20
+
+    settings.push_live = False  # dry run: the panel's own deps need no PropellerAds
+    launch_ig_campaign(deps, pid)
+    dry = store.list_campaigns()[0]
+    answer = client.post(f"/admin/ig/campaigns/{dry['id']}/budget", data={"budget": "25"}).text
+    assert "$25.00 в день" in answer and store.get_campaign(dry["id"])["daily_budget"] == 25

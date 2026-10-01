@@ -35,7 +35,13 @@ from amzagent.agent.igaming import (
     launch_ig_campaign,
     write_push_text,
 )
-from amzagent.agent.runner import KILLED, build_deps, resume_campaign, stop_campaign
+from amzagent.agent.runner import (
+    KILLED,
+    build_deps,
+    resume_campaign,
+    set_campaign_budget,
+    stop_campaign,
+)
 from amzagent.content.llm import LLMError, get_llm
 from amzagent.ig.lander import (
     COUNTRIES,
@@ -438,6 +444,20 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
         return back(request, f"Площадка {zone} не {verb[:-1]}а: {error}" if error else
                     f"Площадка {zone} {verb} во всех работающих кампаниях проекта.",
                     f"#zones{project_id}")
+
+    @app.post("/admin/ig/campaigns/{campaign_id}/budget")
+    async def ig_budget(request: Request, campaign_id: int):
+        if not logged_in(request):
+            return to_login()
+        c = store.get_campaign(campaign_id)
+        if c is None or c["niche_id"] != 0:
+            raise HTTPException(404)
+        budget = _money((await request.form()).get("budget"), -1.0)
+        error = (set_campaign_budget(build_deps(settings, store), campaign_id, budget)
+                 if budget >= 0 else "нужно число")
+        return back(request, f"Бюджет кампании #{campaign_id} не сохранён: {error}" if error else
+                    f"Бюджет кампании #{campaign_id}: ${budget:.2f} в день.",
+                    f"#push{c['asin'][2:]}")
 
     @app.post("/admin/ig/campaigns/{campaign_id}/whitelist")
     def ig_whitelist(request: Request, campaign_id: int):

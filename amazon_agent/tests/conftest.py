@@ -128,6 +128,9 @@ class FakePush:
     def campaign_status(self, campaign_id):
         return self.statuses.get(campaign_id, 2)
 
+    def update_campaign(self, campaign_id, fields):
+        self.updates = getattr(self, "updates", []) + [(campaign_id, dict(fields))]
+
     def update_target_url(self, campaign_id, url):
         self.url_updates.append((campaign_id, url))
 

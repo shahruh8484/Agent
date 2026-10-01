@@ -678,6 +678,8 @@ def apply_daily_budget(deps: Deps, budget: float) -> int:
     in the dashboard). Returns how many were updated."""
     updated = 0
     for c in deps.store.list_campaigns(statuses=(ACTIVE, DRY_RUN)):
+        if is_ig(c):
+            continue  # iGaming campaigns have their own budgets (project / per campaign)
         if c["status"] == ACTIVE and deps.push and c["external_id"]:
             try:
                 deps.push.update_campaign(c["external_id"], {"daily_amount": round(budget, 2)})
@@ -687,6 +689,36 @@ def apply_daily_budget(deps: Deps, budget: float) -> int:
         deps.store.update_campaign(c["id"], daily_budget=budget)
         updated += 1
     return updated
+
+
+def set_campaign_budget(deps: Deps, campaign_id: int, budget: float) -> str | None:
+    """Change one campaign's daily budget (here and at PropellerAds). A raise
+    must fit under the 24h limit. Returns an error (in Russian) or None."""
+    c = deps.store.get_campaign(campaign_id)
+    if c is None:
+        return "кампания не найдена"
+    budget = round(budget, 2)
+    if budget < propeller.MIN_DAILY_AMOUNT:
+        return f"минимум PropellerAds — ${propeller.MIN_DAILY_AMOUNT:.0f} в день"
+    raise_by = budget - c["daily_budget"]
+    if raise_by > 0 and c["status"] in AT_NETWORK and deps.settings.push_live:
+        committed = committed_24h(deps.store)
+        if committed is None:
+            return "расход за 24 ч ещё не получен из PropellerAds — попробуйте через пару минут"
+        if committed + raise_by > deps.settings.max_daily_spend:
+            return (f"не хватает общего лимита: занято ${committed:.2f} из "
+                    f"${deps.settings.max_daily_spend:.2f}, а нужно ещё ${raise_by:.2f} "
+                    "(поднимите «Общий лимит» в настройках)")
+    if c["status"] in AT_NETWORK and c["external_id"]:
+        if deps.push is None:
+            return "PropellerAds не подключён"
+        try:
+            deps.push.update_campaign(c["external_id"], {"daily_amount": budget})
+        except PropellerError as exc:
+            return f"PropellerAds не принял бюджет: {exc}"
+    deps.store.update_campaign(campaign_id, daily_budget=budget)
+    deps.say(f"campaign #{campaign_id}: daily budget ${c['daily_budget']:.2f} -> ${budget:.2f}")
+    return None
 
 
 def fix_tracking_urls(deps: Deps) -> None:
