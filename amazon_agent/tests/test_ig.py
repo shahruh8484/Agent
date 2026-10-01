@@ -565,3 +565,11 @@ def test_casino_theme_reaches_every_prompt(settings, store, monkeypatch):
     assert "Казино" in client.get("/admin/ig").text
     anon = TestClient(create_app(settings, store, start_loop=False))
     assert anon.get("/", headers={**BROWSER, "host": "cassino.apostas-exemplo.com"}).status_code == 200
+
+
+def test_push_flags_operator_voice():
+    from amzagent.agent.igaming import forbidden_in_push
+    project = {"language": "pt", "push_title": "Diversão no PlayBet",
+               "push_text": "Depósito mínimo de R$49 em nosso cassino"}
+    assert "nosso" in forbidden_in_push(project)
+    assert forbidden_in_push({**project, "push_text": "Cassino da PlayBet"}) == []

@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from amzagent.content.llm import LLM, LLMError, parse_json
-from amzagent.ig.lander import FORBIDDEN, LANGUAGES, THEME_BRIEF
+from amzagent.ig.lander import FIRST_PERSON, FORBIDDEN, LANGUAGES, THEME_BRIEF
 from amzagent.push import propeller
 from amzagent.push.ai_creatives import IMAGE_RULES, CreativeError, cut_push_images
 from amzagent.push.creatives import render_creatives
@@ -181,7 +181,8 @@ def write_push_text(llm: LLM, project: dict) -> tuple[str, str]:
         f"Offer details (the only facts you may use):\n{(project.get('offer') or '')[:1500]}\n\n"
         "Rules: adults only; never promise winning, profit or income; no 'guaranteed', "
         "'risk-free', no fake urgency, no ALL CAPS; at most one emoji. Mention the welcome "
-        "bonus only as the offer details describe it.\n"
+        "bonus only as the offer details describe it. You are an independent affiliate, not "
+        "the operator: name the operator, never 'our casino', 'we offer' or other first person.\n"
         "title: max 30 chars; text: max 50 chars (\"18+\" is added after it).\n"
         'Return JSON: {"title": "...", "text": "..."}'
     )
@@ -198,9 +199,10 @@ def push_text(project: dict) -> str:
 
 
 def forbidden_in_push(project: dict) -> list[str]:
-    low = f"{project.get('push_title', '')} {project.get('push_text', '')}".lower()
-    return sorted({w.strip() for w in FORBIDDEN.get(project.get("language"), ()) + FORBIDDEN["en"]
-                   if w in low})
+    language = project.get("language")
+    low = f" {project.get('push_title', '')} {project.get('push_text', '')} ".lower()
+    words = FORBIDDEN.get(language, ()) + FORBIDDEN["en"] + FIRST_PERSON.get(language, ())
+    return sorted({w.strip() for w in words if w in low})
 
 
 def _os_types(deps, platform: str) -> list | None:
