@@ -518,6 +518,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                 if mapped is None:
                     if path == "/robots.txt":
                         return PlainTextResponse("User-agent: *\nDisallow: /\n")
+                    if path == "/favicon.ico":  # the lander carries its icon inline
+                        return Response(status_code=204)
                     return Response("Not found", status_code=404)
                 request.scope["path"] = mapped
                 request.scope["raw_path"] = mapped.encode()
