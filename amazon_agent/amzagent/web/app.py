@@ -515,6 +515,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             if project:
                 path = request.scope["path"]
                 mapped = {"/": f"/l/{project['id']}/", "/go": f"/l/{project['id']}/go"}.get(path)
+                if mapped is None and path.startswith(f"/media/ig{project['id']}/"):
+                    mapped = path  # its own pictures (lander hero)
                 if mapped is None:
                     if path == "/robots.txt":
                         return PlainTextResponse("User-agent: *\nDisallow: /\n")

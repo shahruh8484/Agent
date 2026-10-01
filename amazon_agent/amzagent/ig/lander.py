@@ -51,6 +51,28 @@ SAFETY = {
            "gate_bye": "This site is for adults 18+ only.",
            "faq": "Frequently asked questions", "how": "How to start"},
 }
+# Trust badges under the hero: facts true of every licensed operator in the
+# country, not marketing claims. (icon, title, text); "pix" only for Brazil.
+BADGES = {
+    "pt": [("🛡️", "Operador licenciado", "Autorizado pelo Ministério da Fazenda (SPA/MF), site .bet.br"),
+           ("⚡", "Depósito e saque via PIX", "Pagamentos em reais, direto pela sua conta", "pix"),
+           ("🎯", "Jogo responsável", "Limites de depósito, pausas e autoexclusão")],
+    "es": [("🛡️", "Operador con licencia", "Autorizado por el regulador del país"),
+           ("🎯", "Juego responsable", "Límites de depósito, pausas y autoexclusión")],
+    "en": [("🛡️", "Licensed operator", "Authorised by the country's regulator"),
+           ("🎯", "Responsible gambling", "Deposit limits, breaks and self-exclusion")],
+}
+
+
+def badges_for(language: str, country: str) -> list[tuple[str, str, str]]:
+    out = []
+    for b in BADGES.get(language, BADGES["en"]):
+        if len(b) > 3 and b[3] == "pix" and country != "BR":
+            continue
+        out.append(b[:3])
+    return out
+
+
 HELP_URL = "https://www.gamblingtherapy.org/"
 
 # Phrases regulators and ad networks reject in gambling ads (checked in the

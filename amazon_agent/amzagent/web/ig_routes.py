@@ -58,6 +58,7 @@ from amzagent.ig.lander import (
     HELP_URL,
     LANGUAGES,
     SAFETY,
+    badges_for,
     compliance_issues,
     lander_text,
     lines,
@@ -543,9 +544,12 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
         go = "/go" if on_domain else f"/l/{project_id}/go"
         params = "&".join(f"{k}={v}" for k, v in (("c", campaign), ("z", zone)) if v)
         lang = project["language"] if project["language"] in SAFETY else "en"
+        pictures = creatives_of(project)
+        hero = f"/media/ig{project_id}/{pictures[0][1]}" if pictures else ""
         return LANDER_TEMPLATES.TemplateResponse(request, "lander.html", {
             "project": project, "l": load_lander(project["lander"]), "s": SAFETY[lang],
             "lang": lang, "help_url": HELP_URL, "go_url": go + (f"?{params}" if params else ""),
+            "hero": hero, "badges": badges_for(lang, project["country"]),
         }, headers={"X-Robots-Tag": "noindex"})
 
     @app.get("/l/{project_id}/go")
