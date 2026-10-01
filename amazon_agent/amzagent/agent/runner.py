@@ -691,9 +691,12 @@ def apply_daily_budget(deps: Deps, budget: float) -> int:
     return updated
 
 
-def set_campaign_budget(deps: Deps, campaign_id: int, budget: float) -> str | None:
+def set_campaign_budget(deps: Deps, campaign_id: int, budget: float,
+                        panel_only: bool = False) -> str | None:
     """Change one campaign's daily budget (here and at PropellerAds). A raise
-    must fit under the 24h limit. Returns an error (in Russian) or None."""
+    must fit under the 24h limit. With `panel_only` (already changed in the
+    PropellerAds dashboard) only our copy is updated, which pacing and the
+    24h limit use. Returns an error (in Russian) or None."""
     c = deps.store.get_campaign(campaign_id)
     if c is None:
         return "кампания не найдена"
@@ -709,7 +712,7 @@ def set_campaign_budget(deps: Deps, campaign_id: int, budget: float) -> str | No
             return (f"не хватает общего лимита: занято ${committed:.2f} из "
                     f"${deps.settings.max_daily_spend:.2f}, а нужно ещё ${raise_by:.2f} "
                     "(поднимите «Общий лимит» в настройках)")
-    if c["status"] in AT_NETWORK and c["external_id"]:
+    if c["status"] in AT_NETWORK and c["external_id"] and not panel_only:
         if deps.push is None:
             return "PropellerAds не подключён"
         try:

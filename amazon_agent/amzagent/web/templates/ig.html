@@ -9,7 +9,9 @@
   <div class="row"><a href="/logout">Выйти</a></div>
 </div>
 {% include "_tabs.html" %}
-{% if flash %}<div class="toast{% if flash_bad %} bad{% endif %}" id="toast" role="status"><span>{{ flash }}</span><button type="button" onclick="this.parentNode.remove()" title="Закрыть">×</button></div>
+{% if flash %}<div class="toast{% if flash_bad %} bad{% endif %}" id="toast" role="status"><span>{{ flash }}{% if budget_retry %}
+  <span style="display:block;margin-top:8px;color:var(--fg);font-weight:400">Поменяйте бюджет вручную в кабинете PropellerAds: кампания {{ budget_retry[2] }} → Advertising Budget → Daily Campaign Budget = ${{ "%.0f"|format(budget_retry[1]) }}. Потом нажмите:</span>
+  <form method="post" action="/admin/ig/campaigns/{{ budget_retry[0] }}/budget" style="margin-top:8px"><input type="hidden" name="budget" value="{{ budget_retry[1] }}"><input type="hidden" name="panel_only" value="1"><button class="sm primary">Я поменял в PropellerAds — записать ${{ "%.0f"|format(budget_retry[1]) }} в панели</button></form>{% endif %}</span><button type="button" onclick="this.parentNode.remove()" title="Закрыть">×</button></div>
 <style>.toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:50;max-width:min(680px,calc(100vw - 24px));
 display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:var(--card);border:2px solid var(--ok);
 color:var(--fg);box-shadow:0 10px 30px rgba(0,0,0,.25);font-weight:600}

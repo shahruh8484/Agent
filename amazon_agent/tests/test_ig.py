@@ -522,3 +522,25 @@ def test_campaign_update_falls_back_to_put():
     finally:
         PropellerClient._request = orig
     assert calls == ["PATCH", "PUT"]
+
+
+def test_budget_panel_only_after_a_refusal(settings, store, monkeypatch):
+    from amzagent.agent.runner import set_campaign_budget
+    from amzagent.push.propeller import PropellerError
+
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)
+    push = FakePush()
+    _live(settings, store)
+    deps = _ig_deps(settings, store, push)
+    launch_ig_campaign(deps, pid)
+    c = store.list_campaigns()[0]
+
+    def refuse(cid, fields):
+        raise PropellerError("PATCH -> HTTP 400: Empty data", status=400)
+
+    push.update_campaign = refuse
+    assert "PropellerAds не принял" in set_campaign_budget(deps, c["id"], 20)
+    assert store.get_campaign(c["id"])["daily_budget"] == 12
+    assert set_campaign_budget(deps, c["id"], 20, panel_only=True) is None
+    assert store.get_campaign(c["id"])["daily_budget"] == 20

@@ -284,8 +284,10 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             p["spent"] = sum(c["period_spend"] for c in p["campaigns"])
             p["warnings"] = warnings
         flash = request.session.pop("flash", None)
+        budget_retry = request.session.pop("budget_retry", None)
         base = settings.public_base_url()
         return templates.TemplateResponse(request, "ig.html", {
+            "budget_retry": budget_retry,
             "projects": projects, "countries": COUNTRIES, "languages": LANGUAGES,
             "postback": f"{base}/pb/ig?key={postback_key()}&click_id={{clickid}}"
                         "&event={event}&payout={payout}",
@@ -491,12 +493,18 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
         c = store.get_campaign(campaign_id)
         if c is None or c["niche_id"] != 0:
             raise HTTPException(404)
-        budget = _money((await request.form()).get("budget"), -1.0)
-        error = (set_campaign_budget(build_deps(settings, store), campaign_id, budget)
+        form = await request.form()
+        budget = _money(form.get("budget"), -1.0)
+        panel_only = form.get("panel_only") == "1"
+        error = (set_campaign_budget(build_deps(settings, store), campaign_id, budget, panel_only)
                  if budget >= 0 else "нужно число")
+        if error and error.startswith("PropellerAds не принял"):
+            # Offer to record a budget changed by hand in the PropellerAds dashboard.
+            request.session["budget_retry"] = [campaign_id, budget, c["external_id"]]
         return back(request, f"Бюджет кампании #{campaign_id} не сохранён: {error}" if error else
-                    f"Бюджет кампании #{campaign_id}: ${budget:.2f} в день.",
-                    f"#push{c['asin'][2:]}")
+                    f"Бюджет кампании #{campaign_id}: ${budget:.2f} в день"
+                    + (" (записан в панели; в PropellerAds вы поменяли его сами)." if panel_only
+                       else "."), f"#push{c['asin'][2:]}")
 
     @app.post("/admin/ig/campaigns/{campaign_id}/whitelist")
     def ig_whitelist(request: Request, campaign_id: int):
