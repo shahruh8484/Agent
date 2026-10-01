@@ -57,6 +57,7 @@ from amzagent.ig.lander import (
     COUNTRY_LANGUAGE,
     HELP_URL,
     LANGUAGES,
+    PRIVACY,
     SAFETY,
     badges_for,
     compliance_issues,
@@ -97,6 +98,16 @@ EVENT_NAMES = {"reg": "регистрация", "ftd": "первый депоз�
 
 
 DEVICES = {"mobile": "Телефоны и планшеты", "desktop": "Компьютеры"}
+# Bot filter on the lander's button (same checks as the Amazon sites' /go/).
+FAST_CLICK_SECONDS = 2
+IP_CLICKS_PER_HOUR = 5
+HARD_BOT_REASONS = {"bot-ua", "webdriver", "repeat-ip"}
+CONTINUE_TEXT = {"pt": ("Quase lá", "Toque no botão para continuar para o site do operador.",
+                        "Continuar"),
+                 "es": ("Casi listo", "Toca el botón para continuar al sitio del operador.",
+                        "Continuar"),
+                 "en": ("Almost there", "Tap the button to continue to the operator's site.",
+                        "Continue")}
 
 
 def _utc_offset_minutes(tz_name: str) -> int:
@@ -171,6 +182,8 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             "platform": str(form.get("platform")) if form.get("platform") in PLATFORMS
             else "mobile",
             "kill_spend": _money(form.get("kill_spend")),
+            "license_note": str(form.get("license_note") or "").strip()[:300],
+            "contact": str(form.get("contact") or "").strip()[:120],
         }
         if not fields["name"]:
             return fields, "нужно название"
@@ -536,13 +549,16 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
         project, preview = served(request, project_id)
         campaign, zone = _clean(c), _clean(z)
         ua = request.headers.get("user-agent", "")
+        visit_id = None
         if not preview and not bot_ua.search(ua or "bot"):
             ip = client_ip(request)
-            store.log_ig_event(project_id, "visit", campaign=campaign, zone=zone,
-                               device=device_of(request), ip=ip_sig(ip) if ip else None)
+            visit_id = store.log_ig_event(project_id, "visit", campaign=campaign, zone=zone,
+                                          device=device_of(request),
+                                          ip=ip_sig(ip) if ip else None)
         on_domain = project["domain"] and request_host(request) == project["domain"]
         go = "/go" if on_domain else f"/l/{project_id}/go"
-        params = "&".join(f"{k}={v}" for k, v in (("c", campaign), ("z", zone)) if v)
+        params = "&".join(f"{k}={v}" for k, v in (("c", campaign), ("z", zone),
+                                                    ("v", visit_id)) if v)
         lang = project["language"] if project["language"] in SAFETY else "en"
         pictures = creatives_of(project)
         hero = f"/media/ig{project_id}/{pictures[0][1]}" if pictures else ""
@@ -550,21 +566,70 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             "project": project, "l": load_lander(project["lander"]), "s": SAFETY[lang],
             "lang": lang, "help_url": HELP_URL, "go_url": go + (f"?{params}" if params else ""),
             "hero": hero, "badges": badges_for(lang, project["country"]),
+            "privacy_url": "/privacidade" if on_domain else f"/l/{project_id}/privacidade",
+        }, headers={"X-Robots-Tag": "noindex"})
+
+    @app.get("/l/{project_id}/privacidade", response_class=HTMLResponse)
+    def ig_privacy(request: Request, project_id: int):
+        project, _ = served(request, project_id)
+        lang = project["language"] if project["language"] in SAFETY else "en"
+        on_domain = project["domain"] and request_host(request) == project["domain"]
+        return LANDER_TEMPLATES.TemplateResponse(request, "privacy.html", {
+            "project": project, "lang": lang, "s": SAFETY[lang], "t": PRIVACY[lang],
+            "home": "/" if on_domain else f"/l/{project_id}/",
         }, headers={"X-Robots-Tag": "noindex"})
 
     @app.get("/l/{project_id}/go")
     def ig_go(request: Request, project_id: int, c: str | None = None, z: str | None = None,
-              js: str | None = None):
+              v: str | None = None, js: str | None = None, wd: str | None = None,
+              ok: str | None = None):
         project, preview = served(request, project_id)
         campaign, zone = _clean(c), _clean(z)
+        visit = v if v and v.isdigit() else None
         ua = request.headers.get("user-agent", "")
         ip = client_ip(request)
         ip_key = ip_sig(ip) if ip else None
-        if bot_ua.search(ua or "bot"):
+        reasons: list[str] = []
+        if not preview:
+            if bot_ua.search(ua or "bot"):
+                reasons.append("bot-ua")
+            if wd == "1":
+                reasons.append("webdriver")
+            if js != "1":
+                reasons.append("no-js")
+            opened = store.ig_visit_time(int(visit), project_id) if visit else None
+            if opened and (datetime.now(timezone.utc) - opened).total_seconds() < FAST_CLICK_SECONDS:
+                reasons.append("fast")
+            hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(
+                timespec="seconds")
+            if ip_key and store.ig_clicks_from_ip(ip_key, hour_ago) >= IP_CLICKS_PER_HOUR:
+                reasons.append("repeat-ip")
+            # A person who pressed "Continue" on the check page passes the soft checks.
+            if ok and hmac.compare_digest(ok, ip_sig(f"ok:{project_id}:{visit or ''}")):
+                reasons = [r for r in reasons if r in HARD_BOT_REASONS]
+        if reasons:
             store.log_ig_event(project_id, "bot", campaign=campaign, zone=zone,
-                               device=device_of(request), ip=ip_key)
-            return HTMLResponse("<!doctype html><title>18+</title><p>Not available.</p>",
-                                status_code=403)
+                               device=device_of(request), ip=ip_key, reason=",".join(reasons))
+            if HARD_BOT_REASONS & set(reasons):
+                return HTMLResponse("<!doctype html><meta name=robots content=noindex>"
+                                    "<title>18+</title><p>Not available.</p>", status_code=403)
+            lang = project["language"] if project["language"] in CONTINUE_TEXT else "en"
+            title, text, button = CONTINUE_TEXT[lang]
+            retry = "?" + "&".join(f"{k}={val}" for k, val in (
+                ("c", campaign), ("z", zone), ("v", visit),
+                ("ok", ip_sig(f"ok:{project_id}:{visit or ''}"))) if val)
+            return HTMLResponse(
+                "<!doctype html><html><head><meta charset=utf-8><meta name=viewport "
+                "content='width=device-width,initial-scale=1'><meta name=robots content=noindex>"
+                f"<title>{title}</title><style>body{{margin:0;background:#0b1219;color:#eef3f7;"
+                "font:16px/1.5 system-ui,sans-serif;display:grid;place-items:center;"
+                "min-height:100vh}}.b{{max-width:360px;margin:16px;text-align:center}}"
+                "a{{display:block;background:#22c55e;color:#05230f;font-weight:800;padding:15px;"
+                "border-radius:12px;text-decoration:none;margin-top:16px}}</style></head><body>"
+                f"<div class=b><h1 style='font-size:1.3rem'>{title}</h1><p>{text}</p>"
+                f"<a id=go href='#'>{button} →</a></div><script>if(!navigator.webdriver)"
+                f"document.getElementById('go').href=location.pathname+'{retry}&js=1';"
+                "</script></body></html>", headers={"X-Robots-Tag": "noindex"})
         click_id = "preview" if preview else secrets.token_hex(8)
         if not preview:
             store.log_ig_event(project_id, "click", click_id=click_id, campaign=campaign,

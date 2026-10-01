@@ -514,7 +514,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
             project = await run_in_threadpool(store.get_ig_project_by_domain, host)
             if project:
                 path = request.scope["path"]
-                mapped = {"/": f"/l/{project['id']}/", "/go": f"/l/{project['id']}/go"}.get(path)
+                mapped = {"/": f"/l/{project['id']}/", "/go": f"/l/{project['id']}/go",
+                          "/privacidade": f"/l/{project['id']}/privacidade"}.get(path)
                 if mapped is None and path.startswith(f"/media/ig{project['id']}/"):
                     mapped = path  # its own pictures (lander hero)
                 if mapped is None:

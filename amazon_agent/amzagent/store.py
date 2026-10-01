@@ -156,6 +156,7 @@ CREATE TABLE IF NOT EXISTS ig_events (
 );
 CREATE INDEX IF NOT EXISTS ig_events_project ON ig_events (project_id, ts);
 CREATE INDEX IF NOT EXISTS ig_events_click ON ig_events (click_id);
+CREATE INDEX IF NOT EXISTS ig_events_ip ON ig_events (ip, ts);
 CREATE TABLE IF NOT EXISTS fb_ads (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL,
@@ -252,9 +253,16 @@ class Store:
                               ("push_text", "TEXT NOT NULL DEFAULT ''"),
                               ("kill_spend", "REAL NOT NULL DEFAULT 0"),
                               # JSON list of [icon file, image file] push pictures
-                              ("creatives", "TEXT NOT NULL DEFAULT '[]'")):
+                              ("creatives", "TEXT NOT NULL DEFAULT '[]'"),
+                              # operator's licence as shown on the lander, owner contact
+                              ("license_note", "TEXT NOT NULL DEFAULT ''"),
+                              ("contact", "TEXT NOT NULL DEFAULT ''")):
                 if col not in cols:
                     self._db.execute(f"ALTER TABLE ig_projects ADD COLUMN {col} {decl}")
+            # Why a lander click was held back as automated (bot filter).
+            cols = {r[1] for r in self._db.execute("PRAGMA table_info(ig_events)")}
+            if "reason" not in cols:
+                self._db.execute("ALTER TABLE ig_events ADD COLUMN reason TEXT")
             self._db.commit()
 
     def _exec(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
@@ -609,7 +617,8 @@ class Store:
 
     IG_PROJECT_FIELDS = ("name", "domain", "country", "language", "brand", "license_url",
                          "offer_url", "payout", "offer", "lander", "bid_cpc", "daily_budget",
-                         "platform", "push_title", "push_text", "kill_spend", "creatives")
+                         "platform", "push_title", "push_text", "kill_spend", "creatives",
+                         "license_note", "contact")
 
     def add_ig_project(self, **fields) -> int:
         cols = [k for k in self.IG_PROJECT_FIELDS if k in fields]
@@ -644,12 +653,31 @@ class Store:
     def log_ig_event(self, project_id: int, type_: str, click_id: str | None = None,
                      campaign: str | None = None, zone: str | None = None,
                      device: str | None = None, payout: float = 0.0,
-                     ip: str | None = None) -> int:
+                     ip: str | None = None, reason: str | None = None) -> int:
         cur = self._exec(
             "INSERT INTO ig_events (ts, project_id, type, click_id, campaign, zone, device,"
-            " payout, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (now_iso(), project_id, type_, click_id, campaign, zone, device, payout, ip))
+            " payout, ip, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (now_iso(), project_id, type_, click_id, campaign, zone, device, payout, ip, reason))
         return cur.lastrowid
+
+    def ig_visit_time(self, event_id: int, project_id: int) -> datetime | None:
+        r = self._one("SELECT ts FROM ig_events WHERE id = ? AND project_id = ? AND type = 'visit'",
+                      (event_id, project_id))
+        return datetime.fromisoformat(r["ts"]) if r else None
+
+    def ig_clicks_from_ip(self, ip: str, since: str) -> int:
+        r = self._one("SELECT COUNT(*) AS n FROM ig_events WHERE ip = ? AND type = 'click'"
+                      " AND ts >= ?", (ip, since))
+        return int(r["n"] or 0)
+
+    def ig_bot_reasons(self, project_id: int, since: str | None = None) -> dict[str, int]:
+        rows = self._all("SELECT reason, COUNT(*) AS n FROM ig_events WHERE project_id = ?"
+                         " AND type = 'bot' AND ts >= ? GROUP BY reason", (project_id, since or ""))
+        out: dict[str, int] = {}
+        for r in rows:
+            for part in (r["reason"] or "bot-ua").split(","):
+                out[part] = out.get(part, 0) + int(r["n"])
+        return out
 
     def get_ig_click(self, click_id: str) -> dict | None:
         r = self._one("SELECT * FROM ig_events WHERE click_id = ? AND type = 'click'"

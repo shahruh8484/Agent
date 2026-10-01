@@ -71,9 +71,10 @@ footer a{color:var(--muted)}
   <footer>
     <p><b>18+</b> · {{ s.age }} {{ s.responsible }}</p>
     <p>{{ s.help }} <a href="{{ help_url }}" rel="nofollow noopener" target="_blank">gamblingtherapy.org</a></p>
-    {% if project.license_url %}<p>{{ s.operator }}: <a href="{{ project.license_url }}" rel="nofollow noopener" target="_blank">{{ project.license_url }}</a></p>{% endif %}
+    {% if project.license_url or project.license_note %}<p>{{ s.operator }}: {% if project.license_url %}<a href="{{ project.license_url }}" rel="nofollow noopener" target="_blank">{{ project.license_url }}</a>{% endif %}{% if project.license_note %}{% if project.license_url %} · {% endif %}{{ project.license_note }}{% endif %}</p>{% endif %}
     <p>{{ s.support }}</p>
     <p>{{ s.ad }}</p>
+    <p><a href="{{ privacy_url }}">{{ s.privacy }}</a>{% if project.contact %} · {{ s.contact }}: <a href="mailto:{{ project.contact }}">{{ project.contact }}</a>{% endif %}</p>
   </footer>
 </div>
 <script>
@@ -89,7 +90,8 @@ footer a{color:var(--muted)}
     bar.hidden=e[0].isIntersecting||e[0].boundingClientRect.top>0;}).observe(main);}
   var links=document.querySelectorAll("a.cta");
   for(var i=0;i<links.length;i++)links[i].addEventListener("click",function(){
-    if(!navigator.webdriver&&this.href.indexOf("js=1")<0)this.href+=(this.href.indexOf("?")<0?"?":"&")+"js=1"});
+    if(this.href.indexOf("js=1")>=0||this.href.indexOf("wd=1")>=0)return;
+    this.href+=(this.href.indexOf("?")<0?"?":"&")+(navigator.webdriver?"wd=1":"js=1")});
 })();
 </script>
 </body></html>

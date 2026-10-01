@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="{{ lang }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title>{{ t.title }}</title>
+<style>body{margin:0;background:#0b1219;color:#eef3f7;font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:720px;margin:0 auto;padding:24px 16px 40px}h1{font-size:1.5rem}h2{font-size:1.05rem;margin:22px 0 4px}
+p{color:#cfd9e2;margin:0}a{color:#22c55e}.muted{color:#9fb0c0;font-size:.85rem;margin-top:26px}</style></head>
+<body><div class="wrap">
+<p><a href="{{ home }}">← {{ t.back }}</a></p>
+<h1>{{ t.title }}</h1>
+<p>{{ t.intro }}</p>
+{% for head, text in t["items"] %}<h2>{{ head }}</h2><p>{{ text }}</p>{% endfor %}
+{% if project.contact %}<h2>{{ s.contact }}</h2><p><a href="mailto:{{ project.contact }}">{{ project.contact }}</a></p>{% endif %}
+<p class="muted">18+ · {{ s.responsible }}</p>
+</div></body></html>

@@ -26,7 +26,8 @@ SAFETY = {
                       "no site do operador.",
            "gate_q": "Você tem 18 anos ou mais?", "gate_yes": "Sim, tenho 18+",
            "gate_no": "Não", "gate_bye": "Este site é apenas para maiores de 18 anos.",
-           "faq": "Perguntas frequentes", "how": "Como começar"},
+           "faq": "Perguntas frequentes", "how": "Como começar",
+           "privacy": "Privacidade", "contact": "Contato"},
     "es": {"age": "Solo para mayores de 18 años.",
            "responsible": "Juega con responsabilidad. Las apuestas implican riesgo de pérdida y "
                           "no son una forma de ganar dinero. Pon límites de tiempo y dinero; el operador "
@@ -38,7 +39,8 @@ SAFETY = {
                       "responsable: en el sitio del operador.",
            "gate_q": "¿Tienes 18 años o más?", "gate_yes": "Sí, tengo 18+", "gate_no": "No",
            "gate_bye": "Este sitio es solo para mayores de 18 años.",
-           "faq": "Preguntas frecuentes", "how": "Cómo empezar"},
+           "faq": "Preguntas frecuentes", "how": "Cómo empezar",
+           "privacy": "Privacidad", "contact": "Contacto"},
     "en": {"age": "18+ only.",
            "responsible": "Gamble responsibly. Betting carries a risk of loss and is not a way "
                           "to make money. Set time and spending limits; the operator offers deposit limit and "
@@ -49,7 +51,8 @@ SAFETY = {
                       "operator's site.",
            "gate_q": "Are you 18 or older?", "gate_yes": "Yes, I'm 18+", "gate_no": "No",
            "gate_bye": "This site is for adults 18+ only.",
-           "faq": "Frequently asked questions", "how": "How to start"},
+           "faq": "Frequently asked questions", "how": "How to start",
+           "privacy": "Privacy", "contact": "Contact"},
 }
 # Trust badges under the hero: facts true of every licensed operator in the
 # country, not marketing claims. (icon, title, text); "pix" only for Brazil.
@@ -92,6 +95,55 @@ FIRST_PERSON = {
     "pt": ("nosso", "nossa", "oferecemos", "temos ", "nosso site"),
     "es": ("nuestro", "nuestra", "ofrecemos", "tenemos "),
     "en": (" our ", "we offer", "we have "),
+}
+
+# Privacy notice (LGPD in Brazil): what the lander stores and why.
+PRIVACY = {
+    "pt": {"title": "Política de privacidade",
+           "intro": "Este site é uma página informativa e publicitária independente. Não somos o "
+                    "operador de apostas e não pedimos nome, documento, e-mail ou dados de "
+                    "pagamento.",
+           "items": [
+               ("Dados coletados", "Registramos de forma técnica a visita e o clique no botão: "
+                "data e hora, tipo de dispositivo, a campanha publicitária de origem e um código "
+                "do endereço IP transformado (hash), que não permite identificar você."),
+               ("Para que", "Medir os resultados da publicidade, evitar fraudes e tráfego "
+                "automatizado e saber quando um cadastro feito no site do operador veio deste "
+                "site, para recebermos a comissão."),
+               ("Compartilhamento", "Ao clicar no botão, você vai para o site do operador com um "
+                "código de clique anônimo. O cadastro, o depósito e os seus dados pessoais ficam "
+                "com o operador, sob a política de privacidade dele."),
+               ("Armazenamento no navegador", "Guardamos no seu navegador apenas a confirmação de "
+                "que você tem 18 anos ou mais, para não perguntar de novo."),
+               ("Prazo", "Os registros técnicos são mantidos pelo tempo necessário para a "
+                "apuração da publicidade e depois excluídos."),
+               ("Seus direitos (LGPD)", "Você pode pedir informações, correção ou exclusão dos "
+                "dados pelo contato abaixo."),
+           ], "back": "Voltar"},
+    "es": {"title": "Política de privacidad",
+           "intro": "Este sitio es una página informativa y publicitaria independiente. No somos "
+                    "el operador y no pedimos nombre, documento, correo ni datos de pago.",
+           "items": [
+               ("Datos", "Registramos la visita y el clic: fecha, tipo de dispositivo, campaña "
+                "de origen y un código transformado (hash) de la IP que no te identifica."),
+               ("Para qué", "Medir la publicidad, evitar fraude y saber si un registro en el "
+                "sitio del operador vino de aquí, para recibir la comisión."),
+               ("Compartición", "Al hacer clic vas al sitio del operador con un código anónimo; "
+                "tus datos personales quedan con el operador, bajo su política."),
+               ("Tus derechos", "Puedes pedir información o eliminación por el contacto abajo."),
+           ], "back": "Volver"},
+    "en": {"title": "Privacy policy",
+           "intro": "This site is an independent information and advertising page. We are not "
+                    "the operator and never ask for your name, ID, e-mail or payment details.",
+           "items": [
+               ("Data", "We log the visit and the button click: time, device type, the ad "
+                "campaign it came from and a hashed code of the IP that does not identify you."),
+               ("Why", "To measure the advertising, prevent fraud and know whether a sign-up "
+                "on the operator's site came from here, so we are paid a commission."),
+               ("Sharing", "The button takes you to the operator with an anonymous click code; "
+                "your personal data stays with the operator under its own policy."),
+               ("Your rights", "Ask for information or deletion via the contact below."),
+           ], "back": "Back"},
 }
 
 FIELDS = ("title", "headline", "intro", "bonus_title", "bonus_text", "cta")

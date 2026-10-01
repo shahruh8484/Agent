@@ -61,7 +61,7 @@ def test_lander_on_own_domain_click_and_postback(settings, store, monkeypatch):
     assert anon.get(f"/l/{pid}/", headers=BROWSER).status_code == 404
     page = anon.get("/?c=12&z=555", headers=host)
     assert page.status_code == 200 and "Apostas esportivas 18+" in page.text
-    assert "Jogue com responsabilidade" in page.text and 'href="/go?c=12&amp;z=555"' in page.text
+    assert "Jogue com responsabilidade" in page.text and 'href="/go?c=12&amp;z=555&amp;v=' in page.text
     assert anon.get("/admin", headers=host).status_code == 404  # nothing else on that domain
     assert "Disallow: /" in anon.get("/robots.txt", headers=host).text
 
@@ -464,3 +464,41 @@ def test_stats_refresh_endpoint_and_live_blocks(settings, store, monkeypatch):
     assert 'id="refresh-stats"' in page
     anon = TestClient(create_app(settings, store, start_loop=False))
     assert anon.post("/admin/ig/stats/refresh").status_code == 401
+
+
+def test_bot_filter_on_the_lander_button_and_privacy_page(settings, store):
+    from datetime import datetime, timedelta, timezone
+
+    client = _client(settings, store)
+    _project(client, license_note="Sistema Lotérico de Pernambuco · Portaria SPA/MF nº 528/2025",
+             contact="contato@exemplo.com")
+    pid = store.list_ig_projects()[0]["id"]
+    anon = TestClient(create_app(settings, store, start_loop=False))
+    host = {**BROWSER, "host": "apostas-exemplo.com"}
+    page = anon.get("/?c=1&z=9", headers=host).text
+    assert "Portaria SPA/MF nº 528/2025" in page and 'href="/privacidade"' in page
+    assert "contato@exemplo.com" in page
+    privacy = anon.get("/privacidade", headers=host)
+    assert privacy.status_code == 200 and "LGPD" in privacy.text
+
+    v = [r for r in store._all("SELECT id FROM ig_events WHERE type = 'visit'")][-1]["id"]
+    # clicked within 2 s of opening the page: a "continue" page, not the offer
+    fast = anon.get(f"/go?c=1&z=9&v={v}&js=1", headers=host, follow_redirects=False)
+    assert fast.status_code == 200 and "Continuar" in fast.text
+    store._exec("UPDATE ig_events SET ts = ? WHERE id = ?",
+                ((datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat(), v))
+    # no JS mark: continue page; its signed link lets a real person through
+    nojs = anon.get(f"/go?c=1&z=9&v={v}", headers=host, follow_redirects=False)
+    assert "Continuar" in nojs.text
+    ok = nojs.text.split("+'")[1].split("&js=1'")[0]
+    passed = anon.get(f"/go{ok}&js=1", headers=host, follow_redirects=False)
+    assert passed.status_code == 302
+    # automated browser: refused
+    assert anon.get(f"/go?v={v}&wd=1", headers=host).status_code == 403
+    reasons = store.ig_bot_reasons(pid)
+    assert reasons["fast"] == 1 and reasons["webdriver"] == 1
+    assert reasons["no-js"] == 2  # the plain click and the automated browser
+    # many clicks from one address in an hour: refused
+    for _ in range(5):
+        anon.get(f"/go?v={v}&js=1", headers=host, follow_redirects=False)
+    assert anon.get(f"/go?v={v}&js=1", headers=host).status_code == 403
