@@ -585,3 +585,14 @@ def test_push_text_fits_propeller_limit():
     assert len(push_text({"push_text": long})) <= DESCRIPTION_MAX
     assert push_text({"push_text": long}).endswith("18+")
     assert push_text({"push_text": "Cassino da PlayBet"}) == "Cassino da PlayBet 18+"
+
+
+def test_refused_launch_hidden_once_retried(settings, store):
+    client = _client(settings, store)
+    _project(client)
+    pid = store.list_ig_projects()[0]["id"]
+    store.add_campaign(0, f"ig{pid}", "error", 10, note="HTTP 400: refused-first")
+    assert "refused-first" in client.get("/admin/ig").text  # the latest try stays visible
+    store.add_campaign(0, f"ig{pid}", "error", 10, note="HTTP 400: refused-again")
+    page = client.get("/admin/ig").text
+    assert "refused-again" in page and "refused-first" not in page

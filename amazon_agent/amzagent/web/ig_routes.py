@@ -259,9 +259,13 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             p["pictures"] = creatives_of(p)
             p["campaigns"] = []
             spent_by_zone: dict[str, float] = {}
-            for c in campaigns_of(store, p["id"]):
+            camps = campaigns_of(store, p["id"])
+            newest = max((c["id"] for c in camps), default=0)
+            for c in camps:
                 if only and str(c["id"]) != only:
                     continue
+                if c["status"] == "error" and not c["external_id"] and c["id"] != newest:
+                    continue  # a launch the network refused, retried since: nothing to show
                 total = store.ig_stats(p["id"], since, until, str(c["id"]), device)
                 if chosen.is_all:
                     spend = c["spend"]
