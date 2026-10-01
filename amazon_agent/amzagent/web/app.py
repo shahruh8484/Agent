@@ -1024,7 +1024,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                        device_of=device_of, client_ip=client_ip,
                        ip_sig=lambda ip: visit_sig(f"ip:{ip}"),
                        network_stats=lambda period: _network_stats(
-                           effective(settings, store), store, period, network_cache))
+                           effective(settings, store), store, period, network_cache),
+                       forget_network_stats=network_cache.clear)
 
     @app.get("/login", response_class=HTMLResponse)
     def login_form(request: Request):

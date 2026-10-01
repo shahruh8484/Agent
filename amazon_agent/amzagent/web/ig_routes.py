@@ -18,7 +18,13 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.templating import Jinja2Templates
 from starlette.datastructures import UploadFile
 
@@ -37,10 +43,13 @@ from amzagent.agent.igaming import (
 )
 from amzagent.agent.runner import (
     KILLED,
+    ZONE_STATS_FLAG,
     build_deps,
     resume_campaign,
     set_campaign_budget,
     stop_campaign,
+    sync_moderation,
+    sync_stats,
 )
 from amzagent.content.llm import LLMError, get_llm
 from amzagent.ig.lander import (
@@ -127,7 +136,8 @@ def _first(params, keys) -> str:
 
 
 def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_login, *,
-                       bot_ua, device_of, client_ip, ip_sig, network_stats=None) -> None:
+                       bot_ua, device_of, client_ip, ip_sig, network_stats=None,
+                       forget_network_stats=None) -> None:
 
     def back(request: Request, message: str, anchor: str = "") -> RedirectResponse:
         request.session["flash"] = message
@@ -444,6 +454,21 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
         return back(request, f"Площадка {zone} не {verb[:-1]}а: {error}" if error else
                     f"Площадка {zone} {verb} во всех работающих кампаниях проекта.",
                     f"#zones{project_id}")
+
+    @app.post("/admin/ig/stats/refresh")
+    def ig_refresh_stats(request: Request):
+        """Pull fresh numbers from PropellerAds now (spend, zones, moderation);
+        the page then re-reads only its statistics blocks."""
+        if not logged_in(request):
+            return JSONResponse({"ok": False, "error": "нужно войти"}, status_code=401)
+        deps = build_deps(settings, store)
+        store.set_flag(ZONE_STATS_FLAG, "")  # zones too, not only every 15 min
+        sync_moderation(deps)
+        ok = sync_stats(deps)
+        if forget_network_stats is not None:
+            forget_network_stats()  # the period figures are cached for 5 minutes
+        error = "" if ok else (store.get_flag("stats_error", "") or "статистика не прочитана")[:200]
+        return JSONResponse({"ok": ok, "error": error})
 
     @app.post("/admin/ig/campaigns/{campaign_id}/budget")
     async def ig_budget(request: Request, campaign_id: int):

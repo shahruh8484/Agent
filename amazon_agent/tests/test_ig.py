@@ -451,3 +451,16 @@ def test_budget_per_campaign(settings, store, monkeypatch):
     dry = store.list_campaigns()[0]
     answer = client.post(f"/admin/ig/campaigns/{dry['id']}/budget", data={"budget": "25"}).text
     assert "$25.00 в день" in answer and store.get_campaign(dry["id"])["daily_budget"] == 25
+
+
+def test_stats_refresh_endpoint_and_live_blocks(settings, store, monkeypatch):
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)
+    res = client.post("/admin/ig/stats/refresh").json()
+    assert res == {"ok": True, "error": ""}  # no PropellerAds in tests: nothing to pull
+    page = client.get("/admin/ig").text
+    for block in (f"live-stats-{pid}", f"live-camps-{pid}", f"live-sum-{pid}"):
+        assert f'id="{block}"' in page
+    assert 'id="refresh-stats"' in page
+    anon = TestClient(create_app(settings, store, start_loop=False))
+    assert anon.post("/admin/ig/stats/refresh").status_code == 401
