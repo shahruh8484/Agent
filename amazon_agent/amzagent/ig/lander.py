@@ -13,6 +13,9 @@ LANGUAGES = {"pt": "Português (Brasil)", "es": "Español", "en": "English"}
 COUNTRIES = {"BR": "Бразилия", "MX": "Мексика", "PE": "Перу", "CL": "Чили",
              "CO": "Колумбия", "NG": "Нигерия"}
 COUNTRY_LANGUAGE = {"BR": "pt", "MX": "es", "PE": "es", "CL": "es", "CO": "es", "NG": "en"}
+# Local time for show hours and the per-hour table (whole hours; none of
+# these shifts its clocks except Chile, taken at its winter time).
+COUNTRY_UTC_OFFSET = {"BR": -3, "MX": -6, "PE": -5, "CL": -4, "CO": -5, "NG": 1}
 
 # Fixed texts on every lander, per language. Not written by the LLM.
 SAFETY = {

@@ -40,7 +40,8 @@ from amzagent.content.sections import (
     write_guide,
     write_versus,
 )
-from amzagent.agent.igaming import apply_ig_rules, estimated_ig_spend, is_ig
+from amzagent.agent.igaming import (apply_ig_rules, estimated_ig_spend, ig_pace_allowance,
+                                    in_schedule, is_ig, project_of)
 from amzagent.models import COPY_VERSION, Niche, SitePlan
 from amzagent.panel_settings import effective, save_overrides
 from amzagent.push import propeller
@@ -600,36 +601,65 @@ def _launched_at(c: dict) -> datetime | None:
 def pace_campaigns(deps: Deps) -> None:
     """Spread each campaign's daily budget over the day: pause one that is
     ahead of an even schedule (status paced), resume it once time catches
-    up — never above the 24h limit or with the kill switch on."""
+    up — never above the 24h limit or with the kill switch on. iGaming
+    campaigns also rest outside their project's show hours, and their
+    budget is spread over those hours only."""
     if deps.push is None:
         return
     s, store = deps.settings, deps.store
     now = datetime.now(timezone.utc)
-    if s.pace_daily_budget:
-        for c in store.list_campaigns(statuses=(ACTIVE,)):
-            if not c["external_id"]:
-                continue
-            spent = spent_since_budget_day(deps, c, now)
-            allowed = pace_allowance(c["daily_budget"], now, _launched_at(c))
-            if spent <= allowed:
-                continue
-            try:
-                deps.push.stop([c["external_id"]])
-            except PropellerError as exc:
-                deps.say(f"campaign #{c['id']}: pacing pause failed, will retry: {exc}")
-                continue
+    projects: dict[int, dict | None] = {}
+
+    def project(c: dict) -> dict | None:  # iGaming campaigns: their show hours
+        if not is_ig(c):
+            return None
+        if c["id"] not in projects:
+            projects[c["id"]] = project_of(store, c)
+        return projects[c["id"]]
+
+    def allowance(c: dict) -> float:
+        p = project(c)
+        if p is not None:
+            return ig_pace_allowance(p, c["daily_budget"], now, _launched_at(c),
+                                     PACE_LEAD_MINUTES)
+        return pace_allowance(c["daily_budget"], now, _launched_at(c))
+
+    for c in store.list_campaigns(statuses=(ACTIVE,)):
+        if not c["external_id"]:
+            continue
+        p = project(c)
+        off_hours = p is not None and not in_schedule(p, now)
+        if not off_hours and not s.pace_daily_budget:
+            continue
+        spent = spent_since_budget_day(deps, c, now)
+        allowed = allowance(c)
+        if not off_hours and spent <= allowed:
+            continue
+        try:
+            deps.push.stop([c["external_id"]])
+        except PropellerError as exc:
+            deps.say(f"campaign #{c['id']}: pacing pause failed, will retry: {exc}")
+            continue
+        if off_hours:
             store.update_campaign(c["id"], status=PACED,
-                                  note=f"paced: ${spent:.2f} of ${c['daily_budget']:.0f} spent by "
-                                       f"{now:%H:%M} UTC, ahead of schedule")
-            deps.say(f"campaign #{c['id']} paced: ${spent:.2f} spent today by {now:%H:%M} UTC "
-                     f"(schedule allows ${allowed:.2f})")
+                                  note=f"off hours: shows {p['hours_from']:02d}:00-"
+                                       f"{p['hours_to']:02d}:00 local time")
+            deps.say(f"campaign #{c['id']} paused: outside its show hours")
+            continue
+        store.update_campaign(c["id"], status=PACED,
+                              note=f"paced: ${spent:.2f} of ${c['daily_budget']:.0f} spent by "
+                                   f"{now:%H:%M} UTC, ahead of schedule")
+        deps.say(f"campaign #{c['id']} paced: ${spent:.2f} spent today by {now:%H:%M} UTC "
+                 f"(schedule allows ${allowed:.2f})")
     spent_24h = spent_today(store)
     room = spent_24h is not None and s.max_daily_spend - spent_24h >= RESUME_HEADROOM
     for c in store.list_campaigns(statuses=(PACED,)):
+        p = project(c)
+        if p is not None and not in_schedule(p, now):
+            continue
         spent = spent_since_budget_day(deps, c, now)
         # Resume a little below the line so it doesn't flap every check.
-        behind = (spent <= pace_allowance(c["daily_budget"], now, _launched_at(c))
-                  - c["daily_budget"] / 48)
+        behind = spent <= allowance(c) - c["daily_budget"] / 48
         if s.pace_daily_budget and not behind:
             continue
         if not room or store.get_flag(PAUSE_FLAG) == "1":

@@ -20,11 +20,12 @@ from __future__ import annotations
 
 import json
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from amzagent.content.llm import LLM, LLMError, parse_json
-from amzagent.ig.lander import FIRST_PERSON, FORBIDDEN, LANGUAGES, THEME_BRIEF
+from amzagent.ig.lander import (COUNTRY_UTC_OFFSET, FIRST_PERSON, FORBIDDEN, LANGUAGES,
+                                THEME_BRIEF)
 from amzagent.push import propeller
 from amzagent.push.ai_creatives import IMAGE_RULES, CreativeError, cut_push_images
 from amzagent.push.creatives import render_creatives
@@ -50,6 +51,63 @@ def ig_asin(project_id: int) -> str:
 def project_of(store, campaign: dict) -> dict | None:
     asin = str(campaign.get("asin") or "")
     return store.get_ig_project(int(asin[2:])) if asin[2:].isdigit() else None
+
+
+# --- show hours (the country's local time) ---------------------------------------
+
+def schedule_of(project: dict) -> tuple[int, int] | None:
+    """(from, to) local hours the project's campaigns show, or None for all
+    day. "to" is exclusive and may be past midnight: (10, 1) = 10:00-01:00."""
+    start = int(project.get("hours_from") or 0) % 24
+    end = int(project.get("hours_to") or 0) % 24
+    return None if start == end else (start, end)
+
+
+def utc_offset(project: dict) -> int:
+    return COUNTRY_UTC_OFFSET.get(project.get("country") or "", 0)
+
+
+def _open_at(window: tuple[int, int], hour: int) -> bool:
+    start, end = window
+    return start <= hour < end if start < end else (hour >= start or hour < end)
+
+
+def in_schedule(project: dict, now: datetime) -> bool:
+    window = schedule_of(project)
+    return window is None or _open_at(window, (now + timedelta(hours=utc_offset(project))).hour)
+
+
+def scheduled_minutes(project: dict, start: datetime, end: datetime) -> float:
+    """Minutes of [start, end) inside the show hours."""
+    window = schedule_of(project)
+    if window is None:
+        return max(0.0, (end - start).total_seconds() / 60)
+    total, t = 0.0, start
+    while t < end:  # offsets are whole hours: each UTC hour is open or closed
+        nxt = min(end, t.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1))
+        if _open_at(window, (t + timedelta(hours=utc_offset(project))).hour):
+            total += (nxt - t).total_seconds() / 60
+        t = nxt
+    return total
+
+
+def ig_pace_allowance(project: dict, budget: float, now: datetime, start: datetime | None,
+                      lead_minutes: float) -> float:
+    """pace_allowance for show hours: the budget day (UTC) is spread over
+    its open minutes only, so the money goes to the hours people play."""
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    since = max(midnight, start) if start else midnight
+    day = scheduled_minutes(project, midnight, midnight + timedelta(days=1)) or 1440.0
+    done = scheduled_minutes(project, since, now) + lead_minutes
+    return budget * min(1.0, max(0.0, done) / day)
+
+
+def hours_label(project: dict) -> str:
+    window = schedule_of(project)
+    if window is None:
+        return "круглосуточно"
+    offset = utc_offset(project)
+    return f"{window[0]:02d}:00–{window[1]:02d}:00 (UTC{offset:+d})"
 
 
 def campaigns_of(store, project_id: int) -> list[dict]:

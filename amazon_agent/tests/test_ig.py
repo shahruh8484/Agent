@@ -596,3 +596,82 @@ def test_refused_launch_hidden_once_retried(settings, store):
     store.add_campaign(0, f"ig{pid}", "error", 10, note="HTTP 400: refused-again")
     page = client.get("/admin/ig").text
     assert "refused-again" in page and "refused-first" not in page
+
+
+def test_show_hours_spread_the_budget_and_rest_at_night(settings, store, monkeypatch):
+    from datetime import datetime, timezone
+
+    import amzagent.agent.runner as runner
+    from amzagent.agent.igaming import (hours_label, ig_pace_allowance, in_schedule,
+                                        scheduled_minutes)
+
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)  # bid $0.008, $12/day
+    assert hours_label(store.get_ig_project(pid)) == "круглосуточно"  # 0-0 from older forms
+    old = store.get_ig_project(pid)
+    form = {k: old[k] for k in ("name", "brand", "license_url", "offer_url", "payout", "domain",
+                                "country", "language", "bid_cpc", "daily_budget", "platform",
+                                "offer")}
+    client.post(f"/admin/ig/projects/{pid}", data={**form, "hours_from": "10", "hours_to": "1"})
+    p = store.get_ig_project(pid)
+    assert (p["hours_from"], p["hours_to"]) == (10, 1)
+    assert hours_label(p) == "10:00–01:00 (UTC-3)" and "показ 10:00–01:00" in \
+        client.get("/admin/ig").text
+
+    def utc(h, m=0):
+        return datetime(2026, 10, 2, h, m, tzinfo=timezone.utc)
+
+    # 10:00-01:00 in Brazil = 13:00-04:00 UTC: 4 h + 11 h of the UTC day
+    assert in_schedule(p, utc(13)) and in_schedule(p, utc(3, 59)) and not in_schedule(p, utc(4))
+    assert scheduled_minutes(p, utc(0), utc(23, 59)) == 4 * 60 + 10 * 60 + 59
+    assert ig_pace_allowance(p, 15, utc(4), None, 0) == 4.0  # 4 of 15 open hours
+    assert ig_pace_allowance(p, 15, utc(12), None, 0) == 4.0  # closed hours add nothing
+    assert ig_pace_allowance(p, 15, utc(18), None, 0) == 9.0
+
+    push = FakePush()
+    _live(settings, store)
+    settings.pace_daily_budget = True
+    deps = _ig_deps(settings, store, push)
+    assert launch_ig_campaign(deps, pid) is None
+    c = store.list_campaigns()[0]
+
+    class Clock(datetime):
+        at = utc(8)  # 05:00 in Brazil
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.at
+
+    monkeypatch.setattr(runner, "datetime", Clock)
+    monkeypatch.setattr(runner, "spent_since_budget_day", lambda deps, c, now=None: 0.0)
+    monkeypatch.setattr(runner, "_launched_at", lambda c: None)
+    runner.pace_campaigns(deps)
+    rested = store.get_campaign(c["id"])
+    assert rested["status"] == runner.PACED and rested["note"].startswith("off hours")
+    assert c["external_id"] in push.stopped
+    runner.pace_campaigns(deps)  # still night: stays paused even with budget left
+    assert store.get_campaign(c["id"])["status"] == runner.PACED and not push.started
+    Clock.at = utc(14)  # 11:00 in Brazil
+    store.set_flag(TODAY_SPEND_FLAG, _json.dumps({"at": Clock.at.isoformat(), "by_campaign": {}}))
+    runner.pace_campaigns(deps)
+    assert store.get_campaign(c["id"])["status"] == runner.ACTIVE
+    assert push.started == [c["external_id"]]
+
+
+def test_hourly_table_credits_deposits_to_the_hour_of_the_press(settings, store, monkeypatch):
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)
+    rows = [("2026-10-02T23:10:00+00:00", "visit", None, 0),  # 20:00 in Brazil
+            ("2026-10-02T23:11:00+00:00", "click", "abc", 0),
+            ("2026-10-02T23:12:00+00:00", "visit", None, 0),
+            ("2026-10-03T09:00:00+00:00", "ftd", "abc", 9.0),  # postback next morning
+            ("2026-10-03T09:30:00+00:00", "visit", None, 0)]  # 06:00 in Brazil
+    for ts, type_, click_id, payout in rows:
+        store._exec("INSERT INTO ig_events (ts, project_id, type, click_id, payout)"
+                    " VALUES (?, ?, ?, ?, ?)", (ts, pid, type_, click_id, payout))
+    hours = {h["hour"]: h for h in store.ig_hourly(pid, offset_minutes=-180)}
+    assert (hours[20]["visits"], hours[20]["clicks"], hours[20]["ftds"]) == (2, 1, 1)
+    assert hours[20]["revenue"] == 9.0
+    assert hours[6]["visits"] == 1 and hours[6]["ftds"] == 0
+    page = client.get("/admin/ig?period=all").text
+    assert "По часам (местное время, UTC-3)" in page

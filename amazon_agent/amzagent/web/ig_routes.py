@@ -39,11 +39,14 @@ from amzagent.agent.igaming import (
     remove_creative,
     set_zone,
     forbidden_in_push,
+    hours_label,
+    utc_offset,
     launch_ig_campaign,
     write_push_text,
 )
 from amzagent.agent.runner import (
     KILLED,
+    VISITS_PER_PAID_CLICK,
     ZONE_STATS_FLAG,
     build_deps,
     resume_campaign,
@@ -142,6 +145,13 @@ def _money(raw, default: float = 0.0, digits: int = 2) -> float:
         return default
 
 
+def _hour(raw) -> int:
+    try:
+        return min(max(int(str(raw).split(":")[0]), 0), 23)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _first(params, keys) -> str:
     for k in keys:
         if params.get(k):
@@ -187,6 +197,8 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             "theme": str(form.get("theme")) if form.get("theme") in THEMES else "sport",
             "license_note": str(form.get("license_note") or "").strip()[:300],
             "contact": str(form.get("contact") or "").strip()[:120],
+            "hours_from": _hour(form.get("hours_from")),
+            "hours_to": _hour(form.get("hours_to")),
         }
         if not fields["name"]:
             return fields, "нужно название"
@@ -243,6 +255,12 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             p["zones"] = store.ig_zone_stats(p["id"], limit=1000, since=since, until=until,
                                              campaign=only, device=device)
             p["daily"] = store.ig_daily(p["id"], since, until, only, device, offset)
+            p["hourly"] = store.ig_hourly(p["id"], since, until, only, device,
+                                          utc_offset(p) * 60)
+            for h in p["hourly"]:  # every visit is a paid click at the project's bid
+                h["cost"] = h["visits"] * p["bid_cpc"] / VISITS_PER_PAID_CLICK
+            p["hours_label"] = hours_label(p)
+            p["utc_offset"] = utc_offset(p)
             warnings = []
             if "{click_id}" not in p["offer_url"]:
                 warnings.append("В ссылке оффера нет {click_id} — депозиты не свяжутся с "

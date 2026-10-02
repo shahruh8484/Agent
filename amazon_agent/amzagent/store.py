@@ -258,7 +258,10 @@ class Store:
                               ("license_note", "TEXT NOT NULL DEFAULT ''"),
                               ("contact", "TEXT NOT NULL DEFAULT ''"),
                               # what the lander and pushes are about: sport | casino
-                              ("theme", "TEXT NOT NULL DEFAULT 'sport'")):
+                              ("theme", "TEXT NOT NULL DEFAULT 'sport'"),
+                              # show hours in the country's local time; equal = all day
+                              ("hours_from", "INTEGER NOT NULL DEFAULT 0"),
+                              ("hours_to", "INTEGER NOT NULL DEFAULT 0")):
                 if col not in cols:
                     self._db.execute(f"ALTER TABLE ig_projects ADD COLUMN {col} {decl}")
             # Why a lander click was held back as automated (bot filter).
@@ -620,7 +623,7 @@ class Store:
     IG_PROJECT_FIELDS = ("name", "domain", "country", "language", "brand", "license_url",
                          "offer_url", "payout", "offer", "lander", "bid_cpc", "daily_budget",
                          "platform", "push_title", "push_text", "kill_spend", "creatives",
-                         "license_note", "contact", "theme")
+                         "license_note", "contact", "theme", "hours_from", "hours_to")
 
     def add_ig_project(self, **fields) -> int:
         cols = [k for k in self.IG_PROJECT_FIELDS if k in fields]
@@ -742,6 +745,35 @@ class Store:
             f" WHERE {where} GROUP BY day ORDER BY day DESC",
             (f"{offset_minutes:+d} minutes", *params))
         return [dict(r) for r in rows]
+
+    def ig_hourly(self, project_id: int, since: str | None = None, until: str | None = None,
+                  campaign: str | None = None, device: str | None = None,
+                  offset_minutes: int = 0) -> list[dict]:
+        """Per hour of the day (local time, given as a UTC offset), 0..23:
+        visits and button presses at that hour, and the deposits, rejections
+        and revenue of the presses made at that hour (whenever the postback
+        came), so an hour is judged by the players it brought."""
+        where, params = self._ig_filter(project_id, since, until, campaign, device)
+        shift = f"{offset_minutes:+d} minutes"
+        out = {h: {"hour": h, "visits": 0, "clicks": 0, "ftds": 0, "rejs": 0, "revenue": 0.0}
+               for h in range(24)}
+        for r in self._all(
+                "SELECT CAST(strftime('%H', ts, ?) AS INTEGER) AS hour,"
+                " SUM(type = 'visit') AS visits, SUM(type = 'click') AS clicks"
+                f" FROM ig_events WHERE {where} GROUP BY hour", (shift, *params)):
+            out[r["hour"]].update(visits=int(r["visits"] or 0), clicks=int(r["clicks"] or 0))
+        for r in self._all(
+                "SELECT CAST(strftime('%H', c.ts, ?) AS INTEGER) AS hour,"
+                " SUM(e.type = 'ftd') AS ftds, SUM(e.type = 'rej') AS rejs,"
+                " COALESCE(SUM(e.payout), 0) AS revenue FROM ig_events e JOIN"
+                " (SELECT click_id, MIN(ts) AS ts FROM ig_events"
+                f"  WHERE {where} AND type = 'click' AND click_id IS NOT NULL GROUP BY click_id) c"
+                " ON c.click_id = e.click_id"
+                " WHERE e.project_id = ? AND e.type IN ('reg', 'ftd', 'dep', 'rej') GROUP BY hour",
+                (shift, *params, project_id)):
+            out[r["hour"]].update(ftds=int(r["ftds"] or 0), rejs=int(r["rejs"] or 0),
+                                  revenue=round(float(r["revenue"] or 0), 2))
+        return list(out.values())
 
     def ig_campaign_stats(self, campaign_id: int, since: str | None = None,
                           until: str | None = None) -> tuple[dict, dict[str, dict]]:
