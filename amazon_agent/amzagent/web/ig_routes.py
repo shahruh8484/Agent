@@ -63,6 +63,7 @@ from amzagent.ig.lander import (
     LANGUAGES,
     PRIVACY,
     SAFETY,
+    SPORT_ONLY_COUNTRIES,
     THEMES,
     badges_for,
     compliance_issues,
@@ -271,6 +272,10 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             if p["country"] == "BR" and ".bet.br" not in p["license_url"]:
                 warnings.append("В Бразилии можно рекламировать только операторов с лицензией "
                                 "(сайт на .bet.br). Укажите сайт оператора.")
+            if p["country"] in SPORT_ONLY_COUNTRIES and p["theme"] != "sport":
+                warnings.append("В этой стране онлайн-казино запрещено — рекламировать можно "
+                                "только ставки на спорт. Поставьте тему «Ставки на спорт» и "
+                                "оффер букмекера без казино.")
             if not p["l"]["headline"]:
                 warnings.append("Лендинг пустой — нажмите «Агент: написать лендинг».")
             p["push_issues"] = forbidden_in_push(p)

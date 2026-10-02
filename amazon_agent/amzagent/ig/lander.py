@@ -11,11 +11,14 @@ from amzagent.content.llm import LLM, LLMError, parse_json
 
 LANGUAGES = {"pt": "Português (Brasil)", "es": "Español", "en": "English"}
 COUNTRIES = {"BR": "Бразилия", "MX": "Мексика", "PE": "Перу", "CL": "Чили",
-             "CO": "Колумбия", "NG": "Нигерия"}
-COUNTRY_LANGUAGE = {"BR": "pt", "MX": "es", "PE": "es", "CL": "es", "CO": "es", "NG": "en"}
+             "CO": "Колумбия", "NG": "Нигерия", "ZA": "ЮАР"}
+COUNTRY_LANGUAGE = {"BR": "pt", "MX": "es", "PE": "es", "CL": "es", "CO": "es", "NG": "en",
+                    "ZA": "en"}
 # Local time for show hours and the per-hour table (whole hours; none of
 # these shifts its clocks except Chile, taken at its winter time).
-COUNTRY_UTC_OFFSET = {"BR": -3, "MX": -6, "PE": -5, "CL": -4, "CO": -5, "NG": 1}
+COUNTRY_UTC_OFFSET = {"BR": -3, "MX": -6, "PE": -5, "CL": -4, "CO": -5, "NG": 1, "ZA": 2}
+# Where only sports betting may be offered online (online casino is illegal).
+SPORT_ONLY_COUNTRIES = {"ZA"}
 
 # Fixed texts on every lander, per language. Not written by the LLM.
 SAFETY = {

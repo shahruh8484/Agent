@@ -675,3 +675,18 @@ def test_hourly_table_credits_deposits_to_the_hour_of_the_press(settings, store,
     assert hours[6]["visits"] == 1 and hours[6]["ftds"] == 0
     page = client.get("/admin/ig?period=all").text
     assert "По часам (местное время, UTC-3)" in page
+
+
+def test_south_africa_is_sport_only(settings, store):
+    from amzagent.agent.igaming import hours_label
+
+    client = _client(settings, store)
+    _project(client, country="ZA", language="en", theme="casino", domain="bets.example.co.za")
+    p = store.list_ig_projects()[0]
+    assert p["country"] == "ZA" and hours_label({**p, "hours_from": 12, "hours_to": 0}) \
+        == "12:00–00:00 (UTC+2)"
+    assert "онлайн-казино запрещено" in client.get("/admin/ig").text
+    client.post(f"/admin/ig/projects/{p['id']}", data={
+        k: p[k] for k in ("name", "brand", "license_url", "offer_url", "payout", "domain",
+                          "country", "language", "offer")} | {"theme": "sport"})
+    assert "онлайн-казино запрещено" not in client.get("/admin/ig").text
