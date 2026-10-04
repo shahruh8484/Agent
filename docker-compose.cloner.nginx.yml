@@ -1,0 +1,14 @@
+services:
+  cloner:
+    build:
+      context: .
+      dockerfile: Dockerfile.cloner
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - cloner_data:/app/data
+    ports:
+      - "127.0.0.1:8001:8000"
+
+volumes:
+  cloner_data:

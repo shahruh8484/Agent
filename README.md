@@ -379,6 +379,22 @@ through `deploy/Caddyfile.cloner` for automatic HTTPS, with its own
 `cloner_data` volume so uploaded references and generated output survive
 rebuilds. To run it locally instead: `python -m fbadsagent.cloner`.
 
+**If the server already runs nginx for something else** (e.g. it's also
+hosting a Keitaro tracker or another site on ports 80/443), the bundled
+Caddy container can't bind those ports too. Use
+`docker-compose.cloner.nginx.yml` instead — it only publishes the app
+container on `127.0.0.1:8001` — and add an nginx vhost for the new domain
+pointing at that port plus a cert via certbot:
+
+```bash
+docker compose -f docker-compose.cloner.nginx.yml up -d --build
+
+cp deploy/nginx-cloner.conf.example /etc/nginx/conf.d/cloner.conf  # or sites-available/ + symlink on Debian/Ubuntu
+# edit it: replace YOUR-CLONER-DOMAIN with the real domain
+nginx -t && systemctl reload nginx
+certbot --nginx -d YOUR-CLONER-DOMAIN
+```
+
 ## Safety defaults
 
 - Campaigns, ad sets and ads are always created with `status: PAUSED`.

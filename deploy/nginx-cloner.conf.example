@@ -1,0 +1,27 @@
+# Reverse-proxy vhost for the cloner service on a server that already runs
+# nginx for something else (e.g. Keitaro) and so can't hand ports 80/443 to
+# the bundled Caddy container. Use docker-compose.cloner.nginx.yml instead
+# of docker-compose.cloner.yml when deploying this way — it publishes the
+# app on 127.0.0.1:8001 instead of running its own Caddy/TLS.
+#
+# Copy this to your nginx sites directory (commonly /etc/nginx/conf.d/ on
+# CentOS, or /etc/nginx/sites-available/ + a symlink in sites-enabled/ on
+# Debian/Ubuntu), replace YOUR-CLONER-DOMAIN, then run certbot:
+#
+#   certbot --nginx -d YOUR-CLONER-DOMAIN
+#
+# certbot rewrites this file in place to add the TLS (443) server block —
+# you don't need to write that part by hand.
+
+server {
+    listen 80;
+    server_name YOUR-CLONER-DOMAIN;
+
+    location / {
+        proxy_pass http://127.0.0.1:8001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
