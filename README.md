@@ -42,14 +42,21 @@ fbadsagent/
 │   └── templates/landing_base.html.j2
 ├── orchestrator/
 │   └── pipeline.py            # Wires every stage together
-└── web/                       # Login-protected analytics dashboard (FastAPI)
-    ├── app.py                 # Routes: /login, /, /api/accounts, /api/insights
-    ├── insights_client.py     # Facebook Marketing API Insights client
-    ├── security.py            # bcrypt password hashing + hash-generator CLI
-    ├── __main__.py             # `python -m fbadsagent.web` entrypoint
-    └── templates/login.html, dashboard.html
+├── web/                       # Login-protected analytics dashboard (FastAPI)
+│   ├── app.py                 # Routes: /login, /, /api/accounts, /api/insights
+│   ├── insights_client.py     # Facebook Marketing API Insights client
+│   ├── security.py            # bcrypt password hashing + hash-generator CLI
+│   ├── __main__.py             # `python -m fbadsagent.web` entrypoint
+│   └── templates/login.html, dashboard.html
+└── cloner/                    # Standalone cloning service (own domain/server)
+    ├── app.py                 # Routes: /login, /, /projects/*, /lp/{slug}
+    ├── pipeline.py            # Reference material -> new creatives + landing page
+    ├── models.py, store.py    # ClonerProject model + JSON-backed store
+    ├── __main__.py             # `python -m fbadsagent.cloner` entrypoint
+    └── templates/login.html, dashboard.html, landing_static.html, landing_quiz.html
 
-Dockerfile, docker-compose.yml, deploy/Caddyfile   # deploy the dashboard to a domain
+Dockerfile, docker-compose.yml, deploy/Caddyfile               # deploy the dashboard
+Dockerfile.cloner, docker-compose.cloner.yml, deploy/Caddyfile.cloner  # deploy the cloner
 ```
 
 Every external integration (LLM, image generation, Facebook APIs) is
@@ -336,6 +343,42 @@ picks it up automatically instead of copying account IDs one by one.
   flows) — if your leads come from a different conversion event, adjust
   `LEAD_ACTION_TYPES` in `fbadsagent/web/insights_client.py`.
 
+## Cloner service
+
+A second, standalone service — `fbadsagent/cloner/` — for a separate use
+case: cloning the *type* of a landing page/creative, not running ads.
+Upload reference ad creatives and/or a reference landing page (a URL or
+screenshots), and it infers the general style/structure/offer type and
+generates a brand-new, original creative set and landing page of the same
+type, publishing the result at `/lp/{slug}` on its own domain.
+
+It intentionally has **no lead-capture/CPA integration and no Facebook
+campaign creation** — just generation and publishing. It reuses the same
+LLM provider, image generator, landing page generator and reference
+fetcher modules as the main agent, so the honesty constraints on
+quiz-style pages (no fake personas, statistics, cure claims or social
+proof — see `fbadsagent/landing/generator.py`) apply here too, regardless
+of what the uploaded reference material contains.
+
+### Deploying it
+
+It's meant to run as its own container on its own domain/server,
+independent of the main dashboard — same repo, separate deployment:
+
+```bash
+cp .env.example .env   # same settings as the main app: LLM/image provider
+                        # keys, ADMIN_USERNAME/ADMIN_PASSWORD_HASH,
+                        # SECRET_KEY, DOMAIN, DATA_DIR — set DOMAIN to this
+                        # service's own domain, not the main dashboard's
+docker compose -f docker-compose.cloner.yml up -d --build
+```
+
+This builds from `Dockerfile.cloner` (same base image, runs
+`python -m fbadsagent.cloner` instead of `fbadsagent.web`) and serves
+through `deploy/Caddyfile.cloner` for automatic HTTPS, with its own
+`cloner_data` volume so uploaded references and generated output survive
+rebuilds. To run it locally instead: `python -m fbadsagent.cloner`.
+
 ## Safety defaults
 
 - Campaigns, ad sets and ads are always created with `status: PAUSED`.
@@ -349,9 +392,10 @@ picks it up automatically instead of copying account IDs one by one.
 pytest
 ```
 
-All 143 tests run offline — network calls (Ad Library, Insights API,
+All 167 tests run offline — network calls (Ad Library, Insights API,
 Anthropic/OpenAI, Facebook Marketing API) are mocked or swapped for fakes,
-and the dashboard is tested through FastAPI's `TestClient`.
+and the dashboard and cloner service are tested through FastAPI's
+`TestClient`.
 
 ## Roadmap / what's stubbed today
 

@@ -1,0 +1,31 @@
+services:
+  cloner:
+    build:
+      context: .
+      dockerfile: Dockerfile.cloner
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - cloner_data:/app/data
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile.cloner:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - cloner
+
+volumes:
+  caddy_data:
+  caddy_config:
+  cloner_data:

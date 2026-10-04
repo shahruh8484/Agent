@@ -23,7 +23,11 @@ def generate_ad_variants(
     product: ProductInput,
     insights: CompetitorInsights,
     n: int = 3,
+    reference_texts: list[str] | None = None,
 ) -> list[AdCreativeCopy]:
+    """reference_texts, when given, is a style/structure reference (e.g. a
+    description of reference ad creatives or landing pages) the caller
+    wants matched — not copied — as used by the cloning tool."""
     prompt = (
         f"Product: {product.name}\n"
         f"Description: {product.description}\n"
@@ -35,6 +39,17 @@ def generate_ad_variants(
         "competitors while staying on-brand for the product. "
         f"Write all copy in {product.language}."
     )
+    if reference_texts:
+        examples = "\n\n".join(
+            f"--- Reference {i + 1} ---\n{text}" for i, text in enumerate(reference_texts)
+        )
+        prompt += (
+            "\n\nHere is a reference for style, structure and tone (from "
+            "reference ad creatives or landing pages for a similar type of "
+            "offer). Match the general style and structure — do not copy "
+            "any wording, claims, or imagery described — write original "
+            "copy for this product:\n\n" + examples
+        )
 
     raw = llm.generate(SYSTEM_PROMPT, prompt, max_tokens=1200)
     variants_data = _parse_json_array(raw)

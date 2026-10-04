@@ -58,6 +58,17 @@ def test_generate_ad_variants_includes_language_in_prompt(product):
     assert "Write all copy in Uzbek." in prompt
 
 
+def test_generate_ad_variants_includes_reference_texts_in_prompt(product):
+    llm = FakeLLM(response="[]")
+    insights = CompetitorInsights()
+
+    generate_ad_variants(llm, product, insights, n=1, reference_texts=["Bold, punchy hooks."])
+
+    _, prompt = llm.calls[0]
+    assert "Bold, punchy hooks." in prompt
+    assert "do not copy" in prompt.lower()
+
+
 def test_analyze_competitor_ads_empty_list_skips_llm(product):
     llm = FakeLLM(response="{}")
     insights = analyze_competitor_ads(llm, product.name, [])
