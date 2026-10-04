@@ -9,11 +9,14 @@
 #
 #   ./deploy/setup-cloner-keitaro.sh cloner.yourdomain.com
 #
-# It sets up the nginx vhost (HTTP only — no cert yet), builds .env
-# (prompting for secrets locally, never printing them back), and brings
-# the cloner_app container up. It does NOT request a TLS certificate —
-# run certbot yourself once this confirms working over plain HTTP, then
-# run deploy/enable-https-keitaro.sh to switch the vhost to HTTPS.
+# It builds .env (prompting for secrets locally, never printing them
+# back), brings the cloner_app container up on Keitaro's docker network,
+# THEN sets up the nginx vhost (HTTP only — no cert yet) and reloads
+# nginx — in that order, since nginx's upstream config references
+# cloner_app by container name and nginx -t fails if that name doesn't
+# resolve yet. It does NOT request a TLS certificate — run certbot
+# yourself once this confirms working over plain HTTP, then run
+# deploy/enable-https-keitaro.sh to switch the vhost to HTTPS.
 set -euo pipefail
 
 DOMAIN="${1:?Usage: $0 <domain> [nginx-container-name]}"
@@ -25,17 +28,6 @@ if [[ ! -f docker-compose.cloner.keitaro.yml ]]; then
   echo "Run this from the repo root (docker-compose.cloner.keitaro.yml not found here)." >&2
   exit 1
 fi
-
-echo "==> Vhost: /etc/keitaro/nginx/conf.d/cloner.conf for $DOMAIN"
-cp deploy/nginx-cloner-keitaro.conf.example /etc/keitaro/nginx/conf.d/cloner.conf
-sed -i "s/YOUR-CLONER-DOMAIN/$DOMAIN/g" /etc/keitaro/nginx/conf.d/cloner.conf
-
-echo "==> ACME webroot dir"
-mkdir -p /var/www/keitaro/cloner-acme/.well-known/acme-challenge
-
-echo "==> Reloading $NGINX_CONTAINER"
-docker exec "$NGINX_CONTAINER" nginx -t
-docker exec "$NGINX_CONTAINER" nginx -s reload
 
 set_env_var() {
   local key="$1" val="$2" file=".env"
@@ -86,8 +78,19 @@ SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))" 2>/dev/null |
   docker run --rm python:3.12-slim python3 -c "import secrets; print(secrets.token_hex(32))")
 set_env_var "SECRET_KEY" "$SECRET"
 
-echo "==> Bringing up cloner_app"
+echo "==> Bringing up cloner_app (on Keitaro's docker network)"
 docker compose -f docker-compose.cloner.keitaro.yml up -d --build
+
+echo "==> Vhost: /etc/keitaro/nginx/conf.d/cloner.conf for $DOMAIN"
+cp deploy/nginx-cloner-keitaro.conf.example /etc/keitaro/nginx/conf.d/cloner.conf
+sed -i "s/YOUR-CLONER-DOMAIN/$DOMAIN/g" /etc/keitaro/nginx/conf.d/cloner.conf
+
+echo "==> ACME webroot dir"
+mkdir -p /var/www/keitaro/cloner-acme/.well-known/acme-challenge
+
+echo "==> Reloading $NGINX_CONTAINER"
+docker exec "$NGINX_CONTAINER" nginx -t
+docker exec "$NGINX_CONTAINER" nginx -s reload
 
 echo "==> Checking http://$DOMAIN"
 sleep 2
