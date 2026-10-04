@@ -1,0 +1,27 @@
+# For a server that already runs Keitaro (nginx holds 80/443 inside its
+# own container, on the "keitaro_network" docker network). This joins that
+# same network instead of publishing any port to the host — Keitaro's
+# nginx reaches this container directly by name (cloner_app:8000), and
+# never needs to touch loopback/host networking at all.
+#
+# See deploy/nginx-cloner-keitaro.conf.example for the vhost that goes
+# into /etc/keitaro/nginx/conf.d/ to route the new domain here.
+services:
+  cloner:
+    build:
+      context: .
+      dockerfile: Dockerfile.cloner
+    container_name: cloner_app
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - cloner_data:/app/data
+    networks:
+      - keitaro_network
+
+networks:
+  keitaro_network:
+    external: true
+
+volumes:
+  cloner_data:

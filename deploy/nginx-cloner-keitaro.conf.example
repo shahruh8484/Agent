@@ -1,0 +1,63 @@
+# Vhost for the cloner service on a server that already runs Keitaro's
+# own nginx container (holds host ports 80/443, on the keitaro_network
+# docker network — see docker-compose.cloner.keitaro.yml).
+#
+# Keitaro bind-mounts /etc/keitaro/nginx/conf.d on the host into the same
+# path inside its nginx container, and includes *.conf files from it — so
+# dropping this file there and reloading that container is enough; no
+# changes to Keitaro's own config.
+#
+# Setup:
+#   1. Replace YOUR-CLONER-DOMAIN below with the real domain.
+#   2. Copy this file in:
+#        cp deploy/nginx-cloner-keitaro.conf.example /etc/keitaro/nginx/conf.d/cloner.conf
+#      (edit the domain in the copy, not here)
+#   3. Make the ACME webroot dir (shared with the container via the
+#      existing /var/www/keitaro bind mount):
+#        mkdir -p /var/www/keitaro/cloner-acme/.well-known/acme-challenge
+#   4. Reload Keitaro's nginx so it picks up this file (HTTP-only block
+#      below first — the HTTPS block is commented out until step 6):
+#        docker exec <keitaro-nginx-container-name> nginx -s reload
+#   5. Get a certificate (certbot on the host — no nginx plugin needed,
+#      webroot mode just writes files for nginx to serve):
+#        dnf install -y epel-release certbot   # if not installed yet
+#        certbot certonly --webroot -w /var/www/keitaro/cloner-acme \
+#          -d YOUR-CLONER-DOMAIN --agree-tos -m you@example.com --no-eff-email
+#   6. Uncomment the HTTPS server block below (and the redirect in the
+#      HTTP block), then reload nginx again.
+
+server {
+    listen 80;
+    server_name YOUR-CLONER-DOMAIN;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/keitaro/cloner-acme;
+    }
+
+    location / {
+        proxy_pass http://cloner_app:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Uncomment once the certificate exists (step 6), to force HTTPS:
+        # return 301 https://$host$request_uri;
+    }
+}
+
+# server {
+#     listen 443 ssl;
+#     server_name YOUR-CLONER-DOMAIN;
+#
+#     ssl_certificate /etc/letsencrypt/live/YOUR-CLONER-DOMAIN/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/YOUR-CLONER-DOMAIN/privkey.pem;
+#
+#     location / {
+#         proxy_pass http://cloner_app:8000;
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#     }
+# }

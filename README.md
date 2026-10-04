@@ -395,6 +395,20 @@ nginx -t && systemctl reload nginx
 certbot --nginx -d YOUR-CLONER-DOMAIN
 ```
 
+**If nginx itself runs inside a container** (e.g. a Keitaro install, whose
+nginx runs as its own container holding host ports 80/443 on a named
+docker network, with `/etc/keitaro/nginx/conf.d` and `/etc/letsencrypt`
+bind-mounted from the host into it), there's no host nginx process to add
+a vhost to or point certbot's nginx plugin at. Use
+`docker-compose.cloner.keitaro.yml` instead — it joins that same docker
+network by name instead of publishing any port, so the existing nginx
+container reaches it directly by container name — paired with
+`deploy/nginx-cloner-keitaro.conf.example`, which goes straight into that
+bind-mounted conf.d directory (no change to Keitaro's own config) and
+gets a cert via certbot's webroot mode on the host, writing into the
+shared `/etc/letsencrypt` mount the container already reads certs from.
+See the comments at the top of that file for the exact command sequence.
+
 ## Safety defaults
 
 - Campaigns, ad sets and ads are always created with `status: PAUSED`.
