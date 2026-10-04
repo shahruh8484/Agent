@@ -31,6 +31,11 @@ fi
 
 set_env_var() {
   local key="$1" val="$2" file=".env"
+  # docker compose interpolates $VAR inside .env (it's read both as this
+  # service's env_file and as compose's own project .env), so a literal $
+  # — e.g. in a bcrypt hash, which is full of them ($2b$12$...) — must be
+  # doubled to $$ or everything after it silently gets dropped.
+  val="${val//\$/\$\$}"
   local escaped
   escaped=$(printf '%s\n' "$val" | sed -e 's/[\/&]/\\&/g')
   if grep -q "^${key}=" "$file"; then

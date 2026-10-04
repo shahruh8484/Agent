@@ -30,6 +30,9 @@ sed -i -E 's/^([[:space:]]*)# return 301/\1return 301/' "$CONF"
 
 set_env_var() {
   local key="$1" val="$2" file=".env"
+  # see setup-cloner-keitaro.sh's set_env_var for why: compose
+  # interpolates $VAR in .env, so literal $ must be doubled to $$.
+  val="${val//\$/\$\$}"
   local escaped
   escaped=$(printf '%s\n' "$val" | sed -e 's/[\/&]/\\&/g')
   sed -i "s/^${key}=.*/${key}=${escaped}/" "$file"
