@@ -1,0 +1,65 @@
+# Restores Keitaro admin-panel access over the server's bare IP, which
+# breaks the moment any vhost (like deploy/nginx-cloner-keitaro.conf.example)
+# gets dropped into /etc/keitaro/nginx/conf.d/.
+#
+# Why: nginx picks one "default" server block per listening address:port
+# — the first one it loads, unless a block explicitly declares
+# `default_server`. Keitaro's own admin vhost is baked into the image's
+# nginx.conf (conf.d/ started out empty — see the comments in
+# nginx-cloner-keitaro.conf.example), and before anything else was added
+# to conf.d/, it had no competition for that default slot, so a bare-IP
+# request landed on it by default. Once a named vhost (e.g. the cloner's,
+# for its own domain) exists in conf.d/, THAT block can end up winning the
+# default slot instead — since it has no explicit server_name match
+# conflicting with "_", it's still eligible — leaving bare-IP admin access
+# broken even though Keitaro itself is completely unaffected.
+#
+# This file reclaims the default slot explicitly and proxies straight to
+# Keitaro's own admin service (tracker-admin:8105 — the same internal
+# host:port Keitaro's own nginx env vars already point at; see
+# TRACKER_ADMIN_HOST/TRACKER_ADMIN_PORT in the nginx container's env).
+#
+# Install (filename starts with 00- purely so it sorts first — harmless
+# either way since default_server itself is what matters, not load order,
+# once declared explicitly):
+#   cp deploy/nginx-keitaro-admin-default.conf.example /etc/keitaro/nginx/conf.d/00-keitaro-default.conf
+#   docker exec <nginx-container> nginx -t
+#   docker exec <nginx-container> nginx -s reload
+#
+# To undo: delete that file and reload nginx again.
+
+server {
+    listen 80 default_server;
+    server_name _;
+
+    location / {
+        proxy_pass http://tracker-admin:8105;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 443 ssl default_server;
+    server_name _;
+
+    # nginx requires a certificate on any "ssl" block even with
+    # server_name "_" — reusing an already-issued cert here (e.g. the
+    # cloner's) is fine: a bare-IP HTTPS request already shows a
+    # name-mismatch warning in the browser regardless of which cert is
+    # served, so this doesn't change that, only what's served after you
+    # click through it. Point this at any cert that already exists under
+    # /etc/letsencrypt/live/ on this server.
+    ssl_certificate /etc/letsencrypt/live/YOUR-EXISTING-DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/YOUR-EXISTING-DOMAIN/privkey.pem;
+
+    location / {
+        proxy_pass http://tracker-admin:8105;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
