@@ -70,7 +70,7 @@ footer a{color:var(--muted)}
   <div class="sticky" id="sticky" hidden><a class="cta" href="{{ go_url }}" rel="nofollow sponsored noopener">{{ l.cta or s.operator }}</a></div>
   <footer>
     <p><b>18+</b> · {{ s.age }} {{ s.responsible }}</p>
-    <p>{{ s.help }} <a href="{{ help_url }}" rel="nofollow noopener" target="_blank">gamblingtherapy.org</a></p>
+    <p>{{ s.help }} <a href="{{ help_url }}" rel="nofollow noopener" target="_blank">{{ help_url.split("//")[1].strip("/").removeprefix("www.") }}</a></p>
     {% if project.license_url or project.license_note %}<p>{{ s.operator }}: {% if project.license_url %}<a href="{{ project.license_url }}" rel="nofollow noopener" target="_blank">{{ project.license_url }}</a>{% endif %}{% if project.license_note %}{% if project.license_url %} · {% endif %}{{ project.license_note }}{% endif %}</p>{% endif %}
     <p>{{ s.support }}</p>
     <p>{{ s.ad }}</p>

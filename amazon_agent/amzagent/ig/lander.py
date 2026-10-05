@@ -78,11 +78,36 @@ def badges_for(language: str, country: str) -> list[tuple[str, str, str]]:
     for b in BADGES.get(language, BADGES["en"]):
         if len(b) > 3 and b[3] == "pix" and country != "BR":
             continue
-        out.append(b[:3])
+        out.append(COUNTRY_BADGES.get(country, {}).get(b[1], b[:3]))
     return out
 
 
 HELP_URL = "https://www.gamblingtherapy.org/"
+
+# Where the law asks for its own wording on gambling ads, it replaces the
+# language's default texts (South Africa: the National Gambling Act's
+# under-18 notice and the National Responsible Gambling Programme line).
+COUNTRY_SAFETY = {
+    "ZA": {"age": "No persons under the age of 18 years are permitted to gamble. "
+                  "Winners know when to stop.",
+           "help": "Need help? National Responsible Gambling Programme, free counselling "
+                   "line 0800 006 008:"},
+}
+COUNTRY_HELP_URL = {"ZA": "https://responsiblegambling.org.za/"}
+COUNTRY_BADGES = {
+    "ZA": {"Licensed operator": ("🛡️", "Licensed operator",
+                                 "Licensed by a South African provincial gambling board")},
+}
+
+
+def safety_for(language: str, country: str) -> dict:
+    """The fixed lander texts for this language, with the country's own
+    legal wording where it has one."""
+    return {**SAFETY.get(language, SAFETY["en"]), **COUNTRY_SAFETY.get(country, {})}
+
+
+def help_url_for(country: str) -> str:
+    return COUNTRY_HELP_URL.get(country, HELP_URL)
 
 # Phrases regulators and ad networks reject in gambling ads (checked in the
 # panel, lower-case substrings).

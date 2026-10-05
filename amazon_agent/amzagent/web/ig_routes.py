@@ -59,7 +59,6 @@ from amzagent.content.llm import LLMError, get_llm
 from amzagent.ig.lander import (
     COUNTRIES,
     COUNTRY_LANGUAGE,
-    HELP_URL,
     LANGUAGES,
     PRIVACY,
     SAFETY,
@@ -67,9 +66,11 @@ from amzagent.ig.lander import (
     THEMES,
     badges_for,
     compliance_issues,
+    help_url_for,
     lander_text,
     lines,
     load_lander,
+    safety_for,
     write_lander,
 )
 from amzagent.panel_settings import effective
@@ -601,8 +602,10 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
         pictures = creatives_of(project)
         hero = f"/media/ig{project_id}/{pictures[0][1]}" if pictures else ""
         return LANDER_TEMPLATES.TemplateResponse(request, "lander.html", {
-            "project": project, "l": load_lander(project["lander"]), "s": SAFETY[lang],
-            "lang": lang, "help_url": HELP_URL, "go_url": go + (f"?{params}" if params else ""),
+            "project": project, "l": load_lander(project["lander"]),
+            "s": safety_for(lang, project["country"]), "lang": lang,
+            "help_url": help_url_for(project["country"]),
+            "go_url": go + (f"?{params}" if params else ""),
             "hero": hero, "badges": badges_for(lang, project["country"]),
             "privacy_url": "/privacidade" if on_domain else f"/l/{project_id}/privacidade",
         }, headers={"X-Robots-Tag": "noindex"})
@@ -613,7 +616,8 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
         lang = project["language"] if project["language"] in SAFETY else "en"
         on_domain = project["domain"] and request_host(request) == project["domain"]
         return LANDER_TEMPLATES.TemplateResponse(request, "privacy.html", {
-            "project": project, "lang": lang, "s": SAFETY[lang], "t": PRIVACY[lang],
+            "project": project, "lang": lang, "s": safety_for(lang, project["country"]),
+            "t": PRIVACY[lang],
             "home": "/" if on_domain else f"/l/{project_id}/",
         }, headers={"X-Robots-Tag": "noindex"})
 

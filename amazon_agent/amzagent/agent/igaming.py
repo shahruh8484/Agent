@@ -370,7 +370,8 @@ def project_zones(store, project_id: int) -> tuple[dict[str, dict], dict[str, fl
 def apply_ig_rules(deps, manual: bool) -> None:
     """Kill and zone rules for iGaming campaigns (see the module docstring).
     Bot zones go in both modes; the rest only in auto mode (zone pruning
-    also in manual mode when manual_prune_zones is on)."""
+    also in manual mode when manual_prune_zones is on, the kill rules when
+    ig_manual_kill is on)."""
     from amzagent.agent.runner import (
         AT_NETWORK, KILLED, STOPPED, exclude_zone, stop_campaign)
 
@@ -422,7 +423,7 @@ def apply_ig_rules(deps, manual: bool) -> None:
                 error = exclude_zone(deps, c["id"], zone, reason)
                 if error:
                     deps.say(f"campaign #{c['id']}: zone exclude failed: {error}")
-        if manual or c.get("manual_keep") or payout <= 0:
+        if (manual and not s.ig_manual_kill) or c.get("manual_keep") or payout <= 0:
             continue
         limit = p["kill_spend"] or payout * KILL_CPA_MULTIPLE
         spend = max(c["spend"], estimated_ig_spend(store, c))

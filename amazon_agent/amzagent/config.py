@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     # In manual mode, still exclude zones with no Amazon clicks (same
     # thresholds as in auto mode) on every running campaign.
     manual_prune_zones: bool = True
+    # In manual mode, still stop losing iGaming campaigns (no deposits after
+    # their kill spend, or less than half earned back after twice that).
+    ig_manual_kill: bool = True
     # Exclude a zone once this many of its clicks to Amazon were held back as
     # automated and they outnumber the real ones (0 = off).
     # Post recommendations to the panel chat (rule-based, once an hour).

@@ -223,9 +223,11 @@ def test_rules_judge_by_deposits(settings, store, monkeypatch):
     launch_ig_campaign(deps, pid)
     c2 = store.list_campaigns()[0]
     store.update_campaign(c2["id"], spend=121)
-    apply_ig_rules(deps, manual=True)  # manual mode: no kill
+    settings.ig_manual_kill = False
+    apply_ig_rules(deps, manual=True)  # manual mode, protection off: no kill
     assert store.get_campaign(c2["id"])["status"] == "active"
-    apply_ig_rules(deps, manual=False)
+    settings.ig_manual_kill = True  # the default: losing ones stop in manual mode too
+    apply_ig_rules(deps, manual=True)
     assert "no deposits" in store.get_campaign(c2["id"])["note"]
 
     page = client.get("/admin/ig").text
@@ -690,3 +692,18 @@ def test_south_africa_is_sport_only(settings, store):
         k: p[k] for k in ("name", "brand", "license_url", "offer_url", "payout", "domain",
                           "country", "language", "offer")} | {"theme": "sport"})
     assert "онлайн-казино запрещено" not in client.get("/admin/ig").text
+
+
+def test_south_african_lander_carries_the_legal_notices(settings, store):
+    client = _client(settings, store)
+    _project(client, country="ZA", language="en", domain="bets.example.co.za")
+    p = store.list_ig_projects()[0]
+    store.update_ig_project(p["id"], lander='{"headline": "Bet on the PSL"}')
+    anon = TestClient(create_app(settings, store, start_loop=False))
+    page = anon.get("/", headers={**BROWSER, "host": "bets.example.co.za"}).text
+    assert "No persons under the age of 18 years are permitted to gamble" in page
+    assert "Winners know when to stop" in page and "0800 006 008" in page
+    assert "responsiblegambling.org.za" in page and "provincial gambling board" in page
+    _project(client, name="BR")  # elsewhere the language's own texts stay
+    br = anon.get("/", headers={**BROWSER, "host": "apostas-exemplo.com"}).text
+    assert "gamblingtherapy.org" in br and "0800 006 008" not in br
