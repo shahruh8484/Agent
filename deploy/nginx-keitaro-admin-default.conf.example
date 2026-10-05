@@ -14,19 +14,19 @@
 # conflicting with "_", it's still eligible — leaving bare-IP admin access
 # broken even though Keitaro itself is completely unaffected.
 #
-# This file reclaims the default slot explicitly and proxies to
-# tracker-traffic:6778 — NOT tracker-admin directly. Keitaro's public
-# HTTP entrypoint for everything (both the /admin/ panel AND real
-# tracking-link clicks) is tracker-traffic; it internally forwards /admin/
-# requests on to tracker-admin itself and handles every other path (short
-# campaign codes) itself. Pointing default_server straight at
-# tracker-admin:8105 "fixes" bare-IP admin access but then becomes the
-# catch-all for any domain that loses its own named vhost too (e.g. after
-# removing a conflicting one) — and tracker-admin 404s on tracking-link
-# paths it doesn't understand, silently breaking live campaigns on that
-# domain. tracker-traffic's port (6778) is the same one Keitaro's own
-# nginx env vars use — see TRACKER_TRAFFIC_HOST/TRACKER_TRAFFIC_PORT in
-# the nginx container's env.
+# There is no single backend that handles both cases:
+#   - tracker-admin:8105 serves the admin SPA (and its own assets) but
+#     404s on tracking-link paths (short campaign codes).
+#   - tracker-traffic:6778 handles tracking-link clicks but 404s on
+#     /admin/ itself (it does NOT transparently forward admin requests
+#     on to tracker-admin, despite otherwise looking like Keitaro's one
+#     public HTTP entrypoint).
+# So this reclaims the default slot and splits by path within the same
+# block — the same way Keitaro's own (image-baked) config evidently does
+# it too (see the separate keitaro-admin.access.log file it writes
+# alongside the regular one). Ports/hosts match Keitaro's own nginx env
+# vars (TRACKER_ADMIN_HOST/PORT, TRACKER_TRAFFIC_HOST/PORT in the nginx
+# container's env).
 #
 # Install (filename starts with 00- purely so it sorts first — harmless
 # either way since default_server itself is what matters, not load order,
@@ -40,6 +40,14 @@
 server {
     listen 80 default_server;
     server_name _;
+
+    location /admin/ {
+        proxy_pass http://tracker-admin:8105;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
 
     location / {
         proxy_pass http://tracker-traffic:6778;
@@ -63,6 +71,14 @@ server {
     # /etc/letsencrypt/live/ on this server.
     ssl_certificate /etc/letsencrypt/live/YOUR-EXISTING-DOMAIN/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/YOUR-EXISTING-DOMAIN/privkey.pem;
+
+    location /admin/ {
+        proxy_pass http://tracker-admin:8105;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
 
     location / {
         proxy_pass http://tracker-traffic:6778;
