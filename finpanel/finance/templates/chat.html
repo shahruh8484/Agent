@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Помощник{% endblock %}
+{% block heading %}Помощник{% endblock %}
+{% block content %}
+<style>
+  .chat { max-width: 760px; }
+  .msg { display: flex; margin-bottom: 10px; }
+  .msg.user { justify-content: flex-end; }
+  .bubble { max-width: 80%; padding: 9px 12px; border-radius: 12px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.assistant .bubble { background: var(--panel); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .actions { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; white-space: normal; }
+  .actions ol { margin: 0 0 8px; padding-left: 20px; }
+  .actions li { margin-bottom: 3px; }
+  .actions .btns { display: flex; gap: 8px; }
+  .actions .reject { background: var(--panel2); color: var(--muted); }
+  .result { white-space: pre-wrap; font-size: 0.82rem; color: var(--muted); margin-top: 6px; }
+  .time { font-size: 0.68rem; color: var(--muted); margin-top: 4px; }
+  .composer { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0; display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+  .composer textarea { flex: 1; min-width: 220px; resize: vertical; min-height: 44px; }
+  .attach { background: var(--panel2); color: var(--muted); }
+  #preview { font-size: 0.78rem; color: var(--muted); width: 100%; }
+  .typing { color: var(--muted); font-style: italic; }
+</style>
+<div class="chat">
+  {% if not chat_enabled %}
+  <div class="alert warn">Помощник не подключён: нужен ANTHROPIC_API_KEY в .env на сервере. Все остальные страницы работают без него.</div>
+  {% endif %}
+  {% if not messages %}
+  <div class="card">
+    <h2>Что можно писать</h2>
+    <p class="muted" style="line-height:1.6">
+      «Рекл Ахмед скинул 500$ сегодня»<br>
+      «Вчера Саня → Ахмед: 120 лидов, 110 валид, 30 апрувов»<br>
+      «Заплатил вебу Саня 200$»<br>
+      «Отправил 3 заказа по 990 000 сум, по 5 шт, доставка 25 000»<br>
+      «Заказы 14, 15 выкуплены, 16 невыкуп»<br>
+      «Курьерка перевела 4 500 000 сум»<br>
+      «Сервер 20$, программисту 300$»<br>
+      «Я в плюсе за неделю?» · «Кто мне должен?» · «Сколько можно платить за лид?»<br>
+      Или прикрепите скрин из кабинета — помощник выпишет цифры.
+    </p>
+    <p class="hint">Помощник ничего не записывает сам: он показывает список действий, а вы нажимаете «Подтвердить».</p>
+  </div>
+  {% endif %}
+  <div id="messages">
+    {% for m in messages %}
+    <div class="msg {{ m.role }}">
+      <div class="bubble">{{ m.content }}
+        {% if m.actions %}
+        <div class="actions">
+          <ol>{% for d in m.described %}<li>{{ d }}</li>{% endfor %}</ol>
+          {% if m.actions_status == 'pending' %}
+          <div class="btns">
+            <button onclick="act({{ m.id }}, 'apply', this)">Подтвердить</button>
+            <button class="reject" onclick="act({{ m.id }}, 'reject', this)">Отклонить</button>
+          </div>
+          {% else %}
+          <div class="result">{{ m.actions_result }}</div>
+          {% endif %}
+        </div>
+        {% endif %}
+        <div class="time">{{ m.created_at }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="composer">
+    <textarea id="text" placeholder="Напишите помощнику… (Enter — отправить, Shift+Enter — новая строка)"></textarea>
+    <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+    <button class="attach" onclick="document.getElementById('file').click()" title="Прикрепить скрин">📎</button>
+    <button id="send" onclick="send()">Отправить</button>
+    <div id="preview"></div>
+  </div>
+  {% if messages %}
+  <form method="post" action="/chat/clear" onsubmit="return confirm('Очистить историю чата? Данные в учёте не удалятся.')">
+    <button class="ghost">Очистить историю чата</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const text = document.getElementById('text');
+const fileInput = document.getElementById('file');
+const preview = document.getElementById('preview');
+const sendBtn = document.getElementById('send');
+let pasted = null;
+
+function showPreview() {
+  const f = pasted || fileInput.files[0];
+  preview.textContent = f ? ('Скрин: ' + (f.name || 'из буфера') + ' — будет отправлен') : '';
+}
+fileInput.addEventListener('change', () => { pasted = null; showPreview(); });
+text.addEventListener('paste', (e) => {
+  for (const item of e.clipboardData.items) {
+    if (item.type.startsWith('image/')) { pasted = item.getAsFile(); showPreview(); e.preventDefault(); }
+  }
+});
+text.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+function addBubble(role, content, cls) {
+  const row = document.createElement('div');
+  row.className = 'msg ' + role;
+  const b = document.createElement('div');
+  b.className = 'bubble' + (cls ? ' ' + cls : '');
+  b.textContent = content;
+  row.appendChild(b);
+  document.getElementById('messages').appendChild(row);
+  window.scrollTo(0, document.body.scrollHeight);
+  return row;
+}
+
+async function send() {
+  const msg = text.value.trim();
+  const f = pasted || fileInput.files[0];
+  if (!msg && !f) return;
+  const fd = new FormData();
+  fd.append('message', msg);
+  if (f) fd.append('image', f, f.name || 'screenshot.png');
+  sendBtn.disabled = true;
+  addBubble('user', (f ? '[скриншот] ' : '') + msg);
+  const typing = addBubble('assistant', 'Думаю…', 'typing');
+  text.value = ''; pasted = null; fileInput.value = ''; showPreview();
+  try {
+    const res = await fetch('/chat/send', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) { typing.querySelector('.bubble').textContent = 'Ошибка: ' + (data.error || res.status); return; }
+    location.reload();
+  } catch (err) {
+    typing.querySelector('.bubble').textContent = 'Ошибка сети: ' + err;
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+async function act(id, what, btn) {
+  btn.disabled = true;
+  const res = await fetch('/chat/' + id + '/' + what, { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) alert(data.error || 'Ошибка');
+  location.reload();
+}
+window.scrollTo(0, document.body.scrollHeight);
+</script>
+{% endblock %}

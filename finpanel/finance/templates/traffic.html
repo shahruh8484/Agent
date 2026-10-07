@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Трафик{% endblock %}
+{% block heading %}Трафик: вебы → реклы{% endblock %}
+{% block content %}
+{% set t = rep.total %}
+<div class="grid">
+  <div class="stat"><div class="label">Прибыль (после расходов)</div>
+    <div class="value {{ 'pos' if rep.net_profit > 0 else 'neg' if rep.net_profit < 0 }}">{{ rep.net_profit|usd(true) }}</div>
+    <div class="sub">{{ 'есть предварительные дни' if t.preliminary else 'все дни закрыты' }}</div></div>
+  <div class="stat"><div class="label">Начислено реклами</div><div class="value">{{ t.adv_amount|usd }}</div>
+    <div class="sub">из них по гаранту {{ t.guarantee_bonus|usd }}</div></div>
+  <div class="stat"><div class="label">Начислено вебам</div><div class="value">{{ t.web_amount|usd }}</div>
+    <div class="sub">прочие расходы {{ rep.expenses|usd }}</div></div>
+  <div class="stat"><div class="label">Лиды / апрув</div><div class="value">{{ t.leads|num }}</div>
+    <div class="sub">валид {{ t.valid|num }} · апрувов {{ t.approves|num }} · {{ (t.approve_pct|num ~ '%') if t.approve_pct is not none else '—' }}</div></div>
+</div>
+
+<div class="card">
+  <h2>Внести статистику за день</h2>
+  {% if links %}
+  <form class="inline" method="post" action="/traffic/stat">
+    <label>Связка<select name="link_id">{% for l in links if l.active %}<option value="{{ l.id }}">{{ link_names[l.id] }}</option>{% endfor %}</select></label>
+    <label>Дата<input type="date" name="date" value="{{ today }}" required></label>
+    <label>Лиды<input type="number" name="leads" min="0" required></label>
+    <label>Валидные<input type="number" name="valid" min="0" placeholder="= лидам"></label>
+    <label>Апрувы<input type="number" name="approves" min="0" required></label>
+    <label>Заметка<input name="note"></label>
+    <button>Сохранить</button>
+  </form>
+  <p class="hint">Повторная запись за тот же день перезаписывает его. Гарант применяется к дням не новее позавчера, новее — предварительно.</p>
+  {% else %}<p class="muted">Сначала добавьте рекла, веба и связку ниже.</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2>Связки</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Связка</th><th>Ставки сейчас</th><th class="num">Лиды</th><th class="num">Валид</th><th class="num">Апрув</th><th class="num">%</th>
+        <th class="num">Рекл</th><th class="num">в т.ч. гарант</th><th class="num">Вебу</th><th class="num">Прибыль</th><th></th></tr>
+    {% for l in links %}
+    {% set a = rep.by_link.get(l.id) %}{% set r = rates[l.id] %}
+    <tr>
+      <td>{{ link_names[l.id] }} {% if not l.active %}<span class="tag">выкл</span>{% endif %}</td>
+      <td class="muted">{% if r %}${{ r.adv_rate|num(2) }}/{{ 'апрув' if r.adv_pay_type == 'approve' else 'валид' }}{% if r.guarantee_pct %} · гарант {{ r.guarantee_pct|num }}%{% endif %} → вебу ${{ r.web_rate|num(2) }}/{{ 'апрув' if r.web_pay_type == 'approve' else 'лид' }}{% else %}нет ставок{% endif %}</td>
+      {% if a %}
+      <td class="num">{{ a.leads|num }}</td><td class="num">{{ a.valid|num }}</td><td class="num">{{ a.approves|num }}</td>
+      <td class="num">{{ a.approve_pct|num if a.approve_pct is not none else '—' }}</td>
+      <td class="num">{{ a.adv_amount|usd }}</td><td class="num">{{ a.guarantee_bonus|usd }}</td><td class="num">{{ a.web_amount|usd }}</td>
+      <td class="num {{ 'pos' if a.profit > 0 else 'neg' if a.profit < 0 }}">{{ a.profit|usd(true) }}
+        {% if a.only_by_guarantee %}<span class="tag yellow">только гарант</span>{% endif %}</td>
+      {% else %}<td colspan="8" class="muted">нет данных за период</td>{% endif %}
+      <td><form method="post" action="/traffic/link/toggle"><input type="hidden" name="link_id" value="{{ l.id }}"><input type="hidden" name="active" value="{{ 0 if l.active else 1 }}"><button class="ghost">{{ 'выключить' if l.active else 'включить' }}</button></form></td>
+    </tr>
+    {% else %}<tr><td colspan="11" class="muted">Связок пока нет.</td></tr>{% endfor %}
+  </table></div>
+
+  <details><summary>+ Новая связка</summary>
+    <form class="inline" method="post" action="/traffic/link">
+      <label>Веб<select name="web_id">{% for w in webs %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select></label>
+      <label>Рекл<select name="advertiser_id">{% for a in advertisers %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select></label>
+      <label>Оффер<input name="offer"></label>
+      <label>Действует с<input type="date" name="valid_from" value="{{ today }}" required></label>
+      <label>Рекл платит за<select name="adv_pay_type"><option value="approve">апрув</option><option value="valid">валидный лид</option></select></label>
+      <label>Ставка рекла, $<input type="number" step="0.01" name="adv_rate" required></label>
+      <label>Гарант, %<input type="number" step="0.1" name="guarantee_pct" value="0"></label>
+      <label>Вебу платим за<select name="web_pay_type"><option value="lead">лид</option><option value="approve">апрув</option></select></label>
+      <label>Ставка веба, $<input type="number" step="0.01" name="web_rate" required></label>
+      <button>Создать</button>
+    </form>
+  </details>
+  <details><summary>✎ Изменить ставки связки</summary>
+    <form class="inline" method="post" action="/traffic/rate">
+      <label>Связка<select name="link_id">{% for l in links %}<option value="{{ l.id }}">{{ link_names[l.id] }}</option>{% endfor %}</select></label>
+      <label>Действует с<input type="date" name="valid_from" value="{{ today }}" required></label>
+      <label>Рекл платит за<select name="adv_pay_type"><option value="approve">апрув</option><option value="valid">валидный лид</option></select></label>
+      <label>Ставка рекла, $<input type="number" step="0.01" name="adv_rate" required></label>
+      <label>Гарант, %<input type="number" step="0.1" name="guarantee_pct" value="0"></label>
+      <label>Вебу платим за<select name="web_pay_type"><option value="lead">лид</option><option value="approve">апрув</option></select></label>
+      <label>Ставка веба, $<input type="number" step="0.01" name="web_rate" required></label>
+      <button>Сохранить</button>
+    </form>
+    <p class="hint">Дни до этой даты останутся посчитаны по старым ставкам.</p>
+  </details>
+</div>
+
+<div class="two">
+  <div class="card">
+    <h2>Реклы</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Рекл</th><th>Условия</th><th class="num">Прибыль за период</th><th class="num">Баланс</th></tr>
+      {% for a in advertisers %}{% set agg = rep.by_advertiser.get(a.id) %}{% set b = adv_balances.get(a.id) %}
+      <tr><td>{{ a.name }}</td><td class="muted">{{ a.terms }}</td>
+        <td class="num">{{ agg.profit|usd(true) if agg else '—' }}</td>
+        <td class="num {{ 'pos' if b and b.balance > 0 else 'neg' if b and b.balance < 0 }}">{{ b.balance|usd if b else '—' }}</td></tr>
+      {% else %}<tr><td colspan="4" class="muted">Пока нет.</td></tr>{% endfor %}
+    </table></div>
+    <details><summary>+ Добавить рекла</summary>
+      <form class="inline" method="post" action="/traffic/advertiser">
+        <label>Имя<input name="name" required></label>
+        <label>Условия<input name="terms" placeholder="предоплата раз в неделю"></label>
+        <button>Добавить</button>
+      </form>
+    </details>
+  </div>
+  <div class="card">
+    <h2>Вебы (трафик)</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Веб</th><th class="num">Прибыль за период</th><th class="num">Баланс</th></tr>
+      {% for w in webs %}{% set agg = rep.by_web.get(w.id) %}{% set b = web_balances.get(w.id) %}
+      {% if agg or b %}<tr><td>{{ w.name }}</td>
+        <td class="num">{{ agg.profit|usd(true) if agg else '—' }}</td>
+        <td class="num {{ 'pos' if b and b.balance > 0 else 'neg' if b and b.balance < 0 }}">{{ b.balance|usd if b else '—' }}</td></tr>{% endif %}
+      {% endfor %}
+    </table></div>
+    <details><summary>+ Добавить веба</summary>
+      <form class="inline" method="post" action="/webs/add">
+        <input type="hidden" name="next" value="/traffic">
+        <label>Имя<input name="name" required></label>
+        <label>Условия<input name="terms" placeholder="платим через неделю"></label>
+        <button>Добавить</button>
+      </form>
+    </details>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Деньги по трафику</h2>
+  <form class="inline" method="post" action="/money/payment">
+    <input type="hidden" name="next" value="/traffic">
+    <input type="hidden" name="direction" value="traffic">
+    <label>Кто<select name="party">
+      <optgroup label="Получили от рекла">{% for a in advertisers %}<option value="advertiser:{{ a.id }}">{{ a.name }}</option>{% endfor %}</optgroup>
+      <optgroup label="Заплатили вебу">{% for w in webs %}<option value="web:{{ w.id }}">{{ w.name }}</option>{% endfor %}</optgroup>
+    </select></label>
+    <label>Дата<input type="date" name="date" value="{{ today }}" required></label>
+    <label>Сумма<input type="number" step="0.01" name="amount" required></label>
+    <label>Валюта<select name="currency"><option value="usd">$</option><option value="uzs">сум</option></select></label>
+    <label>Заметка<input name="note"></label>
+    <button>Записать</button>
+  </form>
+  <div class="table-wrap" style="margin-top:12px;"><table>
+    <tr><th>Дата</th><th>Кто</th><th class="num">Сумма</th><th>Заметка</th><th></th></tr>
+    {% for p in payments %}
+    <tr><td>{{ p.date }}</td><td>{{ 'от рекла' if p.party_type == 'advertiser' else 'вебу' }} {{ p.party_name }}</td>
+      <td class="num {{ 'pos' if p.party_type == 'advertiser' else 'neg' }}">{{ ('+' if p.party_type == 'advertiser' else '−') ~ (p.amount_usd|usd) }}</td>
+      <td class="muted">{{ p.note }}</td>
+      <td><form method="post" action="/money/payment/delete" onsubmit="return confirm('Удалить платёж?')"><input type="hidden" name="payment_id" value="{{ p.id }}"><input type="hidden" name="next" value="/traffic"><button class="ghost">✕</button></form></td></tr>
+    {% else %}<tr><td colspan="5" class="muted">За период платежей нет.</td></tr>{% endfor %}
+  </table></div>
+</div>
+
+<div class="card">
+  <h2>Статистика по дням</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Дата</th><th>Связка</th><th class="num">Лиды</th><th class="num">Валид</th><th class="num">Апрув</th><th class="num">Рекл</th><th class="num">Вебу</th><th class="num">Прибыль</th><th></th><th></th></tr>
+    {% for r in rep.rows %}
+    <tr><td>{{ r.date }}</td><td>{{ link_names.get(r.link_id, '#' ~ r.link_id) }}</td>
+      <td class="num">{{ r.leads }}</td><td class="num">{{ r.valid }}</td><td class="num">{{ r.approves }}</td>
+      <td class="num">{{ r.adv_amount|usd }}{% if r.guarantee_bonus > 0 %} <span class="tag yellow">гарант</span>{% endif %}</td>
+      <td class="num">{{ r.web_amount|usd }}</td>
+      <td class="num {{ 'pos' if r.profit > 0 else 'neg' if r.profit < 0 }}">{{ r.profit|usd(true) }}</td>
+      <td>{% if r.missing_rate %}<span class="tag red">нет ставок</span>{% elif not r.final %}<span class="tag">предв.</span>{% endif %}</td>
+      <td><form method="post" action="/traffic/stat/delete" onsubmit="return confirm('Удалить строку?')"><input type="hidden" name="stat_id" value="{{ r.stat_id }}"><button class="ghost">✕</button></form></td></tr>
+    {% else %}<tr><td colspan="10" class="muted">За период нет статистики.</td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endblock %}

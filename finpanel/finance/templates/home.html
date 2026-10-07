@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Главная{% endblock %}
+{% block heading %}Главная{% endblock %}
+{% block content %}
+{% set total = s.total_profit %}
+<div class="grid">
+  <div class="stat">
+    <div class="label">Итог: прибыль</div>
+    <div class="value {{ 'pos' if total > 0 else 'neg' if total < 0 }}">{{ total|usd(true) }}</div>
+    <div class="sub">{{ 'Вы в плюсе' if total > 0 else 'Вы в минусе' if total < 0 else 'Ноль' }} — по начислениям</div>
+  </div>
+  <div class="stat">
+    <div class="label">Трафик</div>
+    <div class="value {{ 'pos' if s.traffic.net_profit > 0 else 'neg' if s.traffic.net_profit < 0 }}">{{ s.traffic.net_profit|usd(true) }}</div>
+    <div class="sub">реклы {{ s.traffic.total.adv_amount|usd }} − вебы {{ s.traffic.total.web_amount|usd }} − расходы {{ s.traffic.expenses|usd }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Мой товар</div>
+    <div class="value {{ 'pos' if s.product.profit > 0 else 'neg' if s.product.profit < 0 }}">{{ s.product.profit|usd(true) }}</div>
+    <div class="sub">выкуплено {{ s.product.delivered }} · выручка {{ s.product.revenue|usd }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Общие расходы</div>
+    <div class="value">{{ s.general_expenses|usd }}</div>
+    <div class="sub">сервер, программист и т.п.</div>
+  </div>
+  <div class="stat">
+    <div class="label">Касса: пришло − ушло</div>
+    <div class="value {{ 'pos' if s.cash.net > 0 else 'neg' if s.cash.net < 0 }}">{{ s.cash.net|usd(true) }}</div>
+    <div class="sub">пришло {{ s.cash.inflow|usd }} · ушло {{ s.cash.outflow|usd }}</div>
+  </div>
+</div>
+<p class="hint" style="margin-top:-6px; margin-bottom:16px;">
+  <b>Прибыль</b> — сколько заработано за период, даже если деньги ещё не пришли.
+  <b>Касса</b> — сколько денег реально пришло и ушло (предоплаты реклов, выплаты вебам, наложка, закупки).
+</p>
+
+{% if alerts %}
+<div class="card">
+  <h2>Внимание</h2>
+  {% for a in alerts %}<div class="alert {{ a.level }}">{{ a.text }}</div>{% endfor %}
+</div>
+{% endif %}
+
+<div class="two">
+  <div class="card">
+    <h2>Реклы — предоплата</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Рекл</th><th class="num">Получено</th><th class="num">Отработано</th><th class="num">Баланс</th><th class="num">Хватит</th></tr>
+      {% for b in adv_balances %}
+      <tr>
+        <td>{{ b.name }}</td>
+        <td class="num">{{ b.paid|usd }}</td>
+        <td class="num">{{ b.accrued|usd }}</td>
+        <td class="num {{ 'pos' if b.balance > 0 else 'neg' if b.balance < 0 }}">{{ b.balance|usd }}</td>
+        <td class="num">{{ (b.days_left|num ~ ' дн.') if b.days_left is not none else '—' }}</td>
+      </tr>
+      {% else %}<tr><td colspan="5" class="muted">Реклов пока нет.</td></tr>{% endfor %}
+    </table></div>
+    <p class="hint">Плюс — его предоплата, ещё не отработанная. Минус — он вам должен.</p>
+  </div>
+  <div class="card">
+    <h2>Вебы — балансы</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Веб</th><th>Направление</th><th class="num">Баланс</th></tr>
+      {% for b in web_traffic %}<tr><td>{{ b.name }}</td><td>Трафик</td><td class="num {{ 'pos' if b.balance > 0 else 'neg' if b.balance < 0 }}">{{ b.balance|usd }}</td></tr>{% endfor %}
+      {% for b in web_product %}<tr><td>{{ b.name }}</td><td>Товар</td><td class="num {{ 'pos' if b.balance > 0 else 'neg' if b.balance < 0 }}">{{ b.balance|usd }}</td></tr>{% endfor %}
+      {% if not web_traffic and not web_product %}<tr><td colspan="3" class="muted">Нет данных.</td></tr>{% endif %}
+    </table></div>
+    <p class="hint">Плюс — вы заплатили вперёд. Минус — вы должны вебу.</p>
+  </div>
+</div>
+
+<div class="two">
+  <div class="card">
+    <h2>Курьерка</h2>
+    <p>Должна перечислить за выкупленные заказы: <b>{{ courier.owed_uzs|uzs }}</b>
+      <span class="muted">(≈ {{ (courier.owed_uzs / settings.usd_uzs_rate)|usd }})</span></p>
+    <p class="hint">Выкуплено всего {{ courier.delivered_uzs|uzs }}, получено {{ courier.received_uzs|uzs }}.</p>
+  </div>
+  <div class="card">
+    <h2>Склад</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Товар</th><th class="num">На складе</th><th class="num">В пути</th><th class="num">Расход/день</th><th class="num">Хватит</th></tr>
+      {% for st in stock %}
+      <tr><td>{{ st.name }}</td><td class="num">{{ st.on_hand|num }}</td><td class="num">{{ st.in_transit|num }}</td>
+          <td class="num">{{ st.avg_daily_out|num }}</td><td class="num">{{ (st.days_left|num ~ ' дн.') if st.days_left is not none else '—' }}</td></tr>
+      {% else %}<tr><td colspan="5" class="muted">Товаров пока нет.</td></tr>{% endfor %}
+    </table></div>
+  </div>
+</div>
+{% endblock %}
