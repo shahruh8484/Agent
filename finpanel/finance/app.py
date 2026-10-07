@@ -21,14 +21,14 @@ from finance import calc
 from finance.assistant import (
     SYSTEM_PROMPT,
     AssistantError,
-    ClaudeBackend,
     apply_action,
     build_context,
     describe_action,
     history_to_messages,
+    make_backend,
     user_content,
 )
-from finance.config import Settings, get_settings
+from finance.config import Settings, assistant_provider, get_settings
 from finance.db import DB, Repo
 from finance.security import verify_password
 
@@ -76,9 +76,8 @@ def create_app(
     repo = repo or Repo(DB(Path(settings.data_dir) / "finance.db"))
     tz = ZoneInfo(settings.timezone)
     today_fn = today_fn or (lambda: datetime.now(tz).date())
-    backend_factory = backend_factory or (
-        lambda: ClaudeBackend(settings.anthropic_api_key, settings.anthropic_model)
-    )
+    backend_factory = backend_factory or (lambda: make_backend(settings))
+    provider_label = {"openai": f"OpenAI ({settings.openai_model})", "anthropic": f"Claude ({settings.anthropic_model})"}
 
     app = FastAPI(title="Finance Panel")
     app.add_middleware(
@@ -569,7 +568,10 @@ def create_app(
     def settings_page(request: Request):
         if not authed(request):
             return login_redirect()
-        return render(request, "settings.html", "settings", chat_enabled=bool(settings.anthropic_api_key))
+        return render(
+            request, "settings.html", "settings",
+            chat_provider=provider_label.get(assistant_provider(settings), ""),
+        )
 
     @app.post("/settings")
     def settings_save(
@@ -607,7 +609,8 @@ def create_app(
         messages = repo.chat_messages()
         for m in messages:
             m["described"] = [describe_action(a["name"], a["input"]) for a in m["actions"]]
-        return render(request, "chat.html", "chat", messages=messages, chat_enabled=bool(settings.anthropic_api_key))
+        return render(request, "chat.html", "chat", messages=messages,
+                      chat_enabled=bool(assistant_provider(settings)))
 
     @app.post("/chat/send")
     async def chat_send(request: Request, message: str = Form(""), image: UploadFile | None = File(None)):

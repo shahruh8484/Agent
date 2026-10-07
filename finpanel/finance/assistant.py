@@ -1,4 +1,5 @@
-"""The chat assistant: a finance helper / bookkeeper backed by Claude.
+"""The chat assistant: a finance helper / bookkeeper backed by OpenAI or
+Claude (whichever key is configured).
 
 It reads the current books (built into the system prompt) and answers
 questions. To change the books it *proposes* actions via tool calls —
@@ -9,6 +10,7 @@ the accounting.
 from __future__ import annotations
 
 import base64
+import json
 import logging
 from datetime import date, timedelta
 
@@ -427,6 +429,82 @@ class ClaudeBackend:
             if b.type == "tool_use" and b.name in TOOL_NAMES
         ]
         return text, actions
+
+
+OPENAI_TOOLS = [
+    {"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["input_schema"]}}
+    for t in TOOLS
+]
+
+
+def _to_openai_content(content: list[dict] | str) -> list[dict] | str:
+    """Our messages use the Anthropic content shape (text / base64 image
+    blocks); convert image blocks to OpenAI's data-URL form."""
+    if isinstance(content, str):
+        return content
+    parts = []
+    for block in content:
+        if block["type"] == "image":
+            src = block["source"]
+            parts.append({"type": "image_url", "image_url": {"url": f"data:{src['media_type']};base64,{src['data']}"}})
+        else:
+            parts.append({"type": "text", "text": block["text"]})
+    return parts
+
+
+class OpenAIBackend:
+    def __init__(self, api_key: str, model: str, client=None):
+        if not api_key and client is None:
+            raise AssistantError("OPENAI_API_KEY не задан — чат и распознавание скринов недоступны.")
+        import openai
+
+        self._openai = openai
+        self._client = client or openai.OpenAI(api_key=api_key)
+        self._model = model
+
+    def respond(self, system: str, messages: list[dict]) -> tuple[str, list[dict]]:
+        chat = [{"role": "system", "content": system}] + [
+            {"role": m["role"], "content": _to_openai_content(m["content"])} for m in messages
+        ]
+        try:
+            response = self._client.chat.completions.create(
+                model=self._model,
+                messages=chat,
+                tools=OPENAI_TOOLS,
+                max_completion_tokens=4000,
+            )
+        except self._openai.APIStatusError as exc:
+            logger.exception("OpenAI API error")
+            raise AssistantError(f"Ошибка OpenAI API ({exc.status_code}): {exc.message}") from exc
+        except self._openai.APIConnectionError as exc:
+            raise AssistantError("Нет связи с OpenAI API.") from exc
+
+        message = response.choices[0].message
+        actions = []
+        for call in message.tool_calls or []:
+            if call.type != "function" or call.function.name not in TOOL_NAMES:
+                continue
+            try:
+                args = json.loads(call.function.arguments or "{}")
+            except json.JSONDecodeError:
+                logger.warning("Skipping tool call with invalid JSON: %s", call.function.name)
+                continue
+            actions.append({"name": call.function.name, "input": args})
+        return (message.content or "").strip(), actions
+
+
+def make_backend(settings):
+    from finance.config import assistant_provider
+
+    provider = assistant_provider(settings)
+    if provider == "openai":
+        return OpenAIBackend(settings.openai_api_key, settings.openai_model)
+    if provider == "anthropic":
+        return ClaudeBackend(settings.anthropic_api_key, settings.anthropic_model)
+    raise AssistantError(
+        "Помощник не подключён: добавьте OPENAI_API_KEY (или ANTHROPIC_API_KEY) в .env на сервере "
+        "и перезапустите панель."
+    )
 
 
 def history_to_messages(history: list[dict]) -> list[dict]:

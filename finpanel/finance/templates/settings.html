@@ -16,7 +16,7 @@
 </div>
 <div class="card">
   <h2>Помощник</h2>
-  {% if chat_enabled %}<p class="pos">Подключён (Claude API).</p>
-  {% else %}<p class="warn">Не подключён: добавьте ANTHROPIC_API_KEY в .env на сервере и перезапустите панель. Всё остальное работает без него.</p>{% endif %}
+  {% if chat_provider %}<p class="pos">Подключён: {{ chat_provider }}.</p>
+  {% else %}<p class="warn">Не подключён: добавьте OPENAI_API_KEY (или ANTHROPIC_API_KEY) в .env на сервере и перезапустите панель. Всё остальное работает без него.</p>{% endif %}
 </div>
 {% endblock %}

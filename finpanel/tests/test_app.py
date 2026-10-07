@@ -104,6 +104,14 @@ def test_forms_create_records(settings, repo):
     assert repo.usd_uzs_rate() == 12000
 
 
+def test_settings_shows_openai_provider(settings, repo):
+    settings.anthropic_api_key = ""
+    settings.openai_api_key = "sk-test"
+    client = make_client(settings, repo)
+    login(client)
+    assert "Подключён: OpenAI (gpt-4o)" in client.get("/settings").text
+
+
 def test_form_error_is_shown(settings, repo):
     client = make_client(settings, repo)
     login(client)

@@ -24,7 +24,7 @@
 </style>
 <div class="chat">
   {% if not chat_enabled %}
-  <div class="alert warn">Помощник не подключён: нужен ANTHROPIC_API_KEY в .env на сервере. Все остальные страницы работают без него.</div>
+  <div class="alert warn">Помощник не подключён: нужен OPENAI_API_KEY (или ANTHROPIC_API_KEY) в .env на сервере. Все остальные страницы работают без него.</div>
   {% endif %}
   {% if not messages %}
   <div class="card">

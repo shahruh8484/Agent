@@ -5,7 +5,7 @@
 1. **Трафик** — перепродажа трафика: вебы → вы → реклы.
 2. **Мой товар** — свой товар: лиды от вебов → оператор → отправка наложенным платежом → выкуп или невыкуп.
 
-Плюс **помощник в чате** (Claude). Ему можно писать обычным текстом или кидать скрины, он сам предлагает, что внести. Записывает только после вашего «Подтвердить».
+Плюс **помощник в чате** (OpenAI или Claude). Ему можно писать обычным текстом или кидать скрины, он сам предлагает, что внести. Записывает только после вашего «Подтвердить».
 
 ## Что считает
 
@@ -40,7 +40,7 @@
    python3 -c "import secrets; print(secrets.token_hex(32))"   # → SECRET_KEY
    docker compose build app
    docker compose run --rm app python -m finance.security "ваш-пароль"   # → ADMIN_PASSWORD_HASH
-   nano .env   # DOMAIN, SECRET_KEY, ADMIN_PASSWORD_HASH (в одинарных кавычках!), ANTHROPIC_API_KEY
+   nano .env   # DOMAIN, SECRET_KEY, ADMIN_PASSWORD_HASH (в одинарных кавычках!), OPENAI_API_KEY
    docker compose up -d
    ```
    Хеш пароля содержит символы `$`, поэтому в `.env` пишите его так: `ADMIN_PASSWORD_HASH='$2b$12$...'`.
@@ -55,7 +55,11 @@
 
 ## Помощник (чат)
 
-Нужен ключ Claude API: [console.anthropic.com](https://console.anthropic.com) → `ANTHROPIC_API_KEY` в `.env`. Без ключа работает всё, кроме чата.
+Нужен один ключ — любой из двух:
+- OpenAI: [platform.openai.com/api-keys](https://platform.openai.com/api-keys) → `OPENAI_API_KEY` в `.env` (модель — `OPENAI_MODEL`, по умолчанию `gpt-4o`);
+- или Claude: [console.anthropic.com](https://console.anthropic.com) → `ANTHROPIC_API_KEY`.
+
+После правки `.env`: `docker compose up -d --force-recreate app`. Без ключа работает всё, кроме чата.
 
 ## Локальный запуск и тесты
 
