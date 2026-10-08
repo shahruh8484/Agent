@@ -92,3 +92,13 @@ def test_import_pages(repo, tmp_path):
     assert len(repo.payments()) == 6
     money = client.get("/money?period=all").text
     assert "Свои деньги" in money
+
+
+def test_dates_with_commas():
+    rows, problems = importer.parse("\tприход\tрасход\n01,10,2026\t10000\t\tсанж\n01,10,2026\t\t4,9\tкомиссия\n03.10.26\t400\t\tвикинг\n")
+    assert problems == []
+    assert [(r.date, r.amount_in, r.amount_out, r.name) for r in rows] == [
+        ("2026-10-01", 10000, 0, "санж"),
+        ("2026-10-01", 0, 4.9, "комиссия"),
+        ("2026-10-03", 400, 0, "викинг"),
+    ]

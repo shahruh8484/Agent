@@ -54,7 +54,7 @@ def _number(text: str) -> float:
 
 def _date(text: str) -> str | None:
     text = text.strip()
-    m = re.fullmatch(r"(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})", text)
+    m = re.fullmatch(r"(\d{1,2})\s*[./,-]\s*(\d{1,2})\s*[./,-]\s*(\d{2,4})", text)
     if m:
         d, mo, y = (int(x) for x in m.groups())
         y = y + 2000 if y < 100 else y
