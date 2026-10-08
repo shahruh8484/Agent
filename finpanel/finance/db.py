@@ -455,6 +455,11 @@ class Repo:
         sql, params = _date_filter("SELECT * FROM traffic_stats", "date", start, end)
         return self.db.query(sql + " ORDER BY date DESC, link_id", params)
 
+    def delete_traffic_stats_range(self, link_id: int, start: str, end: str) -> None:
+        self.db.execute(
+            "DELETE FROM traffic_stats WHERE link_id = ? AND date >= ? AND date <= ?", (link_id, start, end)
+        )
+
     def delete_traffic_stat(self, stat_id: int) -> None:
         self.db.execute("DELETE FROM traffic_stats WHERE id = ?", (stat_id,))
 

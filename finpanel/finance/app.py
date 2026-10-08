@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from finance import calc, importer
+from finance import calc, importer, stats_import
 from finance.assistant import (
     SYSTEM_PROMPT,
     AssistantError,
@@ -660,6 +660,97 @@ def create_app(
         if res.errors:
             return back("/money", msg=msg, error="; ".join(res.errors[:10]), period="all")
         return back("/money", msg=msg, period="all")
+
+    # ---------------------------------------------------- stats file import
+
+    def _link_names() -> dict[int, str]:
+        return {
+            l["id"]: f"{l['web_name']} → {l['advertiser_name']}" + (f" ({l['offer']})" if l["offer"] else "")
+            for l in repo.links()
+        }
+
+    @app.get("/import/stats")
+    def stats_import_page(request: Request):
+        if not authed(request):
+            return login_redirect()
+        return render(request, "import_stats.html", "import", stage="upload", link_names=_link_names())
+
+    @app.post("/import/stats/preview")
+    async def stats_import_preview(request: Request, link_id: int = Form(...), file: UploadFile = File(...)):
+        if not authed(request):
+            return login_redirect()
+        data = await file.read()
+        try:
+            if len(data) > 5 * 1024 * 1024:
+                raise stats_import.StatsFileError("Файл больше 5 МБ.")
+            rows = stats_import.read_table(file.filename or "", data)
+            if not rows:
+                raise stats_import.StatsFileError("Файл пустой.")
+        except stats_import.StatsFileError as exc:
+            return back("/import/stats", error=str(exc))
+        header_idx, mapping = stats_import.guess_columns(rows)
+        days, problems = stats_import.extract(rows, mapping)
+        return render(
+            request,
+            "import_stats.html",
+            "import",
+            stage="map",
+            link_id=link_id,
+            link_names=_link_names(),
+            tsv=stats_import.to_tsv(rows),
+            columns=stats_import.column_options(rows, header_idx),
+            fields=stats_import.FIELDS,
+            mapping=mapping,
+            days=days,
+            problems=problems,
+        )
+
+    @app.post("/import/stats/repreview")
+    async def stats_import_repreview(request: Request):
+        """Same file, columns chosen by hand: show what would be loaded."""
+        if not authed(request):
+            return login_redirect()
+        form = await request.form()
+        tsv = str(form.get("tsv", ""))
+        rows = stats_import.from_tsv(tsv)
+        mapping = {}
+        for field, _ in stats_import.FIELDS:
+            value = str(form.get(f"col_{field}", ""))
+            mapping[field] = int(value) if value.isdigit() else None
+        header_idx, _ = stats_import.guess_columns(rows)
+        days, problems = stats_import.extract(rows, mapping)
+        link_id = int(str(form.get("link_id", "0")) or 0)
+        return render(
+            request, "import_stats.html", "import", stage="map", link_id=link_id, link_names=_link_names(),
+            tsv=tsv, columns=stats_import.column_options(rows, header_idx), fields=stats_import.FIELDS,
+            mapping=mapping, days=days, problems=problems,
+        )
+
+    @app.post("/import/stats/commit")
+    async def stats_import_commit(request: Request):
+        if not authed(request):
+            return login_redirect()
+        form = await request.form()
+        rows = stats_import.from_tsv(str(form.get("tsv", "")))
+        mapping = {}
+        for field, _ in stats_import.FIELDS:
+            value = str(form.get(f"col_{field}", ""))
+            mapping[field] = int(value) if value.isdigit() else None
+        if mapping.get("date") is None or mapping.get("leads") is None or mapping.get("approves") is None:
+            return back("/import/stats", error="Укажите колонки даты, лидов и апрувов.")
+        days, _ = stats_import.extract(rows, mapping)
+        if not days:
+            return back("/import/stats", error="Не нашёл ни одного дня с цифрами — проверьте выбор колонок.")
+        try:
+            n = stats_import.apply(repo, int(str(form.get("link_id", "0"))), days,
+                                   replace=stats_import.covered_range(rows, mapping))
+        except ValueError as exc:
+            return back("/import/stats", error=str(exc))
+        return back(
+            "/traffic",
+            msg=f"Загружено дней: {n} ({days[0].date} — {days[-1].date}). Сверьте итог с сетью.",
+            **{"from": days[0].date, "to": days[-1].date},
+        )
 
     # ------------------------------------------------------------- settings
 

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Импорт статистики{% endblock %}
+{% block heading %}Импорт статистики из файла{% endblock %}
+{% block content %}
+{% if stage == 'upload' %}
+<div class="card">
+  <h2>1. Файл из сети</h2>
+  <p class="muted" style="line-height:1.6">
+    В сети откройте «Общая статистика»: <b>Группа — Дата</b>, нужный веб-мастер и рекламодатель, период (можно сразу с июля),
+    нажмите «Обновить», затем кнопку скачивания справа. Получится файл <b>.xlsx</b> или <b>.csv</b> — загрузите его сюда.
+  </p>
+  {% if link_names %}
+  <form method="post" action="/import/stats/preview" enctype="multipart/form-data" class="inline">
+    <label>Связка (чья это статистика)<select name="link_id">{% for id, name in link_names.items() %}<option value="{{ id }}">{{ name }}</option>{% endfor %}</select></label>
+    <label>Файл<input type="file" name="file" accept=".xlsx,.csv,.txt" required></label>
+    <button>Дальше →</button>
+  </form>
+  <p class="hint">Файл <b>заменяет</b> статистику этой связки за весь свой период: каждый день перезаписывается свежими цифрами (так подтягиваются поздние апрувы), а старые неверные записи за этот период удаляются.</p>
+  {% else %}<p class="warn">Сначала создайте связку на странице «Трафик».</p>{% endif %}
+</div>
+{% else %}
+<form method="post" action="/import/stats/commit">
+  <input type="hidden" name="tsv" value="{{ tsv }}">
+  <input type="hidden" name="link_id" value="{{ link_id }}">
+  <div class="card">
+    <h2>2. Какие колонки что значат — {{ link_names.get(link_id, '') }}</h2>
+    <p class="muted">Я угадал по заголовкам — проверьте. Под таблицей видно, что получится.</p>
+    <div class="table-wrap"><table>
+      {% for field, label in fields %}
+      <tr><td style="width:180px"><b>{{ label }}</b></td>
+        <td><select name="col_{{ field }}" onchange="this.form.dataset.changed=1">
+          <option value="">— нет —</option>
+          {% for c in columns %}<option value="{{ c.index }}" {{ 'selected' if mapping.get(field) == c.index }}>{{ c.label }}{% if c.samples %} — {{ c.samples }}{% endif %}</option>{% endfor %}
+        </select></td></tr>
+      {% endfor %}
+    </table></div>
+    <p class="hint">Если валидных нет — оставьте «нет», будет равно лидам. Если поменяли колонки — нажмите «Пересчитать», чтобы увидеть результат.</p>
+    <div style="display:flex; gap:10px; margin-top:12px">
+      <button>Загрузить {{ days|length }} дн.</button>
+      <button formaction="/import/stats/repreview" class="ghost" style="color:#8fa6ff">Пересчитать</button>
+      <a href="/import/stats" style="align-self:center">← другой файл</a>
+    </div>
+  </div>
+</form>
+{% if problems %}<div class="card"><h2>Не распознано</h2>{% for p in problems %}<div class="alert warn">{{ p }}</div>{% endfor %}</div>{% endif %}
+<div class="card">
+  <h2>Что загрузится</h2>
+  {% set tl = days|sum(attribute='leads') %}{% set tv = days|sum(attribute='valid') %}{% set ta = days|sum(attribute='approves') %}
+  <p>Итого: <b>{{ tl|num }}</b> лидов · <b>{{ tv|num }}</b> валид · <b>{{ ta|num }}</b> апрувов — сверьте со строкой «Итого» в сети.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Дата</th><th class="num">Лиды</th><th class="num">Валид</th><th class="num">Апрувы</th></tr>
+    {% for d in days %}<tr><td>{{ d.date }}</td><td class="num">{{ d.leads }}</td><td class="num">{{ d.valid }}</td><td class="num">{{ d.approves }}</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">Ни одного дня — поменяйте колонки и нажмите «Пересчитать».</td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endif %}
+{% endblock %}
