@@ -707,3 +707,23 @@ def test_south_african_lander_carries_the_legal_notices(settings, store):
     _project(client, name="BR")  # elsewhere the language's own texts stay
     br = anon.get("/", headers={**BROWSER, "host": "apostas-exemplo.com"}).text
     assert "gamblingtherapy.org" in br and "0800 006 008" not in br
+
+
+def test_launch_with_a_whitelist_of_zones(settings, store, monkeypatch):
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)
+    for zone, clicks in (("1111", 3), ("2222", 0)):
+        for _ in range(40):
+            store.log_ig_event(pid, "visit", campaign="1", zone=zone)
+        for i in range(clicks):
+            store.log_ig_event(pid, "click", click_id=f"k{zone}{i}", campaign="1", zone=zone)
+    page = client.get("/admin/ig").text
+    assert "Запустить с вайт-листом" in page and 'data-zones="1111"' in page
+
+    answer = client.post(f"/admin/ig/projects/{pid}/launch-whitelist", data={"zones": "abc"}).text
+    assert "впишите ID площадок" in answer and not store.list_campaigns()
+    client.post(f"/admin/ig/projects/{pid}/launch-whitelist",
+                data={"zones": "1111, 3333\n1111 4444"})  # dry run (PUSH_LIVE off)
+    c = store.list_campaigns()[0]
+    assert c["zones_only"] == "1111,3333,4444" and c["manual_keep"] == 1
+    assert "вайт-лист (3): 1111, 3333, 4444" in client.get("/admin/ig").text

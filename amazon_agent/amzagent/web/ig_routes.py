@@ -107,6 +107,11 @@ EVENT_NAMES = {"reg": "регистрация", "ftd": "первый депоз�
 DEVICES = {"mobile": "Телефоны и планшеты", "desktop": "Компьютеры"}
 # Bot filter on the lander's button (same checks as the Amazon sites' /go/).
 FAST_CLICK_SECONDS = 2
+# Whitelist launches: zone IDs are numbers; a zone needs this many visits to
+# be judged by its button-press rate.
+ZONE_ID_RE = re.compile(r"\b\d{3,12}\b")
+WL_MAX_ZONES = 500
+WL_MIN_VISITS = 30
 IP_CLICKS_PER_HOUR = 5
 HARD_BOT_REASONS = {"bot-ua", "webdriver", "repeat-ip"}
 CONTINUE_TEXT = {"pt": ("Quase lá", "Toque no botão para continuar para o site do operador.",
@@ -312,6 +317,17 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
                 z["spent"] = spent_by_zone.get(z["zone"], 0.0)
                 z["off"] = z["zone"] in off
             p["can_toggle"] = bool(running)
+            # Ready-made picks for a whitelist launch (all-time, zones still on).
+            every = store.ig_zone_stats(p["id"], limit=100_000)
+            base = p["stats_all"]
+            rate = base["click"] / base["visit"] if base["visit"] else 0.0
+            p["wl_presets"] = {
+                "deposits": [z["zone"] for z in every if (z["ftds"] or 0) - (z["rejs"] or 0) > 0],
+                "clicks": [z["zone"] for z in every if z["clicks"] and z["zone"] not in off],
+                "ctr": [z["zone"] for z in every
+                        if z["zone"] not in off and (z["visits"] or 0) >= WL_MIN_VISITS
+                        and rate and z["clicks"] / z["visits"] >= rate],
+            }
             p["spent"] = sum(c["period_spend"] for c in p["campaigns"])
             p["warnings"] = warnings
         flash = request.session.pop("flash", None)
@@ -478,6 +494,24 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
         return back(request, f"Кампания не запущена: {error}" if error else
                     "Кампания отправлена на модерацию PropellerAds; начнёт работать после "
                     "одобрения.", f"#push{project_id}")
+
+    @app.post("/admin/ig/projects/{project_id}/launch-whitelist")
+    async def ig_launch_whitelist(request: Request, project_id: int):
+        """New campaign that runs only on the zones the owner listed."""
+        if not logged_in(request):
+            return to_login()
+        form = await request.form()
+        zones = list(dict.fromkeys(ZONE_ID_RE.findall(str(form.get("zones") or ""))))
+        if not zones:
+            return back(request, "Вайт-лист не запущен: впишите ID площадок (цифры через "
+                                 "пробел, запятую или с новой строки).", f"#push{project_id}")
+        if len(zones) > WL_MAX_ZONES:
+            return back(request, f"Вайт-лист не запущен: площадок {len(zones)}, максимум "
+                                 f"{WL_MAX_ZONES}.", f"#push{project_id}")
+        error = launch_ig_campaign(build_deps(settings, store), project_id, zones=zones)
+        return back(request, f"Кампания не запущена: {error}" if error else
+                    f"Вайт-лист на {len(zones)} площадок отправлен на модерацию PropellerAds.",
+                    f"#push{project_id}")
 
     @app.post("/admin/ig/campaigns/{campaign_id}/stop")
     def ig_stop(request: Request, campaign_id: int):
