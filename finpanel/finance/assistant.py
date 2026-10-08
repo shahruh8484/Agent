@@ -32,6 +32,7 @@ _RATE_FIELDS = {
     "guarantee_pct": {"type": "number", "description": "Гарант апрува рекла в %, 0 если нет."},
     "web_pay_type": _WEB_PAY,
     "web_rate": {"type": "number", "description": "Сколько платим вебу, $ за единицу."},
+    "web_guarantee_pct": {"type": "number", "description": "Гарант, который владелец даёт вебу, в % от лидов (вебу платят за max(апрувы, лиды × %)); 0 если нет. Если владелец говорит, что гарант передаётся вебу, — тот же %, что у рекла."},
 }
 _LINK_KEY = {
     "web": {"type": "string", "description": "Имя веба."},
@@ -57,10 +58,10 @@ TOOLS = [
           ["name"]),
     _tool("add_link", "Создать связку веб → оффер → рекл со ставками (направление 'Трафик').",
           {**_LINK_KEY, **_RATE_FIELDS},
-          ["web", "advertiser", "offer", "valid_from", "adv_pay_type", "adv_rate", "guarantee_pct", "web_pay_type", "web_rate"]),
+          ["web", "advertiser", "offer", "valid_from", "adv_pay_type", "adv_rate", "guarantee_pct", "web_pay_type", "web_rate", "web_guarantee_pct"]),
     _tool("set_link_rate", "Изменить ставки существующей связки начиная с даты (старые дни считаются по старым ставкам).",
           {**_LINK_KEY, **_RATE_FIELDS},
-          ["web", "advertiser", "offer", "valid_from", "adv_pay_type", "adv_rate", "guarantee_pct", "web_pay_type", "web_rate"]),
+          ["web", "advertiser", "offer", "valid_from", "adv_pay_type", "adv_rate", "guarantee_pct", "web_pay_type", "web_rate", "web_guarantee_pct"]),
     _tool("add_traffic_stat", "Записать статистику связки за день (перезаписывает этот день, если он уже был).",
           {**_LINK_KEY, "date": _DATE,
            "leads": {"type": "integer"}, "valid": {"type": "integer", "description": "Валидные лиды; если неизвестно — равно leads."},
@@ -132,7 +133,7 @@ SYSTEM_PROMPT = """Ты — финансовый помощник и бухга�
 
 1. «Трафик» — перепродажа трафика. Владелец покупает лиды у вебов и продаёт их реклам, зарабатывая на разнице.
    - Рекл платит за апрув (approve) или за валидный лид (valid). У каждого рекла свой гарант апрува в %: если реальный апрув ниже, рекл платит как за гарант. Гарант считается за позапрошлый день (дни новее — предварительные).
-   - Вебу платят за апрув (approve) или за любой лид (lead) — лид засчитывается всегда.
+   - Вебу платят за апрув (approve) или за любой лид (lead) — лид засчитывается всегда. Если вебу платят за апрув, владелец может давать ему свой гарант (web_guarantee_pct): тогда вебу платят за max(апрувы, лиды × гарант%).
    - Реклы обычно платят вперёд раз в неделю. Вебам — кому вперёд, кому позже. У каждого рекла и веба есть баланс.
 2. «Мой товар» — владелец сам рекл: покупает лиды у вебов (те же вебы, но баланс отдельный), оператор прозванивает, заказ уходит наложенным платежом, служба доставки раз в неделю переводит деньги.
    - Клиент платит в сумах; курс задаётся в настройках. Оператор получает % от суммы только выкупленного заказа. Невыкуп сейчас бесплатный. Налоги — % в настройках.
@@ -176,6 +177,7 @@ def build_context(repo: Repo, today: date) -> str:
         rate = (
             f"рекл платит ${r.adv_rate} за {'апрув' if r.adv_pay_type == 'approve' else 'валид'}"
             f", гарант {r.guarantee_pct}%; вебу ${r.web_rate} за {'апрув' if r.web_pay_type == 'approve' else 'лид'}"
+            + (f", гарант вебу {r.web_guarantee_pct}%" if r.web_guarantee_pct else "")
             if r else "ставки не заданы"
         )
         lines.append(f"  #{l['id']} {l['web_name']} → {l['advertiser_name']} оффер '{l['offer']}': {rate}"
@@ -260,7 +262,7 @@ def apply_action(repo: Repo, name: str, a: dict) -> str:
         return f"Рекл {a['name']} сохранён."
     if name in ("add_link", "set_link_rate"):
         rate_args = (a["valid_from"], a["adv_pay_type"], float(a["adv_rate"]), float(a["guarantee_pct"]),
-                     a["web_pay_type"], float(a["web_rate"]))
+                     a["web_pay_type"], float(a["web_rate"]), float(a.get("web_guarantee_pct") or 0))
         if name == "add_link":
             web = _require(repo.find_web(a["web"]), "Веб", a["web"])
             adv = _require(repo.find_advertiser(a["advertiser"]), "Рекл", a["advertiser"])
@@ -348,6 +350,7 @@ def describe_action(name: str, a: dict) -> str:
                 f"{verb} {a['web']} → {a['advertiser']}" + (f" ({a['offer']})" if a.get("offer") else "")
                 + f" с {a['valid_from']}: рекл ${a['adv_rate']} за {'апрув' if a['adv_pay_type'] == 'approve' else 'валид'}"
                 + f", гарант {a['guarantee_pct']}%, вебу ${a['web_rate']} за {'апрув' if a['web_pay_type'] == 'approve' else 'лид'}"
+                + (f", гарант вебу {a['web_guarantee_pct']}%" if a.get("web_guarantee_pct") else "")
             )
         if name == "add_traffic_stat":
             return (f"Статистика {a['web']} → {a['advertiser']}" + (f" ({a['offer']})" if a.get("offer") else "")

@@ -55,7 +55,10 @@ CREATE TABLE IF NOT EXISTS link_rates (
     adv_rate REAL NOT NULL,
     guarantee_pct REAL NOT NULL DEFAULT 0,
     web_pay_type TEXT NOT NULL,      -- 'approve' | 'lead'
-    web_rate REAL NOT NULL
+    web_rate REAL NOT NULL,
+    -- Guarantee you pass on to the web (paid per approve): the web is paid
+    -- for max(approves, leads * pct) just like the rekl pays you.
+    web_guarantee_pct REAL NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS traffic_stats (
@@ -201,11 +204,18 @@ class DB:
         self._lock = Lock()
         with self._lock:
             self._conn.executescript(SCHEMA)
+            self._migrate()
             for key, value in DEFAULT_SETTINGS.items():
                 self._conn.execute(
                     "INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)", (key, value)
                 )
             self._conn.commit()
+
+    def _migrate(self) -> None:
+        """Add columns introduced after a database was first created."""
+        cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(link_rates)")}
+        if "web_guarantee_pct" not in cols:
+            self._conn.execute("ALTER TABLE link_rates ADD COLUMN web_guarantee_pct REAL NOT NULL DEFAULT 0")
 
     def query(self, sql: str, params: tuple | list = ()) -> list[sqlite3.Row]:
         with self._lock:
@@ -229,6 +239,7 @@ class Rate:
     guarantee_pct: float
     web_pay_type: str
     web_rate: float
+    web_guarantee_pct: float = 0.0
 
 
 class Repo:
@@ -318,13 +329,15 @@ class Repo:
         guarantee_pct: float,
         web_pay_type: str,
         web_rate: float,
+        web_guarantee_pct: float = 0,
     ) -> int:
         link_id = self.db.execute(
             "INSERT INTO links(web_id, advertiser_id, offer, created_at) VALUES (?, ?, ?, ?)",
             (web_id, advertiser_id, offer.strip(), now_str()),
         )
         self.set_link_rate(
-            link_id, valid_from, adv_pay_type, adv_rate, guarantee_pct, web_pay_type, web_rate
+            link_id, valid_from, adv_pay_type, adv_rate, guarantee_pct, web_pay_type, web_rate,
+            web_guarantee_pct,
         )
         return link_id
 
@@ -337,6 +350,7 @@ class Repo:
         guarantee_pct: float,
         web_pay_type: str,
         web_rate: float,
+        web_guarantee_pct: float = 0,
     ) -> None:
         if adv_pay_type not in ("approve", "valid"):
             raise ValueError("Рекл платит за 'approve' или 'valid'.")
@@ -345,8 +359,9 @@ class Repo:
         self.db.execute("DELETE FROM link_rates WHERE link_id = ? AND valid_from = ?", (link_id, valid_from))
         self.db.execute(
             "INSERT INTO link_rates(link_id, valid_from, adv_pay_type, adv_rate, guarantee_pct, "
-            "web_pay_type, web_rate) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (link_id, valid_from, adv_pay_type, adv_rate, guarantee_pct or 0, web_pay_type, web_rate),
+            "web_pay_type, web_rate, web_guarantee_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (link_id, valid_from, adv_pay_type, adv_rate, guarantee_pct or 0, web_pay_type, web_rate,
+             web_guarantee_pct or 0),
         )
 
     def links(self) -> list[sqlite3.Row]:
@@ -397,6 +412,7 @@ class Repo:
             chosen["guarantee_pct"],
             chosen["web_pay_type"],
             chosen["web_rate"],
+            chosen["web_guarantee_pct"],
         )
 
     def set_link_active(self, link_id: int, active: bool) -> None:

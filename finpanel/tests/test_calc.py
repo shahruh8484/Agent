@@ -202,3 +202,44 @@ def test_period_range():
     assert calc.period_range("7d", TODAY) == ("2026-10-04", "2026-10-10")
     assert calc.period_range("last_month", TODAY) == ("2026-09-01", "2026-09-30")
     assert calc.period_range("all", TODAY) == (None, None)
+
+
+def test_guarantee_passed_on_to_web(repo):
+    # Max -> Sanzh: Sanzh pays $25/approve with 10% guarantee, Max gets
+    # $23/approve with the same 10% guarantee passed on.
+    web = repo.add_web("Max")
+    adv = repo.add_advertiser("Sanzh")
+    link = repo.add_link(web, adv, "", "2026-07-01", "approve", 25, 10, "approve", 23, 10)
+    repo.upsert_traffic_stat(link, "2026-10-01", 200, 200, 15)
+    agg = calc.traffic_report(repo, None, None, TODAY).total
+    assert agg.adv_amount == pytest.approx(500)       # 20 approves * $25
+    assert agg.web_amount == pytest.approx(460)       # 20 approves * $23
+    assert agg.web_guarantee_cost == pytest.approx(115)
+    assert agg.profit == pytest.approx(40)
+    assert agg.profit_without_guarantee == pytest.approx(15 * 2)
+    assert not agg.only_by_guarantee
+
+    # yesterday is still preliminary: no guarantee on either side yet
+    repo.upsert_traffic_stat(link, "2026-10-09", 200, 200, 15)
+    row = [r for r in calc.traffic_report(repo, "2026-10-09", "2026-10-09", TODAY).rows][0]
+    assert (row.adv_amount, row.web_amount) == (375, 345)
+
+
+def test_old_database_gets_web_guarantee_column(tmp_path):
+    import sqlite3
+
+    from finance.db import DB, Repo
+
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.executescript(
+        "CREATE TABLE link_rates (id INTEGER PRIMARY KEY, link_id INTEGER NOT NULL, valid_from TEXT NOT NULL,"
+        " adv_pay_type TEXT NOT NULL, adv_rate REAL NOT NULL, guarantee_pct REAL NOT NULL DEFAULT 0,"
+        " web_pay_type TEXT NOT NULL, web_rate REAL NOT NULL);"
+        "INSERT INTO link_rates(link_id, valid_from, adv_pay_type, adv_rate, guarantee_pct, web_pay_type, web_rate)"
+        " VALUES (1, '2026-07-01', 'approve', 25, 10, 'approve', 23);"
+    )
+    conn.commit()
+    conn.close()
+    repo = Repo(DB(path))
+    assert repo.rate_on(1, "2026-10-01").web_guarantee_pct == 0

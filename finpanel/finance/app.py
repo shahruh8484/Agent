@@ -244,11 +244,13 @@ def create_app(
         guarantee_pct: float = Form(0),
         web_pay_type: str = Form(...),
         web_rate: float = Form(...),
+        web_guarantee_pct: float = Form(0),
     ):
         if not authed(request):
             return login_redirect()
         return run("/traffic", lambda: repo.add_link(
-            web_id, advertiser_id, offer, valid_from, adv_pay_type, adv_rate, guarantee_pct, web_pay_type, web_rate
+            web_id, advertiser_id, offer, valid_from, adv_pay_type, adv_rate, guarantee_pct, web_pay_type, web_rate,
+            web_guarantee_pct,
         ) and "Связка создана.")
 
     @app.post("/traffic/rate")
@@ -261,6 +263,7 @@ def create_app(
         guarantee_pct: float = Form(0),
         web_pay_type: str = Form(...),
         web_rate: float = Form(...),
+        web_guarantee_pct: float = Form(0),
     ):
         if not authed(request):
             return login_redirect()
@@ -268,7 +271,8 @@ def create_app(
         def do():
             if repo.link(link_id) is None:
                 raise ValueError("Связка не найдена.")
-            repo.set_link_rate(link_id, valid_from, adv_pay_type, adv_rate, guarantee_pct, web_pay_type, web_rate)
+            repo.set_link_rate(link_id, valid_from, adv_pay_type, adv_rate, guarantee_pct, web_pay_type, web_rate,
+                              web_guarantee_pct)
             return f"Ставки с {valid_from} сохранены."
 
         return run("/traffic", do)

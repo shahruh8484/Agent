@@ -73,8 +73,9 @@ class TrafficRow:
     approves: int
     final: bool
     adv_amount: float = 0.0
-    guarantee_bonus: float = 0.0
+    guarantee_bonus: float = 0.0      # extra the rekl paid you because of his guarantee
     web_amount: float = 0.0
+    web_guarantee_cost: float = 0.0   # extra you paid the web because of your guarantee to him
     missing_rate: bool = False
 
     @property
@@ -107,8 +108,14 @@ def traffic_row(repo: Repo, stat, today: date) -> TrafficRow:
         row.adv_amount = paid_approves * rate.adv_rate
         row.guarantee_bonus = (paid_approves - stat["approves"]) * rate.adv_rate
 
-    web_units = stat["leads"] if rate.web_pay_type == "lead" else stat["approves"]
-    row.web_amount = web_units * rate.web_rate
+    if rate.web_pay_type == "lead":
+        row.web_amount = stat["leads"] * rate.web_rate
+    else:
+        web_approves = float(stat["approves"])
+        if final and rate.web_guarantee_pct > 0:
+            web_approves = max(web_approves, stat["leads"] * rate.web_guarantee_pct / 100)
+        row.web_amount = web_approves * rate.web_rate
+        row.web_guarantee_cost = (web_approves - stat["approves"]) * rate.web_rate
     return row
 
 
@@ -120,6 +127,7 @@ class Agg:
     adv_amount: float = 0.0
     guarantee_bonus: float = 0.0
     web_amount: float = 0.0
+    web_guarantee_cost: float = 0.0
     preliminary: bool = False
 
     def add(self, r: TrafficRow) -> None:
@@ -129,6 +137,7 @@ class Agg:
         self.adv_amount += r.adv_amount
         self.guarantee_bonus += r.guarantee_bonus
         self.web_amount += r.web_amount
+        self.web_guarantee_cost += r.web_guarantee_cost
         self.preliminary = self.preliminary or not r.final
 
     @property
@@ -140,8 +149,13 @@ class Agg:
         return pct(self.approves, self.leads)
 
     @property
+    def profit_without_guarantee(self) -> float:
+        """What the link would make if neither side applied a guarantee."""
+        return self.profit - self.guarantee_bonus + self.web_guarantee_cost
+
+    @property
     def only_by_guarantee(self) -> bool:
-        return self.profit > 0 and self.profit - self.guarantee_bonus < 0
+        return self.profit > 0 and self.profit_without_guarantee < 0
 
 
 @dataclass
@@ -578,7 +592,7 @@ def alerts(repo: Repo, today: date) -> list[Alert]:
                 ))
                 continue
         if agg.only_by_guarantee:
-            out.append(Alert("warn", f"Связка {name}: в плюсе только за счёт гаранта (без него ${agg.profit - agg.guarantee_bonus:,.2f})."))
+            out.append(Alert("warn", f"Связка {name}: в плюсе только за счёт гаранта (без него ${agg.profit_without_guarantee:,.2f})."))
         elif agg.profit < 0:
             out.append(Alert("danger", f"Связка {name}: минус ${-agg.profit:,.2f} за неделю."))
 
