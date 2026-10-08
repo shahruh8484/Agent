@@ -295,9 +295,11 @@ class Repo:
         if existing and existing["name"].casefold() != name.casefold():
             existing = None
         if existing:
+            # Blank fields keep what was there (re-adding a web from another
+            # form must not wipe its terms or network name).
             self.db.execute(
                 f"UPDATE {table} SET terms = ?, note = ? WHERE id = ?",
-                (terms.strip(), note.strip(), existing["id"]),
+                (terms.strip() or existing["terms"], note.strip() or existing["note"], existing["id"]),
             )
             return existing["id"]
         return self.db.execute(

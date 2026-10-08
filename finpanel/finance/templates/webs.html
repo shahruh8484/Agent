@@ -9,7 +9,7 @@
       <th class="num">Трафик: выплачено</th><th class="num">начислено</th><th class="num">баланс</th>
       <th class="num">Товар: выплачено</th><th class="num">начислено</th><th class="num">баланс</th></tr>
     {% for w in webs %}{% set t = traffic.get(w.id) %}{% set p = product.get(w.id) %}
-    <tr><td>{{ w.name }}</td><td class="muted">{{ w.terms }}</td>
+    <tr><td>{{ w.name }}{% if w.note %} <span class="tag">{{ w.note }}</span>{% endif %}</td><td class="muted">{{ w.terms }}</td>
       <td class="num">{{ t.paid|usd if t else '—' }}</td><td class="num">{{ t.accrued|usd if t else '—' }}</td>
       <td class="num {{ 'pos' if t and t.balance > 0 else 'neg' if t and t.balance < 0 }}">{{ t.balance|usd if t else '—' }}</td>
       <td class="num">{{ p.paid|usd if p else '—' }}</td><td class="num">{{ p.accrued|usd if p else '—' }}</td>
@@ -65,10 +65,12 @@
 
 <div class="card">
   <h2>Добавить веба / изменить условия</h2>
+  <p class="muted">«Имя в сети» — как веб называется в кабинете сети (например <b>#106</b> или его почта): по нему помощник узнаёт веба на скринах.</p>
   <form class="inline" method="post" action="/webs/add">
     <input type="hidden" name="next" value="/webs">
     <label>Имя<input name="name" required></label>
     <label>Условия выплат<input name="terms" placeholder="предоплата / раз в неделю" style="width:240px"></label>
+    <label>Имя в сети<input name="note" placeholder="#106 / Khadya Nur"></label>
     <button>Сохранить</button>
   </form>
 </div>

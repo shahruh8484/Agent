@@ -50,11 +50,13 @@ def _tool(name: str, description: str, properties: dict, required: list[str]) ->
 
 
 TOOLS = [
-    _tool("add_web", "Добавить веба (поставщика трафика) или обновить его условия.",
-          {"name": {"type": "string"}, "terms": {"type": "string", "description": "Условия выплат, например 'предоплата' или 'раз в неделю'."}},
+    _tool("add_web", "Добавить веба (поставщика трафика) или обновить его условия / имя в сети.",
+          {"name": {"type": "string"}, "terms": {"type": "string", "description": "Условия выплат, например 'предоплата' или 'раз в неделю'."},
+           "network_name": {"type": "string", "description": "Как веб называется в кабинете сети: номер (#106), почта или логин."}},
           ["name"]),
-    _tool("add_advertiser", "Добавить рекла (покупателя трафика) или обновить его условия.",
-          {"name": {"type": "string"}, "terms": {"type": "string"}},
+    _tool("add_advertiser", "Добавить рекла (покупателя трафика) или обновить его условия / имя в сети.",
+          {"name": {"type": "string"}, "terms": {"type": "string"},
+           "network_name": {"type": "string", "description": "Как рекл называется в кабинете сети, например 'Khadya Nur'."}},
           ["name"]),
     _tool("add_link", "Создать связку веб → оффер → рекл со ставками (направление 'Трафик').",
           {**_LINK_KEY, **_RATE_FIELDS},
@@ -155,6 +157,7 @@ SYSTEM_PROMPT = """Ты — финансовый помощник и бухга�
 - Используй имена вебов, реклов и товаров ровно как в списках ниже. Нового участника сначала добавь (add_web / add_advertiser / add_product).
 - «Сегодня», «вчера», «позавчера» переводи в даты относительно сегодняшней даты ниже.
 - На скриншотах из кабинетов внимательно выпиши цифры по каждой строке, покажи их и предложи действия.
+- Скрин «Общая статистика» из CPA-сети: сверху фильтры «Веб-мастер» (например «#106 (почта)») и «Рекламодатель» (например «Khadya Nur») — найди по ним веба и рекла в списках ниже (поле «в сети»), а значит и связку. Если не находишь или фильтр пустой — спроси, чья это статистика. Строки таблицы — дни (строку «Итого» не вноси). Колонки «Конверсии»: Σ — все лиды (leads), Σв — валидные (valid), зелёная галочка — апрувы (approves), часы — в обработке, красный крестик — отклонённые; остальное не нужно. На каждый день — отдельный add_traffic_stat. Повторный скрин за те же дни нормален: апрувы досчитываются задним числом, запись дня перезаписывается.
 - Когда спрашивают «я в плюсе или минусе» — отвечай по прибыли (начисления) и отдельно по деньгам на руках (касса), и объясни разницу одной фразой."""
 
 
@@ -167,6 +170,11 @@ def _money(x: float) -> str:
     return f"${x:,.2f}"
 
 
+def _party_line(row) -> str:
+    extra = [x for x in (row["terms"], f"в сети: {row['note']}" if row["note"] else "") if x]
+    return row["name"] + (f" ({'; '.join(extra)})" if extra else "")
+
+
 def build_context(repo: Repo, today: date) -> str:
     s = repo.settings()
     lines = [
@@ -174,8 +182,8 @@ def build_context(repo: Repo, today: date) -> str:
         f"позавчера {(today - timedelta(days=2)).isoformat()}).",
         f"Настройки: курс {s['usd_uzs_rate']:,.0f} сум/$, оператор {s['operator_pct']}%, налог {s['tax_pct']}%.",
         "",
-        "Вебы: " + (", ".join(f"{w['name']}" + (f" ({w['terms']})" if w["terms"] else "") for w in repo.webs()) or "нет"),
-        "Реклы: " + (", ".join(f"{a['name']}" + (f" ({a['terms']})" if a["terms"] else "") for a in repo.advertisers()) or "нет"),
+        "Вебы: " + (", ".join(_party_line(w) for w in repo.webs()) or "нет"),
+        "Реклы: " + (", ".join(_party_line(a) for a in repo.advertisers()) or "нет"),
         "",
         "Связки (трафик) и текущие ставки:",
     ]
@@ -265,10 +273,10 @@ def apply_action(repo: Repo, name: str, a: dict) -> str:
     """Run one confirmed action. Returns a short description of what was
     done; raises ValueError with a readable message on bad input."""
     if name == "add_web":
-        repo.add_web(a["name"], a.get("terms", ""))
+        repo.add_web(a["name"], a.get("terms", ""), a.get("network_name", ""))
         return f"Веб {a['name']} сохранён."
     if name == "add_advertiser":
-        repo.add_advertiser(a["name"], a.get("terms", ""))
+        repo.add_advertiser(a["name"], a.get("terms", ""), a.get("network_name", ""))
         return f"Рекл {a['name']} сохранён."
     if name in ("add_link", "set_link_rate"):
         rate_args = (a["valid_from"], a["adv_pay_type"], float(a["adv_rate"]), float(a["guarantee_pct"]),
@@ -356,9 +364,11 @@ def describe_action(name: str, a: dict) -> str:
     """One readable line per proposed action, shown before confirmation."""
     try:
         if name == "add_web":
-            return f"Добавить веба {a['name']}" + (f" ({a['terms']})" if a.get("terms") else "")
+            return (f"Веб {a['name']}" + (f" ({a['terms']})" if a.get("terms") else "")
+                    + (f", в сети: {a['network_name']}" if a.get("network_name") else ""))
         if name == "add_advertiser":
-            return f"Добавить рекла {a['name']}" + (f" ({a['terms']})" if a.get("terms") else "")
+            return (f"Рекл {a['name']}" + (f" ({a['terms']})" if a.get("terms") else "")
+                    + (f", в сети: {a['network_name']}" if a.get("network_name") else ""))
         if name in ("add_link", "set_link_rate"):
             verb = "Новая связка" if name == "add_link" else "Новые ставки связки"
             return (

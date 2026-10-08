@@ -221,16 +221,16 @@ def create_app(
         )
 
     @app.post("/traffic/advertiser")
-    def traffic_add_advertiser(request: Request, name: str = Form(...), terms: str = Form("")):
+    def traffic_add_advertiser(request: Request, name: str = Form(...), terms: str = Form(""), note: str = Form("")):
         if not authed(request):
             return login_redirect()
-        return run("/traffic", lambda: repo.add_advertiser(name, terms) and f"Рекл {name} сохранён.")
+        return run("/traffic", lambda: repo.add_advertiser(name, terms, note) and f"Рекл {name} сохранён.")
 
     @app.post("/webs/add")
-    def add_web(request: Request, name: str = Form(...), terms: str = Form(""), next: str = Form("/webs")):
+    def add_web(request: Request, name: str = Form(...), terms: str = Form(""), note: str = Form(""), next: str = Form("/webs")):
         if not authed(request):
             return login_redirect()
-        return run(_safe_next(next), lambda: repo.add_web(name, terms) and f"Веб {name} сохранён.")
+        return run(_safe_next(next), lambda: repo.add_web(name, terms, note) and f"Веб {name} сохранён.")
 
     @app.post("/traffic/link")
     def traffic_add_link(

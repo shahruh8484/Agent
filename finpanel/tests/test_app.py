@@ -238,3 +238,13 @@ def test_accrual_form_and_chat_tool(settings, repo):
     apply_action(repo, "add_accrual", {"party_type": "web", "party_name": "макс", "direction": "traffic",
                                        "amount": 100, "date": "2026-10-08"})
     assert len(repo.accruals()) == 2
+
+
+def test_network_names_reach_assistant_context(repo):
+    apply_action(repo, "add_web", {"name": "Макс", "terms": "раз в неделю"})
+    apply_action(repo, "add_web", {"name": "макс", "network_name": "#106 t3amtm@yandex.ru"})
+    apply_action(repo, "add_advertiser", {"name": "Санж", "network_name": "Khadya Nur"})
+    assert len(repo.webs()) == 1  # same web, case-insensitive
+    context = build_context(repo, TODAY)
+    assert "Макс (раз в неделю; в сети: #106 t3amtm@yandex.ru)" in context
+    assert "Санж (в сети: Khadya Nur)" in context

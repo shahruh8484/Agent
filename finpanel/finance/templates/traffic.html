@@ -90,7 +90,7 @@
     <div class="table-wrap"><table>
       <tr><th>Рекл</th><th>Условия</th><th class="num">Прибыль за период</th><th class="num">Баланс</th></tr>
       {% for a in advertisers %}{% set agg = rep.by_advertiser.get(a.id) %}{% set b = adv_balances.get(a.id) %}
-      <tr><td>{{ a.name }}</td><td class="muted">{{ a.terms }}</td>
+      <tr><td>{{ a.name }}{% if a.note %} <span class="tag">{{ a.note }}</span>{% endif %}</td><td class="muted">{{ a.terms }}</td>
         <td class="num">{{ agg.profit|usd(true) if agg else '—' }}</td>
         <td class="num {{ 'pos' if b and b.balance > 0 else 'neg' if b and b.balance < 0 }}">{{ b.balance|usd if b else '—' }}</td></tr>
       {% else %}<tr><td colspan="4" class="muted">Пока нет.</td></tr>{% endfor %}
@@ -99,6 +99,7 @@
       <form class="inline" method="post" action="/traffic/advertiser">
         <label>Имя<input name="name" required></label>
         <label>Условия<input name="terms" placeholder="предоплата раз в неделю"></label>
+        <label>Имя в сети<input name="note" placeholder="#106 / Khadya Nur"></label>
         <button>Добавить</button>
       </form>
     </details>
@@ -118,6 +119,7 @@
         <input type="hidden" name="next" value="/traffic">
         <label>Имя<input name="name" required></label>
         <label>Условия<input name="terms" placeholder="платим через неделю"></label>
+        <label>Имя в сети<input name="note" placeholder="#106 / Khadya Nur"></label>
         <button>Добавить</button>
       </form>
     </details>
