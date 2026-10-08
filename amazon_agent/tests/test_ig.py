@@ -755,3 +755,28 @@ def test_off_hours_leave_a_campaign_in_moderation_alone(settings, store, monkeyp
     store.update_campaign(c["id"], note="PropellerAds: working")  # approved
     runner.pace_campaigns(deps)
     assert store.get_campaign(c["id"])["status"] == runner.PACED
+
+
+def test_new_campaign_starts_without_the_projects_excluded_zones(settings, store, monkeypatch):
+    from amzagent.agent.igaming import set_zone
+    from amzagent.agent.runner import KILLED, stop_campaign
+
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)
+    push = FakePush()
+    _live(settings, store)
+    deps = _ig_deps(settings, store, push)
+    assert launch_ig_campaign(deps, pid) is None
+    first = store.list_campaigns()[0]
+    for zone in ("111", "222"):
+        assert set_zone(deps, pid, zone, off=True) is None
+    stop_campaign(deps, first, KILLED, "stopped manually")
+    for zone in ("111", "222"):
+        store.log_ig_event(pid, "visit", campaign=str(first["id"]), zone=zone)
+    assert "отключено 2" in client.get("/admin/ig?period=all").text  # nothing runs: still shown
+    assert set_zone(deps, pid, "222", off=False) is None  # returned while nothing runs
+
+    assert launch_ig_campaign(deps, pid) is None
+    second = store.list_campaigns()[0]
+    assert store.blacklisted_zones(second["id"]) == {"111"}
+    assert push.created[-1]["targeting"]["zone"] == {"list": [111], "is_excluded": True}

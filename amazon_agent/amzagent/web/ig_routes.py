@@ -40,11 +40,14 @@ from amzagent.agent.igaming import (
     set_zone,
     forbidden_in_push,
     hours_label,
+    last_open_campaign,
+    project_excluded_zones,
     utc_offset,
     launch_ig_campaign,
     write_push_text,
 )
 from amzagent.agent.runner import (
+    AT_NETWORK,
     KILLED,
     VISITS_PER_PAID_CLICK,
     ZONE_STATS_FLAG,
@@ -311,12 +314,14 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
                 p["campaigns"].append(c)
             running = [c for c in p["campaigns"]
                        if c["status"] in ("active", "paced", "capped") and not c["zones_only"]]
+            # Off = off everywhere it runs; with nothing running, what the
+            # next campaign would start without.
             off = set.intersection(*[store.blacklisted_zones(c["id"]) for c in running]) \
-                if running else set()
+                if running else project_excluded_zones(store, p["id"])
             for z in p["zones"]:
                 z["spent"] = spent_by_zone.get(z["zone"], 0.0)
                 z["off"] = z["zone"] in off
-            p["can_toggle"] = bool(running)
+            p["can_toggle"] = bool(running) or last_open_campaign(store, p["id"]) is not None
             # Ready-made picks for a whitelist launch (all-time, zones still on).
             every = store.ig_zone_stats(p["id"], limit=100_000)
             base = p["stats_all"]
@@ -530,11 +535,14 @@ def register_ig_routes(app: FastAPI, templates, settings, store, logged_in, to_l
             return to_login()
         if not zone.isdigit() or action not in ("off", "on"):
             raise HTTPException(404)
+        running = any(c["status"] in AT_NETWORK and not c.get("zones_only")
+                      for c in campaigns_of(store, project_id))
         error = set_zone(build_deps(settings, store), project_id, zone, action == "off")
         verb = "отключена" if action == "off" else "возвращена"
+        where = ("во всех работающих кампаниях проекта" if running else
+                 "— новые кампании проекта запустятся с этим списком")
         return back(request, f"Площадка {zone} не {verb[:-1]}а: {error}" if error else
-                    f"Площадка {zone} {verb} во всех работающих кампаниях проекта.",
-                    f"#zones{project_id}")
+                    f"Площадка {zone} {verb} {where}.", f"#zones{project_id}")
 
     @app.post("/admin/ig/stats/refresh")
     def ig_refresh_stats(request: Request):

@@ -182,6 +182,7 @@ def build_campaign_payload(
     daily_budget: float,
     os_types: list | None = None,
     zones: list[str] | None = None,
+    excluded: list[str] | None = None,
 ) -> dict[str, Any]:
     payload = {
         "name": name[:100],
@@ -224,6 +225,8 @@ def build_campaign_payload(
         payload["targeting"]["os_type"] = {"list": list(os_types), "is_excluded": False}
     if zones:  # whitelist: show only on these zones
         payload["targeting"]["zone"] = {"list": [int(z) for z in zones], "is_excluded": False}
+    elif excluded:  # all zones but these
+        payload["targeting"]["zone"] = {"list": [int(z) for z in excluded], "is_excluded": True}
     return payload
 
 

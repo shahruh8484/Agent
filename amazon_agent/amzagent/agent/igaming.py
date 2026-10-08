@@ -125,15 +125,37 @@ def estimated_ig_spend(store, campaign: dict, since: str | None = None) -> float
     return store.count_ig_visits(campaign["id"], since) * bid / VISITS_PER_PAID_CLICK
 
 
+def last_open_campaign(store, project_id: int) -> dict | None:
+    """The project's newest campaign that ran on all zones (not a whitelist)
+    at PropellerAds: its exclude list is the project's current one, with
+    every exclusion and return made so far."""
+    return next((c for c in campaigns_of(store, project_id)
+                 if c["external_id"] and not c.get("zones_only")), None)
+
+
+def project_excluded_zones(store, project_id: int) -> set[str]:
+    """Zones the project has turned off: a new campaign starts without them."""
+    last = last_open_campaign(store, project_id)
+    return store.blacklisted_zones(last["id"]) if last else set()
+
+
 def set_zone(deps, project_id: int, zone: str, off: bool) -> str | None:
     """Exclude a zone from (or return it to) every running campaign of a
-    project. Returns an error or None."""
+    project; with none running, from the list the next campaign starts
+    with. Returns an error or None."""
     from amzagent.agent.runner import AT_NETWORK, exclude_zone, include_zone
 
     running = [c for c in campaigns_of(deps.store, project_id)
                if c["status"] in AT_NETWORK and not c.get("zones_only")]
     if not running:
-        return "нет работающих кампаний"
+        last = last_open_campaign(deps.store, project_id)
+        if last is None:
+            return "у проекта ещё не было кампаний"
+        if off:
+            deps.store.blacklist_zone(last["id"], zone)
+        else:
+            deps.store.unblacklist_zone(last["id"], zone)
+        return None
     for c in running:
         excluded = zone in deps.store.blacklisted_zones(c["id"])
         if off and not excluded:
@@ -314,7 +336,11 @@ def launch_ig_campaign(deps, project_id: int, zones: list[str] | None = None) ->
         if committed + budget > s.max_daily_spend:
             return (f"не хватает дневного лимита: занято ${committed:.2f} из "
                     f"${s.max_daily_spend:.2f} (поднимите лимит в настройках)")
+    # A campaign on all zones starts without the ones the project turned off.
+    excluded = sorted(project_excluded_zones(store, project_id)) if not zones else []
     cid = store.add_campaign(IG_NICHE, ig_asin(project_id), "creating", budget)
+    for zone in excluded:
+        store.blacklist_zone(cid, zone)
     if zones:
         store.update_campaign(cid, zones_only=",".join(zones), manual_keep=1)
     slug = f"ig{project_id}"
@@ -331,7 +357,7 @@ def launch_ig_campaign(deps, project_id: int, zones: list[str] | None = None) ->
         title=p["push_title"], text=push_text(p),
         images=[(f"{base}/{icon}", f"{base}/{image}") for icon, image in pictures],
         countries=[p["country"].lower()], bid_cpc=p["bid_cpc"], daily_budget=budget,
-        os_types=_os_types(deps, p["platform"]), zones=zones,
+        os_types=_os_types(deps, p["platform"]), zones=zones, excluded=excluded,
     )
     if not s.push_live:
         store.update_campaign(cid, status=DRY_RUN, payload=payload,
@@ -349,7 +375,8 @@ def launch_ig_campaign(deps, project_id: int, zones: list[str] | None = None) ->
                           note="sent to PropellerAds moderation")
     deps.say(f"[iGaming {p['name']}] launched campaign #{cid} (PropellerAds {external_id}), "
              f"{p['country']}, ${budget:.2f}/day, bid ${p['bid_cpc']:.3f}"
-             + (f", only zones {', '.join(zones)}" if zones else ""))
+             + (f", only zones {', '.join(zones)}" if zones else "")
+             + (f", {len(excluded)} zones excluded" if excluded else ""))
     return None
 
 
