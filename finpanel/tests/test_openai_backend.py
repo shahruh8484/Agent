@@ -61,3 +61,35 @@ def test_assistant_provider_choice():
     assert assistant_provider(Settings(openai_api_key="", anthropic_api_key="sk-ant")) == "anthropic"
     assert assistant_provider(Settings(openai_api_key="sk-x", anthropic_api_key="sk-ant")) == "openai"
     assert assistant_provider(Settings(openai_api_key="sk-x", anthropic_api_key="sk-ant", llm_provider="anthropic")) == "anthropic"
+
+
+class ScriptedCompletions:
+    """Returns the queued messages in order and records each request."""
+
+    def __init__(self, *messages):
+        self.messages = list(messages)
+        self.calls = []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        return SimpleNamespace(choices=[SimpleNamespace(message=self.messages.pop(0))])
+
+
+def test_openai_backend_retries_when_it_describes_but_does_not_call():
+    prose = SimpleNamespace(content="Связка Макс → Санж с 2026-07-01. Предлагаю создать такую связку — проверь и подтверди.", tool_calls=None)
+    forced = SimpleNamespace(content=None, tool_calls=[tool_call("add_link", json.dumps({"web": "Макс"}))])
+    completions = ScriptedCompletions(prose, forced)
+    backend = OpenAIBackend("", "gpt-4o", client=SimpleNamespace(chat=SimpleNamespace(completions=completions)))
+
+    text, actions = backend.respond("s", [{"role": "user", "content": "Связка Макс → Санж"}])
+    assert text.startswith("Связка Макс")
+    assert actions == [{"name": "add_link", "input": {"web": "Макс"}}]
+    assert [c["tool_choice"] for c in completions.calls] == ["auto", "required"]
+
+
+def test_openai_backend_does_not_force_tools_on_questions():
+    question = SimpleNamespace(content="Сколько платим Максу — за лид или за апрув? Потом подтвердишь.", tool_calls=None)
+    completions = ScriptedCompletions(question)
+    backend = OpenAIBackend("", "gpt-4o", client=SimpleNamespace(chat=SimpleNamespace(completions=completions)))
+    assert backend.respond("s", [{"role": "user", "content": "x"}])[1] == []
+    assert len(completions.calls) == 1

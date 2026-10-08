@@ -12,6 +12,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import re
 from datetime import date, timedelta
 
 from finance import calc
@@ -138,7 +139,7 @@ SYSTEM_PROMPT = """Ты — финансовый помощник и бухга�
 
 Правила:
 - Никогда не выдумывай цифры. Считай только по данным ниже. Если данных не хватает — так и скажи и спроси.
-- Чтобы внести или изменить данные — вызывай инструменты. Они не выполняются сразу: владелец увидит список и подтвердит. Поэтому не пиши «записал», пиши «вот что внесу — подтверди».
+- Чтобы внести или изменить данные — ОБЯЗАТЕЛЬНО вызывай инструменты в этом же ответе. Только по вызову инструмента у владельца появится кнопка «Подтвердить»; текст без вызова ничего не записывает. Инструменты не выполняются сразу: владелец увидит список и подтвердит. Поэтому не пиши «записал», пиши «вот что внесу — подтверди».
 - Если из сообщения или скрина непонятно, кто это, какая дата, какая валюта или какая связка — сначала уточни, не угадывай.
 - Используй имена вебов, реклов и товаров ровно как в списках ниже. Нового участника сначала добавь (add_web / add_advertiser / add_product).
 - «Сегодня», «вчера», «позавчера» переводи в даты относительно сегодняшней даты ниже.
@@ -464,15 +465,13 @@ class OpenAIBackend:
         self._client = client or openai.OpenAI(api_key=api_key)
         self._model = model
 
-    def respond(self, system: str, messages: list[dict]) -> tuple[str, list[dict]]:
-        chat = [{"role": "system", "content": system}] + [
-            {"role": m["role"], "content": _to_openai_content(m["content"])} for m in messages
-        ]
+    def _complete(self, chat: list[dict], tool_choice: str = "auto"):
         try:
             response = self._client.chat.completions.create(
                 model=self._model,
                 messages=chat,
                 tools=OPENAI_TOOLS,
+                tool_choice=tool_choice,
                 max_completion_tokens=4000,
             )
         except self._openai.APIStatusError as exc:
@@ -480,7 +479,6 @@ class OpenAIBackend:
             raise AssistantError(f"Ошибка OpenAI API ({exc.status_code}): {exc.message}") from exc
         except self._openai.APIConnectionError as exc:
             raise AssistantError("Нет связи с OpenAI API.") from exc
-
         message = response.choices[0].message
         actions = []
         for call in message.tool_calls or []:
@@ -493,6 +491,30 @@ class OpenAIBackend:
                 continue
             actions.append({"name": call.function.name, "input": args})
         return (message.content or "").strip(), actions
+
+    def respond(self, system: str, messages: list[dict]) -> tuple[str, list[dict]]:
+        chat = [{"role": "system", "content": system}] + [
+            {"role": m["role"], "content": _to_openai_content(m["content"])} for m in messages
+        ]
+        text, actions = self._complete(chat)
+        if not actions and _announces_actions(text):
+            # GPT models sometimes describe the change in prose ("проверь и
+            # подтверди") without emitting the tool call, which leaves the
+            # owner with nothing to confirm. Ask once more, tools required.
+            followup = chat + [
+                {"role": "assistant", "content": text},
+                {"role": "user", "content": "Оформи ровно то, что ты предложил выше, вызовами инструментов. Ничего не добавляй от себя."},
+            ]
+            _, actions = self._complete(followup, tool_choice="required")
+        return text, actions
+
+
+_PROPOSAL = re.compile(r"подтверд|предлага\w*\s+(внести|создать|записать|добавить)|вот что (внес|запиш|добав)", re.IGNORECASE)
+
+
+def _announces_actions(text: str) -> bool:
+    """Reply reads like 'here is what I'll record — confirm', not a question."""
+    return bool(text) and "?" not in text and bool(_PROPOSAL.search(text))
 
 
 def make_backend(settings):
