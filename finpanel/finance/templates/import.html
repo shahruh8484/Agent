@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Импорт{% endblock %}
+{% block heading %}Импорт из таблицы{% endblock %}
+{% block content %}
+{% if stage == 'paste' %}
+<div class="card">
+  <h2>1. Вставьте строки из таблицы</h2>
+  <p class="muted" style="line-height:1.6">
+    В Google-таблице выделите столбцы <b>дата · приход · расход · имя</b> (можно вместе с заголовком и строкой итогов — они пропустятся),
+    скопируйте <b>Ctrl+C</b> и вставьте сюда <b>Ctrl+V</b>. Можно вставить сразу несколько месяцев подряд.
+  </p>
+  <form method="post" action="/import/preview">
+    <textarea name="text" rows="16" style="width:100%; font-family: ui-monospace, monospace;" placeholder="04.08.2026	497		нексус
+05.08.2026		612	макс
+05.08.2026		4,53	комиссия">{{ text }}</textarea>
+    <div style="margin-top:10px"><button>Дальше →</button></div>
+  </form>
+  <p class="hint">Повторная загрузка тех же строк безопасна: то, что уже есть в учёте, пропустится.</p>
+</div>
+{% else %}
+<div class="grid">
+  <div class="stat"><div class="label">Строк</div><div class="value">{{ rows|length }}</div><div class="sub">{{ first }} — {{ last }}</div></div>
+  <div class="stat"><div class="label">Приход</div><div class="value pos">{{ total_in|usd }}</div></div>
+  <div class="stat"><div class="label">Расход</div><div class="value neg">{{ total_out|usd }}</div></div>
+  <div class="stat"><div class="label">Разница</div><div class="value">{{ (total_in - total_out)|usd(true) }}</div></div>
+</div>
+{% if problems %}
+<div class="card"><h2>Не распознано</h2>{% for p in problems %}<div class="alert warn">{{ p }}</div>{% endfor %}</div>
+{% endif %}
+<form method="post" action="/import/commit">
+  <input type="hidden" name="text" value="{{ text }}">
+  <div class="card">
+    <h2>2. Кто есть кто</h2>
+    <p class="muted">Я угадал по названиям — проверьте и поправьте. Выбор запомнится для следующих импортов.</p>
+    <div class="table-wrap"><table>
+      <tr><th>Имя в таблице</th><th class="num">Строк</th><th class="num">Приход</th><th class="num">Расход</th><th>Это…</th></tr>
+      {% for n in names %}
+      <tr>
+        <td><b>{{ n.name }}</b><input type="hidden" name="name_{{ loop.index }}" value="{{ n.name }}"></td>
+        <td class="num">{{ n.count }}</td>
+        <td class="num">{{ n.total_in|usd if n.total_in else '' }}</td>
+        <td class="num">{{ n.total_out|usd if n.total_out else '' }}</td>
+        <td><select name="kind_{{ loop.index }}">
+          {% for key, label in kinds %}<option value="{{ key }}" {{ 'selected' if key == n.kind }}>{{ label }}</option>{% endfor %}
+        </select></td>
+      </tr>
+      {% endfor %}
+    </table></div>
+    <p class="hint">
+      <b>Рекл</b> — приход от него идёт в его предоплату. <b>Веб</b> — расход идёт в выплаты ему (приход от веба = возврат).
+      <b>Свои деньги</b> — пополнения из своего кармана / вывод: в прибыль не идут.
+      Новые реклы и вебы создадутся сами.
+    </p>
+    <div style="display:flex; gap:10px; margin-top:12px">
+      <button>Загрузить {{ rows|length }} строк</button>
+      <a href="/import" style="align-self:center">← назад</a>
+    </div>
+  </div>
+</form>
+<div class="card">
+  <h2>Строки</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Дата</th><th class="num">Приход</th><th class="num">Расход</th><th>Имя</th></tr>
+    {% for r in rows %}<tr><td>{{ r.date }}</td><td class="num">{{ r.amount_in|usd if r.amount_in else '' }}</td><td class="num">{{ r.amount_out|usd if r.amount_out else '' }}</td><td>{{ r.name }}</td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endif %}
+{% endblock %}

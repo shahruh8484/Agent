@@ -27,7 +27,7 @@
   <div class="stat">
     <div class="label">Касса: пришло − ушло</div>
     <div class="value {{ 'pos' if s.cash.net > 0 else 'neg' if s.cash.net < 0 }}">{{ s.cash.net|usd(true) }}</div>
-    <div class="sub">пришло {{ s.cash.inflow|usd }} · ушло {{ s.cash.outflow|usd }}</div>
+    <div class="sub">пришло {{ s.cash.inflow|usd }} · ушло {{ s.cash.outflow|usd }}{% if s.cash.owner %} · свои {{ s.cash.owner|usd(true) }}{% endif %}</div>
   </div>
 </div>
 <p class="hint" style="margin-top:-6px; margin-bottom:16px;">

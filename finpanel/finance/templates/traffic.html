@@ -141,7 +141,8 @@
     <tr><th>Дата</th><th>Кто</th><th class="num">Сумма</th><th>Заметка</th><th></th></tr>
     {% for p in payments %}
     <tr><td>{{ p.date }}</td><td>{{ 'от рекла' if p.party_type == 'advertiser' else 'вебу' }} {{ p.party_name }}</td>
-      <td class="num {{ 'pos' if p.party_type == 'advertiser' else 'neg' }}">{{ ('+' if p.party_type == 'advertiser' else '−') ~ (p.amount_usd|usd) }}</td>
+      {% set signed = -p.amount_usd if p.party_type == 'web' else p.amount_usd %}
+      <td class="num {{ 'neg' if signed < 0 else 'pos' }}">{{ signed|usd(true) }}{% if p.amount_uzs %} <span class="muted">({{ p.amount_uzs|uzs }})</span>{% endif %}</td>
       <td class="muted">{{ p.note }}</td>
       <td><form method="post" action="/money/payment/delete" onsubmit="return confirm('Удалить платёж?')"><input type="hidden" name="payment_id" value="{{ p.id }}"><input type="hidden" name="next" value="/traffic"><button class="ghost">✕</button></form></td></tr>
     {% else %}<tr><td colspan="5" class="muted">За период платежей нет.</td></tr>{% endfor %}

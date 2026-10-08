@@ -73,11 +73,13 @@ CREATE TABLE IF NOT EXISTS traffic_stats (
 --   advertiser -> money in (prepayment from a rekl)
 --   courier    -> money in (cash-on-delivery payout from the delivery service)
 --   web        -> money out (payment to a web, per direction)
+--   owner      -> your own money put in (+) or taken out (-); not profit
+-- A negative amount is a refund in the opposite direction.
 CREATE TABLE IF NOT EXISTS payments (
     id INTEGER PRIMARY KEY,
     date TEXT NOT NULL,
-    direction TEXT NOT NULL,         -- 'traffic' | 'product'
-    party_type TEXT NOT NULL,        -- 'advertiser' | 'web' | 'courier'
+    direction TEXT NOT NULL,         -- 'traffic' | 'product' | 'general' (owner)
+    party_type TEXT NOT NULL,        -- 'advertiser' | 'web' | 'courier' | 'owner'
     party_id INTEGER,
     amount_usd REAL NOT NULL,
     amount_uzs REAL,
@@ -154,6 +156,12 @@ CREATE TABLE IF NOT EXISTS stock_moves (
     cost_usd REAL NOT NULL DEFAULT 0,         -- cash paid for a purchase
     note TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
+);
+
+-- Remembered "this name in my spreadsheet means X" choices from imports.
+CREATE TABLE IF NOT EXISTS import_aliases (
+    name TEXT PRIMARY KEY COLLATE NOCASE,
+    kind TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS chat_messages (
@@ -427,10 +435,12 @@ class Repo:
         rate: float | None = None,
         note: str = "",
     ) -> int:
-        if direction not in ("traffic", "product"):
+        if party_type == "owner":
+            direction = "general"
+        elif direction not in ("traffic", "product"):
             raise ValueError("Направление: traffic или product.")
-        if party_type not in ("advertiser", "web", "courier"):
-            raise ValueError("Тип платежа: advertiser, web или courier.")
+        if party_type not in ("advertiser", "web", "courier", "owner"):
+            raise ValueError("Тип платежа: advertiser, web, courier или owner.")
         if not amount_usd:
             raise ValueError("Сумма не может быть нулевой.")
         return self.db.execute(
@@ -441,7 +451,8 @@ class Repo:
 
     def payments(self, start: str | None = None, end: str | None = None) -> list[sqlite3.Row]:
         sql, params = _date_filter(
-            "SELECT p.*, COALESCE(w.name, a.name, 'Курьерка') AS party_name FROM payments p "
+            "SELECT p.*, COALESCE(w.name, a.name, CASE p.party_type WHEN 'owner' THEN 'Свои деньги' "
+            "ELSE 'Курьерка' END) AS party_name FROM payments p "
             "LEFT JOIN webs w ON p.party_type = 'web' AND w.id = p.party_id "
             "LEFT JOIN advertisers a ON p.party_type = 'advertiser' AND a.id = p.party_id",
             "p.date",
@@ -666,6 +677,32 @@ class Repo:
         # Only manual moves — ship/return moves belong to their order.
         self.db.execute(
             "DELETE FROM stock_moves WHERE id = ? AND kind IN ('purchase', 'adjust')", (move_id,)
+        )
+
+    def count_payments(self, date: str, party_type: str, party_id: int | None, amount_usd: float) -> int:
+        return self.db.one(
+            "SELECT COUNT(*) AS n FROM payments WHERE date = ? AND party_type = ? AND party_id IS ? "
+            "AND ABS(amount_usd - ?) < 0.005",
+            (date, party_type, party_id, amount_usd),
+        )["n"]
+
+    def count_expenses(self, date: str, category: str, amount_usd: float) -> int:
+        return self.db.one(
+            "SELECT COUNT(*) AS n FROM expenses WHERE date = ? AND category = ? COLLATE NOCASE "
+            "AND ABS(amount_usd - ?) < 0.005",
+            (date, category, amount_usd),
+        )["n"]
+
+    # --- import aliases ---
+
+    def import_aliases(self) -> dict[str, str]:
+        return {r["name"].lower(): r["kind"] for r in self.db.query("SELECT * FROM import_aliases")}
+
+    def set_import_alias(self, name: str, kind: str) -> None:
+        self.db.execute(
+            "INSERT INTO import_aliases(name, kind) VALUES (?, ?) "
+            "ON CONFLICT(name) DO UPDATE SET kind = excluded.kind",
+            (name.strip(), kind),
         )
 
     # --- chat ---

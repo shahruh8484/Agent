@@ -66,8 +66,10 @@ TOOLS = [
            "approves": {"type": "integer"}},
           ["web", "advertiser", "offer", "date", "leads", "valid", "approves"]),
     _tool("add_payment", "Записать движение денег: рекл прислал деньги, вы оплатили вебу, курьерка перевела наложку.",
-          {"party_type": {"type": "string", "enum": ["advertiser", "web", "courier"],
-                          "description": "advertiser — деньги от рекла; web — выплата вебу; courier — деньги от службы доставки."},
+          {"party_type": {"type": "string", "enum": ["advertiser", "web", "courier", "owner"],
+                          "description": "advertiser — деньги от рекла; web — выплата вебу; courier — деньги от службы доставки; "
+                                         "owner — свои деньги владельца: вложил (+) или вывел (−), в прибыль не идут. "
+                                         "Отрицательная сумма — возврат в обратную сторону."},
            "party_name": {"type": "string", "description": "Имя рекла или веба; для courier — пустая строка."},
            "direction": {"type": "string", "enum": ["traffic", "product"],
                          "description": "traffic — перепродажа трафика, product — свой товар. Реклы всегда traffic, курьерка всегда product."},
@@ -276,7 +278,7 @@ def apply_action(repo: Repo, name: str, a: dict) -> str:
             party_id = _require(repo.find_web(a["party_name"]), "Веб", a["party_name"])["id"]
         elif a["party_type"] == "advertiser":
             party_id = _require(repo.find_advertiser(a["party_name"]), "Рекл", a["party_name"])["id"]
-        direction = {"advertiser": "traffic", "courier": "product"}.get(a["party_type"], a["direction"])
+        direction = {"advertiser": "traffic", "courier": "product", "owner": "general"}.get(a["party_type"], a["direction"])
         usd, uzs, rate = _usd(repo, float(a["amount"]), a["currency"])
         repo.add_payment(a["date"], direction, a["party_type"], party_id, usd, uzs, rate, a.get("note", ""))
         return f"Платёж {_money(usd)} записан."
@@ -327,7 +329,7 @@ def apply_action(repo: Repo, name: str, a: dict) -> str:
     raise ValueError(f"Неизвестное действие: {name}")
 
 
-_PARTY = {"advertiser": "от рекла", "web": "вебу", "courier": "от курьерки"}
+_PARTY = {"advertiser": "от рекла", "web": "вебу", "courier": "от курьерки", "owner": "свои деньги"}
 _DIR = {"traffic": "трафик", "product": "товар", "general": "общее"}
 _STATUS = {"delivered": "выкуплен", "returned": "невыкуп (на склад)", "shipped": "в пути"}
 

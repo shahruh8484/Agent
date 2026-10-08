@@ -473,6 +473,7 @@ def courier_balance(repo: Repo) -> CourierBalance:
 class Cash:
     inflow: float
     outflow: float
+    owner: float = 0.0  # your own money put in (+) / taken out (-), kept apart
 
     @property
     def net(self) -> float:
@@ -480,8 +481,12 @@ class Cash:
 
 
 def cash_flow(repo: Repo, start: str | None, end: str | None, direction: str | None = None) -> Cash:
-    inflow = outflow = 0.0
+    inflow = outflow = owner = 0.0
     for p in repo.payments(start, end):
+        if p["party_type"] == "owner":
+            if not direction:
+                owner += p["amount_usd"]
+            continue
         if direction and p["direction"] != direction:
             continue
         if p["party_type"] == "web":
@@ -496,7 +501,7 @@ def cash_flow(repo: Repo, start: str | None, end: str | None, direction: str | N
         for m in repo.db.query("SELECT * FROM stock_moves WHERE kind = 'purchase'"):
             if _in(m["date"], start, end):
                 outflow += m["cost_usd"]
-    return Cash(inflow, outflow)
+    return Cash(inflow, outflow, owner)
 
 
 @dataclass

@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from finance import calc
+from finance import calc, importer
 from finance.assistant import (
     SYSTEM_PROMPT,
     AssistantError,
@@ -521,7 +521,7 @@ def create_app(
         def do():
             # party is "advertiser:ID", "web:ID" or "courier"
             party_type, _, party_id = party.partition(":")
-            d = {"advertiser": "traffic", "courier": "product"}.get(party_type, direction)
+            d = {"advertiser": "traffic", "courier": "product", "owner": "general"}.get(party_type, direction)
             usd, uzs, rate = amount_usd(amount, currency)
             repo.add_payment(date_, d, party_type, int(party_id) if party_id else None, usd, uzs, rate, note)
             return f"Платёж {fmt_usd(usd)} записан."
@@ -561,6 +561,64 @@ def create_app(
             return login_redirect()
         repo.delete_expense(expense_id)
         return back("/money", msg="Расход удалён.")
+
+    # --------------------------------------------------------------- import
+
+    @app.get("/import")
+    def import_page(request: Request):
+        if not authed(request):
+            return login_redirect()
+        return render(request, "import.html", "import", stage="paste", text="")
+
+    @app.post("/import/preview")
+    def import_preview(request: Request, text: str = Form("")):
+        if not authed(request):
+            return login_redirect()
+        rows, problems = importer.parse(text)
+        if not rows:
+            return render(request, "import.html", "import", stage="paste", text=text,
+                          error="Не нашёл ни одной строки с датой и суммой. Скопируйте столбцы: дата, приход, расход, имя.")
+        return render(
+            request,
+            "import.html",
+            "import",
+            stage="map",
+            text=text,
+            rows=rows,
+            problems=problems,
+            names=importer.summarize(repo, rows),
+            kinds=importer.KINDS,
+            first=min(r.date for r in rows),
+            last=max(r.date for r in rows),
+            total_in=sum(r.amount_in for r in rows),
+            total_out=sum(r.amount_out for r in rows),
+        )
+
+    @app.post("/import/commit")
+    async def import_commit(request: Request):
+        if not authed(request):
+            return login_redirect()
+        form = await request.form()
+        rows, _ = importer.parse(str(form.get("text", "")))
+        mapping = {}
+        for key, value in form.multi_items():
+            if key.startswith("name_"):
+                idx = key.removeprefix("name_")
+                mapping[str(value).strip().lower()] = str(form.get(f"kind_{idx}", "skip"))
+        try:
+            res = importer.apply(repo, rows, mapping)
+        except ValueError as exc:
+            return back("/import", error=str(exc))
+        msg = (
+            f"Импорт готов: платежей {res.payments}, расходов {res.expenses}"
+            + (f", уже были (пропущены) {res.duplicates}" if res.duplicates else "")
+            + (f", пропущено по выбору {res.skipped}" if res.skipped else "")
+            + (f". Добавлены: {', '.join(res.created)}" if res.created else "")
+            + "."
+        )
+        if res.errors:
+            return back("/money", msg=msg, error="; ".join(res.errors[:10]), period="all")
+        return back("/money", msg=msg, period="all")
 
     # ------------------------------------------------------------- settings
 

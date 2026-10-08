@@ -6,6 +6,7 @@
   <div class="stat"><div class="label">Пришло</div><div class="value pos">{{ cash.inflow|usd }}</div></div>
   <div class="stat"><div class="label">Ушло</div><div class="value neg">{{ cash.outflow|usd }}</div><div class="sub">вебам, расходы, закупки товара</div></div>
   <div class="stat"><div class="label">Касса за период</div><div class="value {{ 'pos' if cash.net > 0 else 'neg' if cash.net < 0 }}">{{ cash.net|usd(true) }}</div></div>
+  <div class="stat"><div class="label">Свои деньги</div><div class="value">{{ cash.owner|usd(true) }}</div><div class="sub">вложено (+) / выведено (−), в прибыль не входит</div></div>
 </div>
 
 <div class="card">
@@ -32,12 +33,13 @@
 </div>
 
 <div class="card">
-  <h2>Платежи</h2>
+  <h2>Платежи <a href="/import" style="font-size:0.8rem; font-weight:400; margin-left:8px">импорт из таблицы →</a></h2>
   <form class="inline" method="post" action="/money/payment">
     <input type="hidden" name="next" value="/money">
     <label>Кто<select name="party">
       <optgroup label="Получили от рекла">{% for a in advertisers %}<option value="advertiser:{{ a.id }}">{{ a.name }}</option>{% endfor %}</optgroup>
       <option value="courier">Получили от курьерки (наложка)</option>
+      <option value="owner">Свои деньги: вложил (+) / вывел (−)</option>
       <optgroup label="Заплатили вебу">{% for w in webs %}<option value="web:{{ w.id }}">{{ w.name }}</option>{% endfor %}</optgroup>
     </select></label>
     <label>Направление (для веба)<select name="direction"><option value="traffic">трафик</option><option value="product">товар</option></select></label>
@@ -50,9 +52,10 @@
   <div class="table-wrap" style="margin-top:12px;"><table>
     <tr><th>Дата</th><th>Направление</th><th>Кто</th><th class="num">Сумма</th><th>Заметка</th><th></th></tr>
     {% for p in payments %}
-    <tr><td>{{ p.date }}</td><td>{{ 'трафик' if p.direction == 'traffic' else 'товар' }}</td>
-      <td>{{ {'advertiser': 'от рекла ', 'web': 'вебу ', 'courier': ''}[p.party_type] }}{{ p.party_name }}</td>
-      <td class="num {{ 'neg' if p.party_type == 'web' else 'pos' }}">{{ ('−' if p.party_type == 'web' else '+') ~ (p.amount_usd|usd) }}{% if p.amount_uzs %} <span class="muted">({{ p.amount_uzs|uzs }})</span>{% endif %}</td>
+    <tr><td>{{ p.date }}</td><td>{{ {'traffic': 'трафик', 'product': 'товар', 'general': 'общее'}[p.direction] }}</td>
+      {% set signed = -p.amount_usd if p.party_type == 'web' else p.amount_usd %}
+      <td>{{ {'advertiser': 'от рекла ', 'web': 'вебу ', 'courier': '', 'owner': ''}[p.party_type] }}{{ p.party_name }}</td>
+      <td class="num {{ 'neg' if signed < 0 else 'pos' }}">{{ signed|usd(true) }}{% if p.amount_uzs %} <span class="muted">({{ p.amount_uzs|uzs }})</span>{% endif %}</td>
       <td class="muted">{{ p.note }}</td>
       <td><form method="post" action="/money/payment/delete" onsubmit="return confirm('Удалить платёж?')"><input type="hidden" name="payment_id" value="{{ p.id }}"><input type="hidden" name="next" value="/money"><button class="ghost">✕</button></form></td></tr>
     {% else %}<tr><td colspan="6" class="muted">За период платежей нет.</td></tr>{% endfor %}
