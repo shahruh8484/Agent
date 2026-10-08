@@ -29,6 +29,11 @@
   .periods { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
   .periods a { padding: 5px 11px; border-radius: 7px; background: var(--panel2); color: var(--muted); text-decoration: none; font-size: 0.82rem; }
   .periods a.active { background: var(--accent); color: #fff; }
+  .periods .range { display: flex; gap: 6px; align-items: center; margin-left: 6px; }
+  .periods .range input { padding: 4px 7px; width: 140px; }
+  .periods .range button { padding: 5px 11px; font-weight: 500; background: var(--panel2); color: var(--muted); }
+  .periods .range.active input { border-color: var(--accent); }
+  .periods .range span { color: var(--muted); }
   .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
   .card h2 { font-size: 0.98rem; margin: 0 0 10px; }
   .card h3 { font-size: 0.88rem; margin: 14px 0 8px; color: var(--muted); }
@@ -101,6 +106,12 @@
   {% if period is defined %}
   <div class="periods">
     {% for key, label in periods %}<a href="?period={{ key }}" class="{{ 'active' if key == period }}">{{ label }}</a>{% endfor %}
+    <form method="get" class="range {{ 'active' if period == 'custom' }}">
+      <input type="date" name="from" value="{{ date_from }}" required aria-label="с">
+      <span>—</span>
+      <input type="date" name="to" value="{{ date_to }}" required aria-label="по">
+      <button>Показать</button>
+    </form>
   </div>
   {% endif %}
   {% block content %}{% endblock %}

@@ -248,3 +248,16 @@ def test_network_names_reach_assistant_context(repo):
     context = build_context(repo, TODAY)
     assert "Макс (раз в неделю; в сети: #106 t3amtm@yandex.ru)" in context
     assert "Санж (в сети: Khadya Nur)" in context
+
+
+def test_custom_date_range(settings, repo):
+    web = repo.add_web("Max")
+    adv = repo.add_advertiser("Sanzh")
+    link = repo.add_link(web, adv, "", "2026-07-01", "approve", 25, 0, "approve", 23)
+    repo.upsert_traffic_stat(link, "2026-07-15", 100, 90, 11)
+    repo.upsert_traffic_stat(link, "2026-08-15", 200, 180, 22)
+    client = make_client(settings, repo)
+    login(client)
+    july = client.get("/traffic?from=2026-07-01&to=2026-07-31").text
+    assert "2026-07-15" in july and "2026-08-15" not in july
+    assert client.get("/traffic?from=bad&to=2026-07-31").status_code == 200  # falls back to preset

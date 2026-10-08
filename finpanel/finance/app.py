@@ -117,12 +117,17 @@ def create_app(
                 "error": request.query_params.get("error"),
                 "msg": request.query_params.get("msg"),
                 "periods": calc.PERIODS,
+                "date_from": request.query_params.get("from", ""),
+                "date_to": request.query_params.get("to", ""),
                 "settings": repo.settings(),
                 **ctx,
             },
         )
 
     def period_ctx(request: Request) -> tuple[str, str | None, str | None]:
+        start, end = request.query_params.get("from", ""), request.query_params.get("to", "")
+        if _is_iso_date(start) and _is_iso_date(end):
+            return "custom", min(start, end), max(start, end)
         period = request.query_params.get("period", "this_month")
         if period not in dict(calc.PERIODS):
             period = "this_month"
@@ -780,6 +785,14 @@ def create_app(
         return back("/chat")
 
     return app
+
+
+def _is_iso_date(value: str) -> bool:
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return False
+    return len(value) == 10
 
 
 def _safe_next(path: str) -> str:
