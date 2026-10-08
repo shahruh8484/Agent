@@ -678,3 +678,19 @@ def test_platform_falls_back_when_reference_is_missing(settings, store):
     run_cycle(_deps(settings, store, push))
     assert push.created and all(p["targeting"]["os_type"]["list"] == ["desktop"]
                                 for p in push.created)
+
+
+def test_draft_campaign_is_sent_to_moderation_again_once(settings, store):
+    from amzagent.agent.runner import DRAFT_RESUBMITTED_NOTE, sync_moderation
+
+    settings.push_live = True
+    store.add_niche("earbuds")
+    push = FakePush()
+    run_cycle(_deps(settings, store, push))
+    a = store.list_campaigns(statuses=(ACTIVE,))[0]
+    push.statuses = {a["external_id"]: 1}  # draft
+    sync_moderation(_deps(settings, store, push))
+    assert push.started == [a["external_id"]]
+    assert store.get_campaign(a["id"])["note"] == DRAFT_RESUBMITTED_NOTE
+    sync_moderation(_deps(settings, store, push))  # still a draft: no loop
+    assert push.started == [a["external_id"]]

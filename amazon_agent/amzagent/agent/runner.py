@@ -65,6 +65,10 @@ KILLED = "killed"
 CREATING = "creating"  # row exists, creatives/API call still in progress
 CAPPED = "capped"  # paused by the agent: 24h spend limit reached; resumes by itself
 PACED = "paced"  # paused by the agent: ahead of its daily budget schedule; resumes by itself
+# Notes of a campaign PropellerAds hasn't approved yet (see sync_moderation).
+DRAFT_RESUBMITTED_NOTE = "PropellerAds: draft, sent to moderation again"
+IN_MODERATION_NOTES = ("sent to PropellerAds moderation", "PropellerAds: moderation",
+                       "PropellerAds: draft", DRAFT_RESUBMITTED_NOTE)
 PACE_LEAD_MINUTES = 60  # a campaign may run this far ahead of an even schedule
 RESUME_HEADROOM = 1.0  # $ left under the 24h limit before capped campaigns resume
 STUCK_CREATING_MINUTES = 30
@@ -628,7 +632,11 @@ def pace_campaigns(deps: Deps) -> None:
         if not c["external_id"]:
             continue
         p = project(c)
-        off_hours = p is not None and not in_schedule(p, now)
+        # Not while it's still in moderation: a stop sends an unapproved
+        # campaign back to draft, and it would never get approved. It can't
+        # spend before approval, and is paused at the first check after it.
+        off_hours = (p is not None and not in_schedule(p, now)
+                     and c["note"] not in IN_MODERATION_NOTES)
         if not off_hours and not s.pace_daily_budget:
             continue
         spent = spent_since_budget_day(deps, c, now)
@@ -794,6 +802,16 @@ def sync_moderation(deps: Deps) -> None:
             deps.store.update_campaign(c["id"], status=KILLED,
                                        note="rejected by PropellerAds moderation")
             deps.say(f"campaign #{c['id']} ({c['asin']}) was rejected by moderation")
+        elif status == propeller.API_STATUS_DRAFT and c["note"] != DRAFT_RESUBMITTED_NOTE:
+            # Created for moderation but sitting as a draft (e.g. stopped
+            # before approval): the play call submits it again, once.
+            try:
+                deps.push.start([c["external_id"]])
+            except PropellerError as exc:
+                deps.say(f"campaign #{c['id']}: draft, resubmit failed: {exc}")
+                continue
+            deps.store.update_campaign(c["id"], note=DRAFT_RESUBMITTED_NOTE)
+            deps.say(f"campaign #{c['id']} was a draft at PropellerAds: sent to moderation again")
         elif status == propeller.API_STATUS_PAUSED:
             # PropellerAds pauses a campaign by itself near its daily budget
             # ("Daily impressions": waiting for late clicks) and restarts it

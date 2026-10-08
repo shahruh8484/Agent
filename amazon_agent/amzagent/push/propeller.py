@@ -41,6 +41,7 @@ ZONE_LIST_KEY = "zone"
 # Campaign statuses the API reports (GET /adv/campaigns/{id})
 API_STATUS_NAMES = {1: "draft", 2: "moderation", 3: "rejected", 6: "working", 7: "paused",
                     8: "stopped"}
+API_STATUS_DRAFT = 1
 API_STATUS_REJECTED = 3
 API_STATUS_PAUSED = 7
 API_STATUSES_NOT_RUNNING = (1, 3, 7, 8)  # draft, rejected, paused, stopped

@@ -636,6 +636,7 @@ def test_show_hours_spread_the_budget_and_rest_at_night(settings, store, monkeyp
     deps = _ig_deps(settings, store, push)
     assert launch_ig_campaign(deps, pid) is None
     c = store.list_campaigns()[0]
+    store.update_campaign(c["id"], note="PropellerAds: working")  # approved
 
     class Clock(datetime):
         at = utc(8)  # 05:00 in Brazil
@@ -727,3 +728,30 @@ def test_launch_with_a_whitelist_of_zones(settings, store, monkeypatch):
     c = store.list_campaigns()[0]
     assert c["zones_only"] == "1111,3333,4444" and c["manual_keep"] == 1
     assert "вайт-лист (3): 1111, 3333, 4444" in client.get("/admin/ig").text
+
+
+def test_off_hours_leave_a_campaign_in_moderation_alone(settings, store, monkeypatch):
+    from datetime import datetime, timezone
+
+    import amzagent.agent.runner as runner
+
+    client = _client(settings, store)
+    pid = _ready_project(client, store, monkeypatch)
+    store.update_ig_project(pid, hours_from=10, hours_to=1)
+    push = FakePush()
+    _live(settings, store)
+    deps = _ig_deps(settings, store, push)
+    assert launch_ig_campaign(deps, pid) is None
+    c = store.list_campaigns()[0]
+
+    class Night(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 10, 2, 8, tzinfo=timezone.utc)  # 05:00 in Brazil
+
+    monkeypatch.setattr(runner, "datetime", Night)
+    runner.pace_campaigns(deps)  # not approved yet: a stop would turn it into a draft
+    assert store.get_campaign(c["id"])["status"] == "active" and not push.stopped
+    store.update_campaign(c["id"], note="PropellerAds: working")  # approved
+    runner.pace_campaigns(deps)
+    assert store.get_campaign(c["id"])["status"] == runner.PACED
