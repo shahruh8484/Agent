@@ -262,3 +262,16 @@ def test_manual_accrual_sets_balances_and_profit(repo):
     assert rep.total.profit == pytest.approx(16000 - 15343)
     assert rep.by_web[maks].web_amount == pytest.approx(15343)
     assert calc.traffic_report(repo, "2026-10-09", None, TODAY).total.profit == 0
+
+
+def test_guarantee_counts_whole_approves(repo):
+    web = repo.add_web("Max")
+    adv = repo.add_advertiser("Sanzh")
+    link = repo.add_link(web, adv, "", "2026-07-01", "approve", 25, 10, "approve", 23, 10)
+    repo.upsert_traffic_stat(link, "2026-10-01", 453, 352, 30)   # 45.3 -> 45
+    repo.upsert_traffic_stat(link, "2026-10-02", 459, 360, 30)   # 45.9 -> 45
+    repo.upsert_traffic_stat(link, "2026-10-03", 300, 250, 20)   # exactly 30
+    agg = calc.traffic_report(repo, None, None, TODAY).total
+    assert agg.adv_amount == pytest.approx((45 + 45 + 30) * 25)
+    assert agg.web_amount == pytest.approx((45 + 45 + 30) * 23)
+    assert calc.guaranteed_approves(300, 7) == 21

@@ -8,6 +8,7 @@ Two views of "am I in plus or minus":
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
@@ -83,6 +84,13 @@ class TrafficRow:
         return self.adv_amount - self.web_amount
 
 
+def guaranteed_approves(leads: int, pct_value: float) -> int:
+    """Guarantee counts whole approves, fraction dropped: 453 leads at 10%
+    is 45 approves, not 45.3. Rounded first to absorb float noise
+    (e.g. 300 * 7 / 100 = 21.000000000000004)."""
+    return math.floor(round(leads * pct_value / 100, 6))
+
+
 def traffic_row(repo: Repo, stat, today: date) -> TrafficRow:
     final = stat["date"] <= (today - timedelta(days=GUARANTEE_LAG_DAYS)).isoformat()
     row = TrafficRow(
@@ -104,7 +112,7 @@ def traffic_row(repo: Repo, stat, today: date) -> TrafficRow:
     else:
         paid_approves = float(stat["approves"])
         if final and rate.guarantee_pct > 0:
-            paid_approves = max(paid_approves, stat["leads"] * rate.guarantee_pct / 100)
+            paid_approves = max(paid_approves, guaranteed_approves(stat["leads"], rate.guarantee_pct))
         row.adv_amount = paid_approves * rate.adv_rate
         row.guarantee_bonus = (paid_approves - stat["approves"]) * rate.adv_rate
 
@@ -113,7 +121,7 @@ def traffic_row(repo: Repo, stat, today: date) -> TrafficRow:
     else:
         web_approves = float(stat["approves"])
         if final and rate.web_guarantee_pct > 0:
-            web_approves = max(web_approves, stat["leads"] * rate.web_guarantee_pct / 100)
+            web_approves = max(web_approves, guaranteed_approves(stat["leads"], rate.web_guarantee_pct))
         row.web_amount = web_approves * rate.web_rate
         row.web_guarantee_cost = (web_approves - stat["approves"]) * rate.web_rate
     return row
