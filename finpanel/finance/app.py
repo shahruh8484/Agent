@@ -485,9 +485,41 @@ def create_app(
             "webs.html",
             "webs",
             webs=repo.webs(),
+            advertisers=repo.advertisers(),
             traffic={b.party_id: b for b in calc.web_balances(repo, today, "traffic")},
             product={b.party_id: b for b in calc.web_balances(repo, today, "product")},
+            adv_balances=calc.advertiser_balances(repo, today),
+            accruals=repo.accruals(),
         )
+
+    @app.post("/accruals/add")
+    def accrual_add(
+        request: Request,
+        party: str = Form(...),
+        direction: str = Form("traffic"),
+        date_: str = Form(..., alias="date"),
+        amount: float = Form(...),
+        note: str = Form(""),
+        next: str = Form("/webs"),
+    ):
+        if not authed(request):
+            return login_redirect()
+
+        def do():
+            party_type, _, party_id = party.partition(":")
+            if not party_id.isdigit():
+                raise ValueError("Выберите рекла или веба.")
+            repo.add_accrual(date_, direction, party_type, int(party_id), amount, note)
+            return f"Начисление {fmt_usd(amount)} записано."
+
+        return run(_safe_next(next), do)
+
+    @app.post("/accruals/delete")
+    def accrual_delete(request: Request, accrual_id: int = Form(...), next: str = Form("/webs")):
+        if not authed(request):
+            return login_redirect()
+        repo.delete_accrual(accrual_id)
+        return back(_safe_next(next), msg="Начисление удалено.")
 
     # ---------------------------------------------------------------- money
 

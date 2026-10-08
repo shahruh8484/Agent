@@ -184,6 +184,15 @@ def traffic_report(repo: Repo, start: str | None, end: str | None, today: date) 
         if link:
             by_adv.setdefault(link["advertiser_id"], Agg()).add(r)
             by_web.setdefault(link["web_id"], Agg()).add(r)
+    for c in repo.accruals(start, end):
+        if c["direction"] != "traffic":
+            continue
+        if c["party_type"] == "advertiser":
+            total.adv_amount += c["amount_usd"]
+            by_adv.setdefault(c["party_id"], Agg()).adv_amount += c["amount_usd"]
+        else:
+            total.web_amount += c["amount_usd"]
+            by_web.setdefault(c["party_id"], Agg()).web_amount += c["amount_usd"]
     expenses = sum(e["amount_usd"] for e in repo.expenses(start, end) if e["direction"] == "traffic")
     return TrafficReport(total, by_link, by_adv, by_web, rows, expenses)
 
@@ -323,6 +332,11 @@ def product_report(repo: Repo, start: str | None, end: str | None) -> ProductRep
             rep.web_cost += cost
             w["cost"] += cost
 
+    for c in repo.accruals(start, end):
+        if c["direction"] == "product" and c["party_type"] == "web":
+            rep.web_cost += c["amount_usd"]
+            w = rep.by_web.setdefault(c["party_id"], {"name": c["party_name"], "leads": 0, "approves": 0, "cost": 0.0})
+            w["cost"] += c["amount_usd"]
     rep.expenses = sum(e["amount_usd"] for e in repo.expenses(start, end) if e["direction"] == "product")
     return rep
 
@@ -410,6 +424,11 @@ def advertiser_balances(repo: Repo, today: date) -> list[Balance]:
     for p in repo.payments():
         if p["party_type"] == "advertiser":
             paid[p["party_id"]] = paid.get(p["party_id"], 0) + p["amount_usd"]
+    for c in repo.accruals():
+        if c["party_type"] == "advertiser":
+            a = c["party_id"]
+            accrued[a] = accrued.get(a, 0) + c["amount_usd"]
+            last[a] = max(last.get(a, ""), c["date"])
     return [
         Balance(a["id"], a["name"], paid.get(a["id"], 0), accrued.get(a["id"], 0),
                 recent.get(a["id"], 0) / 7, last.get(a["id"]))
@@ -448,6 +467,11 @@ def web_balances(repo: Repo, today: date, direction: str) -> list[Balance]:
     for p in repo.payments():
         if p["party_type"] == "web" and p["direction"] == direction:
             paid[p["party_id"]] = paid.get(p["party_id"], 0) + p["amount_usd"]
+    for c in repo.accruals():
+        if c["party_type"] == "web" and c["direction"] == direction:
+            w = c["party_id"]
+            accrued[w] = accrued.get(w, 0) + c["amount_usd"]
+            last[w] = max(last.get(w, ""), c["date"])
     return [
         Balance(w["id"], w["name"], paid.get(w["id"], 0), accrued.get(w["id"], 0),
                 recent.get(w["id"], 0) / 7, last.get(w["id"]))

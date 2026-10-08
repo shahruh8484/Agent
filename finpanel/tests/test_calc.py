@@ -243,3 +243,22 @@ def test_old_database_gets_web_guarantee_column(tmp_path):
     conn.close()
     repo = Repo(DB(path))
     assert repo.rate_on(1, "2026-10-01").web_guarantee_pct == 0
+
+
+def test_manual_accrual_sets_balances_and_profit(repo):
+    maks = repo.add_web("Max")
+    sanzh = repo.add_advertiser("Sanzh")
+    repo.add_payment("2026-08-01", "traffic", "web", maks, 13112)
+    repo.add_accrual("2026-10-08", "traffic", "web", maks, 13112 + 2231, "итог до сегодня")
+    web = calc.web_balances(repo, TODAY, "traffic")[0]
+    assert web.balance == pytest.approx(-2231)  # you owe Max
+
+    repo.add_payment("2026-08-01", "traffic", "advertiser", sanzh, 17000)
+    repo.add_accrual("2026-10-08", "product", "advertiser", sanzh, 16000)  # forced to traffic
+    adv = calc.advertiser_balances(repo, TODAY)[0]
+    assert adv.balance == pytest.approx(1000)  # his prepayment left
+
+    rep = calc.traffic_report(repo, None, None, TODAY)
+    assert rep.total.profit == pytest.approx(16000 - 15343)
+    assert rep.by_web[maks].web_amount == pytest.approx(15343)
+    assert calc.traffic_report(repo, "2026-10-09", None, TODAY).total.profit == 0

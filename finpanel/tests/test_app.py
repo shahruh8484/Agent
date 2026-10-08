@@ -224,3 +224,17 @@ def test_describe_and_history():
     msgs = history_to_messages(history)
     assert msgs[0]["role"] == "user"
     assert "применено" in msgs[-1]["content"]
+
+
+def test_accrual_form_and_chat_tool(settings, repo):
+    maks = repo.add_web("Макс")
+    client = make_client(settings, repo)
+    login(client)
+    r = client.post("/accruals/add", data={"party": f"web:{maks}", "direction": "traffic", "date": "2026-10-08",
+                                           "amount": 15343, "note": "итог"}, follow_redirects=False)
+    assert "error" not in r.headers["location"]
+    page = client.get("/webs").text
+    assert "Начисление вручную" in page and "$15,343.00" in page
+    apply_action(repo, "add_accrual", {"party_type": "web", "party_name": "макс", "direction": "traffic",
+                                       "amount": 100, "date": "2026-10-08"})
+    assert len(repo.accruals()) == 2

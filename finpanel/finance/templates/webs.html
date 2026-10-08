@@ -19,6 +19,51 @@
   <p class="hint">Плюс — вы заплатили вперёд, веб ещё должен трафик. Минус — вы должны вебу. Балансы по трафику и по товару раздельные.</p>
 </div>
 <div class="card">
+  <h2>Реклы — балансы</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Рекл</th><th class="num">Получено</th><th class="num">Отработано</th><th class="num">Баланс</th></tr>
+    {% for b in adv_balances %}
+    <tr><td>{{ b.name }}</td><td class="num">{{ b.paid|usd }}</td><td class="num">{{ b.accrued|usd }}</td>
+      <td class="num {{ 'pos' if b.balance > 0 else 'neg' if b.balance < 0 }}">{{ b.balance|usd }}</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">Реклов пока нет.</td></tr>{% endfor %}
+  </table></div>
+  <p class="hint">Плюс — его предоплата, ещё не отработанная. Минус — он вам должен.</p>
+</div>
+
+<div class="card">
+  <h2>Начисление вручную</h2>
+  <p class="muted" style="line-height:1.55">
+    Когда нет статистики лидов/апрувов за прошлый период — впишите итог: сколько <b>веб заработал</b> (вы ему должны за его трафик)
+    или сколько <b>рекл должен вам</b> за трафик. Пример: Максу за всё время до сегодня начислено $15 343 —
+    тогда при выплатах $13 112 его баланс будет −$2 231 (вы должны).
+    <b>Не вносите потом статистику за те же дни</b> — иначе посчитается дважды.
+  </p>
+  <form class="inline" method="post" action="/accruals/add">
+    <input type="hidden" name="next" value="/webs">
+    <label>Кому<select name="party">
+      <optgroup label="Веб заработал">{% for w in webs %}<option value="web:{{ w.id }}">{{ w.name }}</option>{% endfor %}</optgroup>
+      <optgroup label="Рекл должен вам">{% for a in advertisers %}<option value="advertiser:{{ a.id }}">{{ a.name }}</option>{% endfor %}</optgroup>
+    </select></label>
+    <label>Направление (для веба)<select name="direction"><option value="traffic">трафик</option><option value="product">товар</option></select></label>
+    <label>Дата<input type="date" name="date" value="{{ today }}" required></label>
+    <label>Сумма, $<input type="number" step="0.01" name="amount" required></label>
+    <label>Заметка<input name="note" placeholder="итог до сегодня"></label>
+    <button>Записать</button>
+  </form>
+  {% if accruals %}
+  <div class="table-wrap" style="margin-top:12px"><table>
+    <tr><th>Дата</th><th>Кто</th><th>Направление</th><th class="num">Сумма</th><th>Заметка</th><th></th></tr>
+    {% for c in accruals %}
+    <tr><td>{{ c.date }}</td><td>{{ 'рекл ' if c.party_type == 'advertiser' else 'веб ' }}{{ c.party_name }}</td>
+      <td>{{ 'трафик' if c.direction == 'traffic' else 'товар' }}</td><td class="num">{{ c.amount_usd|usd }}</td>
+      <td class="muted">{{ c.note }}</td>
+      <td><form method="post" action="/accruals/delete" onsubmit="return confirm('Удалить начисление?')"><input type="hidden" name="accrual_id" value="{{ c.id }}"><button class="ghost">✕</button></form></td></tr>
+    {% endfor %}
+  </table></div>
+  {% endif %}
+</div>
+
+<div class="card">
   <h2>Добавить веба / изменить условия</h2>
   <form class="inline" method="post" action="/webs/add">
     <input type="hidden" name="next" value="/webs">

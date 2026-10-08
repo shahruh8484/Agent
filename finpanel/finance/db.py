@@ -161,6 +161,20 @@ CREATE TABLE IF NOT EXISTS stock_moves (
     created_at TEXT NOT NULL
 );
 
+-- Earned/owed amounts entered by hand when there are no lead/approve
+-- stats for a period (e.g. history before the panel): an advertiser accrual
+-- is revenue he owes you for traffic, a web accrual is what you owe the web.
+CREATE TABLE IF NOT EXISTS accruals (
+    id INTEGER PRIMARY KEY,
+    date TEXT NOT NULL,
+    direction TEXT NOT NULL,         -- 'traffic' | 'product'
+    party_type TEXT NOT NULL,        -- 'advertiser' | 'web'
+    party_id INTEGER NOT NULL,
+    amount_usd REAL NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
 -- Remembered "this name in my spreadsheet means X" choices from imports.
 CREATE TABLE IF NOT EXISTS import_aliases (
     name TEXT PRIMARY KEY COLLATE NOCASE,
@@ -277,7 +291,9 @@ class Repo:
         name = name.strip()
         if not name:
             raise ValueError("Имя не может быть пустым.")
-        existing = self.db.one(f"SELECT id FROM {table} WHERE name = ?", (name,))
+        existing = self._find(table, name)
+        if existing and existing["name"].casefold() != name.casefold():
+            existing = None
         if existing:
             self.db.execute(
                 f"UPDATE {table} SET terms = ?, note = ? WHERE id = ?",
@@ -305,16 +321,18 @@ class Repo:
         return self._find("products", name)
 
     def _find(self, table: str, name: str) -> sqlite3.Row | None:
-        name = (name or "").strip()
-        if not name:
+        """Exact name match ignoring case, else a unique partial match.
+        Done in Python: SQLite's NOCASE/lower() only fold ASCII, so
+        "макс" would not match "Макс"."""
+        key = (name or "").strip().casefold()
+        if not key:
             return None
-        row = self.db.one(f"SELECT * FROM {table} WHERE name = ?", (name,))
-        if row:
-            return row
-        matches = self.db.query(
-            f"SELECT * FROM {table} WHERE lower(name) LIKE ?", (f"%{name.lower()}%",)
-        )
-        return matches[0] if len(matches) == 1 else None
+        rows = self.db.query(f"SELECT * FROM {table}")
+        exact = [r for r in rows if r["name"].casefold() == key]
+        if exact:
+            return exact[0]
+        partial = [r for r in rows if key in r["name"].casefold()]
+        return partial[0] if len(partial) == 1 else None
 
     # --- links (direction 1) ---
 
@@ -514,7 +532,7 @@ class Repo:
         if not name:
             raise ValueError("Название товара не может быть пустым.")
         existing = self.find_product(name)
-        if existing and existing["name"].lower() == name.lower():
+        if existing and existing["name"].casefold() == name.casefold():
             self.db.execute("UPDATE products SET unit_cost_usd = ? WHERE id = ?", (unit_cost_usd, existing["id"]))
             return existing["id"]
         product_id = self.db.execute(
@@ -708,6 +726,37 @@ class Repo:
             "AND ABS(amount_usd - ?) < 0.005",
             (date, category, amount_usd),
         )["n"]
+
+    # --- manual accruals ---
+
+    def add_accrual(self, date: str, direction: str, party_type: str, party_id: int, amount_usd: float, note: str = "") -> int:
+        if party_type not in ("advertiser", "web"):
+            raise ValueError("Начисление: для рекла или веба.")
+        if party_type == "advertiser":
+            direction = "traffic"
+        if direction not in ("traffic", "product"):
+            raise ValueError("Направление: traffic или product.")
+        if not amount_usd:
+            raise ValueError("Сумма не может быть нулевой.")
+        return self.db.execute(
+            "INSERT INTO accruals(date, direction, party_type, party_id, amount_usd, note, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (date, direction, party_type, party_id, round(amount_usd, 2), note.strip(), now_str()),
+        )
+
+    def accruals(self, start: str | None = None, end: str | None = None) -> list[sqlite3.Row]:
+        sql, params = _date_filter(
+            "SELECT c.*, COALESCE(w.name, a.name) AS party_name FROM accruals c "
+            "LEFT JOIN webs w ON c.party_type = 'web' AND w.id = c.party_id "
+            "LEFT JOIN advertisers a ON c.party_type = 'advertiser' AND a.id = c.party_id",
+            "c.date",
+            start,
+            end,
+        )
+        return self.db.query(sql + " ORDER BY c.date DESC, c.id DESC", params)
+
+    def delete_accrual(self, accrual_id: int) -> None:
+        self.db.execute("DELETE FROM accruals WHERE id = ?", (accrual_id,))
 
     # --- import aliases ---
 

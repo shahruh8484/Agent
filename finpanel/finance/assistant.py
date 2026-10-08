@@ -80,6 +80,16 @@ TOOLS = [
            "date": _DATE,
            "note": {"type": "string"}},
           ["party_type", "party_name", "direction", "amount", "currency", "date"]),
+    _tool("add_accrual", "Начисление вручную, когда нет статистики лидов за период (например, история до панели): "
+                         "сколько веб заработал (вы ему должны) или сколько рекл должен вам за трафик. "
+                         "Если владелец говорит «заплатил X и ещё должен Y» — начисление = X + Y.",
+          {"party_type": {"type": "string", "enum": ["advertiser", "web"]},
+           "party_name": {"type": "string"},
+           "direction": {"type": "string", "enum": ["traffic", "product"], "description": "Для рекла всегда traffic."},
+           "amount": {"type": "number", "description": "Сумма в $."},
+           "date": _DATE,
+           "note": {"type": "string"}},
+          ["party_type", "party_name", "direction", "amount", "date"]),
     _tool("add_expense", "Записать прочий расход (сервер, программист, сервисы, комиссии и т.п.).",
           {"direction": {"type": "string", "enum": ["traffic", "product", "general"],
                          "description": "К какому направлению относится; general — общий на оба."},
@@ -285,6 +295,11 @@ def apply_action(repo: Repo, name: str, a: dict) -> str:
         usd, uzs, rate = _usd(repo, float(a["amount"]), a["currency"])
         repo.add_payment(a["date"], direction, a["party_type"], party_id, usd, uzs, rate, a.get("note", ""))
         return f"Платёж {_money(usd)} записан."
+    if name == "add_accrual":
+        finder = repo.find_web if a["party_type"] == "web" else repo.find_advertiser
+        party = _require(finder(a["party_name"]), "Веб" if a["party_type"] == "web" else "Рекл", a["party_name"])
+        repo.add_accrual(a["date"], a["direction"], a["party_type"], party["id"], float(a["amount"]), a.get("note", ""))
+        return f"Начисление {_money(float(a['amount']))} для {party['name']} записано."
     if name == "add_expense":
         usd, uzs, rate = _usd(repo, float(a["amount"]), a["currency"])
         repo.add_expense(a["date"], a["direction"], a["category"], usd, uzs, rate, a.get("note", ""))
@@ -359,6 +374,9 @@ def describe_action(name: str, a: dict) -> str:
             cur = "сум" if a["currency"] == "uzs" else "$"
             who = a.get("party_name") or ""
             return f"Платёж {_PARTY.get(a['party_type'], '')} {who}: {a['amount']:,} {cur}, {a['date']} ({_DIR.get(a['direction'], '')})".replace("  ", " ")
+        if name == "add_accrual":
+            who = ("вебу " if a["party_type"] == "web" else "рекл должен: ") + a["party_name"]
+            return f"Начисление вручную {who}: ${float(a['amount']):,.2f}, {a['date']}" + (f" ({a['note']})" if a.get("note") else "")
         if name == "add_expense":
             cur = "сум" if a["currency"] == "uzs" else "$"
             return f"Расход «{a['category']}» {a['amount']:,} {cur}, {a['date']} ({_DIR.get(a['direction'], '')})"
