@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
     name TEXT NOT NULL DEFAULT '',
     role TEXT NOT NULL DEFAULT 'client' CHECK (role IN ('client', 'specialist')),
     city TEXT NOT NULL DEFAULT '',
+    lang TEXT NOT NULL DEFAULT 'uz' CHECK (lang IN ('ru', 'uz')),
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS auth_codes (
@@ -30,7 +31,8 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY,
     parent_id INTEGER REFERENCES categories(id),
-    name TEXT NOT NULL
+    name_ru TEXT NOT NULL,
+    name_uz TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS specialist_profiles (
     user_id INTEGER PRIMARY KEY REFERENCES users(id),
@@ -105,10 +107,24 @@ CREATE TABLE IF NOT EXISTS payments (
     id INTEGER PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id),
     plan_id TEXT NOT NULL,
-    amount INTEGER NOT NULL,
+    provider TEXT NOT NULL,
+    amount INTEGER NOT NULL,  -- whole so'm
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'succeeded', 'canceled')),
     provider_id TEXT UNIQUE,
     created_at TEXT NOT NULL
+);
+-- Payme Merchant API transactions (https://developer.help.paycom.uz/)
+CREATE TABLE IF NOT EXISTS payme_transactions (
+    id INTEGER PRIMARY KEY,
+    payme_id TEXT NOT NULL UNIQUE,
+    payment_id INTEGER NOT NULL REFERENCES payments(id),
+    amount INTEGER NOT NULL,  -- tiyin
+    state INTEGER NOT NULL,
+    payme_time INTEGER NOT NULL,
+    create_time INTEGER NOT NULL,
+    perform_time INTEGER NOT NULL DEFAULT 0,
+    cancel_time INTEGER NOT NULL DEFAULT 0,
+    reason INTEGER
 );
 CREATE TABLE IF NOT EXISTS push_tokens (
     token TEXT PRIMARY KEY,
@@ -139,13 +155,13 @@ def init_db(path: str) -> None:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(SCHEMA)
         if conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0] == 0:
-            for section, services in CATALOG.items():
+            for section, services in CATALOG:
                 parent_id = conn.execute(
-                    "INSERT INTO categories (name) VALUES (?)", (section,)
+                    "INSERT INTO categories (name_ru, name_uz) VALUES (?, ?)", section
                 ).lastrowid
                 conn.executemany(
-                    "INSERT INTO categories (parent_id, name) VALUES (?, ?)",
-                    [(parent_id, s) for s in services],
+                    "INSERT INTO categories (parent_id, name_ru, name_uz) VALUES (?, ?, ?)",
+                    [(parent_id, ru, uz) for ru, uz in services],
                 )
         conn.commit()
     finally:

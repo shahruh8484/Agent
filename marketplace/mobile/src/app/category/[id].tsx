@@ -4,19 +4,21 @@ import { FlatList, View } from 'react-native';
 import { SpecialistCard } from '../../components/SpecialistCard';
 import { Button, Empty, ErrorText, Loading, styles } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
+import { useT } from '../../lib/i18n';
 import type { Specialist } from '../../lib/types';
 import { useApi } from '../../lib/useApi';
 
 export default function CategoryScreen() {
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const { user } = useAuth();
+  const { t } = useT();
   const { data, error, refreshing, reload } = useApi<Specialist[]>(
     `/specialists?category_id=${id}&city=${encodeURIComponent(user?.city ?? '')}`,
   );
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ title: name ?? 'Специалисты' }} />
+      <Stack.Screen options={{ title: name ?? t('specialists') }} />
       {!data ? (error ? <ErrorText text={error} /> : <Loading />) : (
         <FlatList
           contentContainerStyle={styles.content}
@@ -26,12 +28,12 @@ export default function CategoryScreen() {
           onRefresh={reload}
           ListHeaderComponent={
             <Button
-              title="Разместить заказ — специалисты откликнутся сами"
+              title={t('postOrderHint')}
               onPress={() => router.push({ pathname: '/order/new', params: { category_id: id } })}
               style={{ marginBottom: 16 }}
             />
           }
-          ListEmptyComponent={<Empty text="В вашем городе пока нет специалистов в этом разделе. Разместите заказ — мы сообщим специалистам." />}
+          ListEmptyComponent={<Empty text={t('noSpecialists')} />}
           renderItem={({ item }) => <SpecialistCard s={item} />}
         />
       )}

@@ -6,6 +6,7 @@ export interface User {
   name: string;
   role: Role;
   city: string;
+  lang: 'uz' | 'ru';
   subscription_until: string | null;
   has_specialist_profile: boolean;
 }
@@ -97,7 +98,6 @@ export interface Message {
 
 export interface Plan {
   id: string;
-  title: string;
   days: number;
   price: number;
 }

@@ -1,25 +1,20 @@
-import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
-import { api } from '../lib/api';
-import { Chip, Field, styles } from './ui';
+import { useCities } from '../lib/cities';
+import { useT } from '../lib/i18n';
+import { Chip, styles } from './ui';
 
-/** Popular cities as chips plus a free-text field for any other city. */
-export function CityPicker({ value, onChange }: { value: string; onChange: (city: string) => void }) {
-  const [cities, setCities] = useState<string[]>([]);
-  useEffect(() => {
-    api<string[]>('/cities').then(setCities).catch(() => undefined);
-  }, []);
-
+export function CityPicker({ value, onChange }: { value: string; onChange: (cityId: string) => void }) {
+  const { t } = useT();
+  const { cities } = useCities();
   return (
-    <View>
-      <Text style={styles.label}>Город</Text>
+    <View style={{ marginBottom: 8 }}>
+      <Text style={styles.label}>{t('city')}</Text>
       <View style={styles.wrap}>
         {cities.map((c) => (
-          <Chip key={c} label={c} selected={c === value} onPress={() => onChange(c)} />
+          <Chip key={c.id} label={c.name} selected={c.id === value} onPress={() => onChange(c.id)} />
         ))}
       </View>
-      <Field placeholder="Другой город" value={cities.includes(value) ? '' : value} onChangeText={onChange} />
     </View>
   );
 }

@@ -1,56 +1,148 @@
-"""Service catalog seeded on first start: top-level sections and their services."""
+"""Service catalog and cities for Uzbekistan, in Russian and Uzbek (Latin).
+
+The catalog is seeded on first start: each section is (name_ru, name_uz) with its services.
+"""
 from __future__ import annotations
 
-CATALOG: dict[str, list[str]] = {
-    "Репетиторы": [
-        "Английский язык", "Математика", "Русский язык", "Физика", "Химия",
-        "Биология", "История и обществознание", "Информатика", "Подготовка к ЕГЭ и ОГЭ",
-        "Подготовка к школе", "Немецкий язык", "Китайский язык", "Музыка",
-    ],
-    "Ремонт и строительство": [
-        "Ремонт квартир под ключ", "Сантехники", "Электрики", "Плиточники",
-        "Маляры и штукатуры", "Сборка и ремонт мебели", "Установка дверей и окон",
-        "Натяжные потолки", "Кровельные работы", "Мастер на час", "Дизайн интерьера",
-    ],
-    "Ремонт техники": [
-        "Холодильники", "Стиральные машины", "Компьютеры и ноутбуки", "Телефоны и планшеты",
-        "Телевизоры", "Кондиционеры", "Посудомоечные машины", "Мелкая бытовая техника",
-    ],
-    "Красота": [
-        "Маникюр и педикюр", "Парикмахеры", "Визажисты", "Косметологи",
-        "Брови и ресницы", "Массаж", "Эпиляция", "Тату и пирсинг",
-    ],
-    "Спорт и здоровье": [
-        "Фитнес-тренеры", "Йога", "Плавание", "Единоборства", "Танцы",
-        "Диетологи", "Логопеды", "Психологи",
-    ],
-    "Домашний персонал": [
-        "Уборка квартир", "Няни", "Сиделки", "Домработницы", "Повара", "Химчистка мебели",
-    ],
-    "Юристы и бухгалтеры": [
-        "Юридическая консультация", "Семейные споры", "Недвижимость",
-        "Арбитраж", "Бухгалтерский учёт", "Налоговые декларации", "Регистрация бизнеса",
-    ],
-    "Перевозки и курьеры": [
-        "Грузоперевозки", "Квартирный переезд", "Грузчики", "Курьеры", "Вывоз мусора",
-    ],
-    "Авто": [
-        "Автоэлектрики", "Кузовной ремонт", "Шиномонтаж", "Диагностика", "Автоинструкторы",
-    ],
-    "Фото, видео, артисты": [
-        "Фотографы", "Видеооператоры", "Ведущие", "Музыканты", "Аниматоры", "Организация праздников",
-    ],
-    "IT и фриланс": [
-        "Разработка сайтов", "Мобильные приложения", "Дизайнеры", "Маркетинг и реклама",
-        "Копирайтеры", "Переводчики", "Компьютерная помощь",
-    ],
-    "Животные": [
-        "Ветеринары", "Груминг", "Кинологи", "Передержка и выгул",
-    ],
-}
-
-CITIES: list[str] = [
-    "Москва", "Санкт-Петербург", "Новосибирск", "Екатеринбург", "Казань",
-    "Нижний Новгород", "Челябинск", "Красноярск", "Самара", "Уфа",
-    "Ростов-на-Дону", "Омск", "Краснодар", "Воронеж", "Пермь", "Волгоград",
+CATALOG: list[tuple[tuple[str, str], list[tuple[str, str]]]] = [
+    (("Репетиторы", "Repetitorlar"), [
+        ("Английский язык", "Ingliz tili"),
+        ("Русский язык", "Rus tili"),
+        ("Узбекский язык", "O'zbek tili"),
+        ("Корейский язык", "Koreys tili"),
+        ("Турецкий язык", "Turk tili"),
+        ("Немецкий язык", "Nemis tili"),
+        ("Арабский язык", "Arab tili"),
+        ("Математика", "Matematika"),
+        ("Физика", "Fizika"),
+        ("Химия", "Kimyo"),
+        ("Биология", "Biologiya"),
+        ("История", "Tarix"),
+        ("Информатика и программирование", "Informatika va dasturlash"),
+        ("Подготовка к IELTS и CEFR", "IELTS va CEFR ga tayyorlov"),
+        ("Подготовка к вступительным тестам (DTM)", "Abituriyent testlariga (DTM) tayyorlov"),
+        ("Подготовка к школе", "Maktabga tayyorlov"),
+        ("Музыка", "Musiqa"),
+    ]),
+    (("Ремонт и строительство", "Ta'mirlash va qurilish"), [
+        ("Ремонт квартир под ключ", "Kvartirani to'liq ta'mirlash"),
+        ("Сантехники", "Santexniklar"),
+        ("Электрики", "Elektriklar"),
+        ("Плиточники", "Kafel ustalari"),
+        ("Маляры и штукатуры", "Bo'yoqchi va suvoqchilar"),
+        ("Сварщики", "Payvandchilar"),
+        ("Сборка и ремонт мебели", "Mebel yig'ish va ta'mirlash"),
+        ("Двери и окна", "Eshik va derazalar"),
+        ("Натяжные потолки", "Tortma shiftlar"),
+        ("Кровельные работы", "Tom yopish ishlari"),
+        ("Газовые котлы и колонки", "Gaz qozonlari va kolonkalar"),
+        ("Мастер на час", "Bir soatlik usta"),
+        ("Дизайн интерьера", "Interyer dizayni"),
+    ]),
+    (("Ремонт техники", "Texnika ta'miri"), [
+        ("Кондиционеры", "Konditsionerlar"),
+        ("Холодильники", "Muzlatkichlar"),
+        ("Стиральные машины", "Kir yuvish mashinalari"),
+        ("Компьютеры и ноутбуки", "Kompyuter va noutbuklar"),
+        ("Телефоны и планшеты", "Telefon va planshetlar"),
+        ("Телевизоры", "Televizorlar"),
+        ("Мелкая бытовая техника", "Kichik maishiy texnika"),
+    ]),
+    (("Красота", "Go'zallik"), [
+        ("Маникюр и педикюр", "Manikyur va pedikyur"),
+        ("Парикмахеры и барберы", "Sartarosh va barberlar"),
+        ("Визажисты", "Vizajistlar"),
+        ("Косметологи", "Kosmetologlar"),
+        ("Брови и ресницы", "Qosh va kipriklar"),
+        ("Массаж", "Massaj"),
+    ]),
+    (("Спорт и здоровье", "Sport va salomatlik"), [
+        ("Фитнес-тренеры", "Fitnes murabbiylari"),
+        ("Плавание", "Suzish"),
+        ("Единоборства", "Yakkakurash"),
+        ("Танцы", "Raqs"),
+        ("Диетологи", "Dietologlar"),
+        ("Логопеды", "Logopedlar"),
+        ("Психологи", "Psixologlar"),
+    ]),
+    (("Домашний персонал", "Uy xizmatlari"), [
+        ("Уборка квартир и домов", "Uy va kvartira tozalash"),
+        ("Няни", "Enagalar"),
+        ("Сиделки", "Bemorga qarovchilar"),
+        ("Повара", "Oshpazlar"),
+        ("Химчистка мебели и ковров", "Mebel va gilamlarni tozalash"),
+    ]),
+    (("Тои и праздники", "To'y va bayramlar"), [
+        ("Организация тоев", "To'y tashkil qilish"),
+        ("Ошпазы на той", "To'y oshpazlari"),
+        ("Ведущие", "Boshlovchilar"),
+        ("Музыканты и певцы", "Musiqachi va xonandalar"),
+        ("Фотографы", "Fotograflar"),
+        ("Видеооператоры", "Videooperatorlar"),
+        ("Декор и оформление", "Bezatish"),
+        ("Аниматоры", "Animatorlar"),
+    ]),
+    (("Юристы и бухгалтеры", "Yuristlar va buxgalterlar"), [
+        ("Юридическая консультация", "Yuridik maslahat"),
+        ("Семейные споры", "Oilaviy nizolar"),
+        ("Недвижимость", "Ko'chmas mulk"),
+        ("Бухгалтерский учёт", "Buxgalteriya hisobi"),
+        ("Налоги и отчётность", "Soliq va hisobotlar"),
+        ("Регистрация ИП (ЯТТ) и фирм", "YaTT va firmalarni ro'yxatdan o'tkazish"),
+    ]),
+    (("Перевозки", "Yuk tashish"), [
+        ("Грузоперевозки (Damas, Labo, Isuzu)", "Yuk tashish (Damas, Labo, Isuzu)"),
+        ("Квартирный переезд", "Uy ko'chirish"),
+        ("Грузчики", "Hammollar"),
+        ("Курьеры", "Kuryerlar"),
+        ("Вывоз мусора", "Chiqindi olib chiqish"),
+    ]),
+    (("Авто", "Avto"), [
+        ("Автоэлектрики", "Avtoelektriklar"),
+        ("Кузовной ремонт", "Kuzov ta'miri"),
+        ("Газобаллонное оборудование (метан, пропан)", "Gaz ballon uskunasi (metan, propan)"),
+        ("Шиномонтаж", "Shinomontaj"),
+        ("Диагностика", "Diagnostika"),
+        ("Автоинструкторы", "Avtoinstruktorlar"),
+    ]),
+    (("IT и фриланс", "IT va frilans"), [
+        ("Разработка сайтов", "Sayt yaratish"),
+        ("Мобильные приложения", "Mobil ilovalar"),
+        ("Telegram-боты", "Telegram-botlar"),
+        ("Дизайнеры", "Dizaynerlar"),
+        ("SMM и реклама", "SMM va reklama"),
+        ("Переводчики", "Tarjimonlar"),
+        ("Компьютерная помощь", "Kompyuter yordami"),
+    ]),
+    (("Животные", "Uy hayvonlari"), [
+        ("Ветеринары", "Veterinarlar"),
+        ("Груминг", "Gruming"),
+        ("Кинологи", "Kinologlar"),
+    ]),
 ]
+
+# Cities are stored by id so Russian- and Uzbek-speaking users match each other.
+CITIES: list[tuple[str, str, str]] = [
+    ("tashkent", "Ташкент", "Toshkent"),
+    ("samarkand", "Самарканд", "Samarqand"),
+    ("bukhara", "Бухара", "Buxoro"),
+    ("namangan", "Наманган", "Namangan"),
+    ("andijan", "Андижан", "Andijon"),
+    ("fergana", "Фергана", "Farg'ona"),
+    ("kokand", "Коканд", "Qo'qon"),
+    ("margilan", "Маргилан", "Marg'ilon"),
+    ("nukus", "Нукус", "Nukus"),
+    ("karshi", "Карши", "Qarshi"),
+    ("shahrisabz", "Шахрисабз", "Shahrisabz"),
+    ("termez", "Термез", "Termiz"),
+    ("jizzakh", "Джизак", "Jizzax"),
+    ("navoi", "Навои", "Navoiy"),
+    ("urgench", "Ургенч", "Urganch"),
+    ("khiva", "Хива", "Xiva"),
+    ("gulistan", "Гулистан", "Guliston"),
+    ("chirchik", "Чирчик", "Chirchiq"),
+    ("almalyk", "Алмалык", "Olmaliq"),
+    ("angren", "Ангрен", "Angren"),
+]
+
+CITY_IDS = {c[0] for c in CITIES}

@@ -3,8 +3,10 @@ import { useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
 
 import { Button, Card, Chip, ErrorText, Field, Loading, Stars, styles } from '../../components/ui';
-import { api, ApiError, formatDate, formatPrice, STATUS_LABELS } from '../../lib/api';
+import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { useCities } from '../../lib/cities';
+import { formatDate, formatPrice, useT } from '../../lib/i18n';
 import { colors } from '../../lib/theme';
 import type { Order, OrderResponse } from '../../lib/types';
 import { useApi } from '../../lib/useApi';
@@ -13,6 +15,8 @@ const openChat = (id: number) => router.push({ pathname: '/chat/[id]', params: {
 
 export default function OrderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { t, lang } = useT();
+  const { cityName } = useCities();
   const { data: order, error, reload } = useApi<Order>(`/orders/${id}`);
   if (!order) return error ? <ErrorText text={error} /> : <Loading />;
 
@@ -20,13 +24,13 @@ export default function OrderScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.muted}>{order.category_name}</Text>
       <Text style={styles.h1}>{order.title}</Text>
-      <Text style={{ color: colors.primary, marginBottom: 8 }}>{STATUS_LABELS[order.status]}</Text>
+      <Text style={{ color: colors.primary, marginBottom: 8 }}>{t(`status_${order.status}`)}</Text>
       <Card>
         {order.description ? <Text style={[styles.text, { marginBottom: 8 }]}>{order.description}</Text> : null}
-        <Text style={styles.muted}>Бюджет: {formatPrice(order.budget)}</Text>
-        {order.when_text ? <Text style={styles.muted}>Когда: {order.when_text}</Text> : null}
-        <Text style={styles.muted}>Где: {order.city}{order.remote ? ', можно онлайн' : ''}</Text>
-        <Text style={styles.muted}>Клиент: {order.client_name} · {formatDate(order.created_at)}</Text>
+        <Text style={styles.muted}>{t('budgetLabel', { v: formatPrice(t, order.budget) })}</Text>
+        {order.when_text ? <Text style={styles.muted}>{t('whenLabel', { v: order.when_text })}</Text> : null}
+        <Text style={styles.muted}>{t('whereLabel', { v: cityName(order.city) + (order.remote ? t('remoteSuffix') : '') })}</Text>
+        <Text style={styles.muted}>{t('clientLabel', { v: order.client_name })} · {formatDate(order.created_at, lang)}</Text>
       </Card>
       {order.is_mine ? <ClientView order={order} reload={reload} /> : <SpecialistView order={order} reload={reload} />}
     </ScrollView>
@@ -34,6 +38,7 @@ export default function OrderScreen() {
 }
 
 function ClientView({ order, reload }: { order: Order; reload: () => Promise<void> }) {
+  const { t } = useT();
   const { data: responses } = useApi<OrderResponse[]>(`/orders/${order.id}/responses`);
   const [rating, setRating] = useState(5);
   const [reviewText, setReviewText] = useState('');
@@ -51,29 +56,29 @@ function ClientView({ order, reload }: { order: Order; reload: () => Promise<voi
 
   const confirm = (text: string, path: string) =>
     Alert.alert(text, undefined, [
-      { text: 'Нет', style: 'cancel' },
-      { text: 'Да', onPress: () => act(path) },
+      { text: t('no'), style: 'cancel' },
+      { text: t('yes'), onPress: () => act(path) },
     ]);
 
   return (
     <View>
       <ErrorText text={error} />
       {order.status === 'in_progress' ? (
-        <Button title="Работа выполнена" onPress={() => confirm('Отметить заказ выполненным?', 'complete')} style={{ marginBottom: 12 }} />
+        <Button title={t('markDone')} onPress={() => confirm(t('markDoneConfirm'), 'complete')} style={{ marginBottom: 12 }} />
       ) : null}
       {order.status === 'completed' && !order.has_review ? (
         <Card>
-          <Text style={styles.h2}>Оцените исполнителя</Text>
+          <Text style={styles.h2}>{t('rateSpecialist')}</Text>
           <View style={styles.wrap}>
             {[1, 2, 3, 4, 5].map((n) => <Chip key={n} label={'★'.repeat(n)} selected={rating === n} onPress={() => setRating(n)} />)}
           </View>
-          <Field value={reviewText} onChangeText={setReviewText} multiline placeholder="Расскажите, как всё прошло" />
-          <Button title="Оставить отзыв" onPress={() => act('review', { rating, text: reviewText })} />
+          <Field value={reviewText} onChangeText={setReviewText} multiline placeholder={t('reviewPlaceholder')} />
+          <Button title={t('leaveReview')} onPress={() => act('review', { rating, text: reviewText })} />
         </Card>
       ) : null}
 
-      <Text style={[styles.h2, { marginTop: 8 }]}>Отклики ({responses?.length ?? 0})</Text>
-      {responses?.length === 0 ? <Text style={styles.muted}>Специалисты скоро откликнутся — мы пришлём уведомление.</Text> : null}
+      <Text style={[styles.h2, { marginTop: 8 }]}>{t('responses', { n: responses?.length ?? 0 })}</Text>
+      {responses?.length === 0 ? <Text style={styles.muted}>{t('responsesSoon')}</Text> : null}
       {responses?.map((r) => {
         const chosen = order.specialist_id === r.specialist.id;
         return (
@@ -86,19 +91,19 @@ function ClientView({ order, reload }: { order: Order; reload: () => Promise<voi
             </Text>
             <Stars rating={r.specialist.rating} count={r.specialist.reviews_count} />
             <Text style={[styles.text, { marginVertical: 8 }]}>{r.message}</Text>
-            <Text style={styles.muted}>Цена: {formatPrice(r.price)}</Text>
-            {chosen ? <Text style={{ color: colors.success, marginTop: 4 }}>Выбран исполнителем</Text> : null}
+            <Text style={styles.muted}>{t('price', { v: formatPrice(t, r.price) })}</Text>
+            {chosen ? <Text style={{ color: colors.success, marginTop: 4 }}>{t('chosen')}</Text> : null}
             <View style={[styles.row, { marginTop: 12, gap: 8 }]}>
-              <Button title="Написать" variant="secondary" onPress={() => openChat(r.chat_id)} style={{ flex: 1 }} />
+              <Button title={t('write')} variant="secondary" onPress={() => openChat(r.chat_id)} style={{ flex: 1 }} />
               {order.status === 'open' ? (
-                <Button title="Выбрать" onPress={() => act('choose', { response_id: r.id })} style={{ flex: 1 }} />
+                <Button title={t('choose')} onPress={() => act('choose', { response_id: r.id })} style={{ flex: 1 }} />
               ) : null}
             </View>
           </Card>
         );
       })}
       {order.status === 'open' || order.status === 'in_progress' ? (
-        <Button title="Отменить заказ" variant="secondary" onPress={() => confirm('Отменить заказ?', 'close')} style={{ marginTop: 8 }} />
+        <Button title={t('cancelOrder')} variant="secondary" onPress={() => confirm(t('cancelOrderConfirm'), 'close')} style={{ marginTop: 8 }} />
       ) : null}
     </View>
   );
@@ -106,6 +111,7 @@ function ClientView({ order, reload }: { order: Order; reload: () => Promise<voi
 
 function SpecialistView({ order, reload }: { order: Order; reload: () => Promise<void> }) {
   const { user } = useAuth();
+  const { t } = useT();
   const [message, setMessage] = useState('');
   const [price, setPrice] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -114,17 +120,17 @@ function SpecialistView({ order, reload }: { order: Order; reload: () => Promise
   if (order.my_response) {
     return (
       <Card>
-        <Text style={styles.h2}>Ваш отклик</Text>
+        <Text style={styles.h2}>{t('yourResponse')}</Text>
         <Text style={styles.text}>{order.my_response.message}</Text>
-        <Text style={[styles.muted, { marginVertical: 6 }]}>Цена: {formatPrice(order.my_response.price)}</Text>
-        {order.specialist_id === user?.id ? <Text style={{ color: colors.success, marginBottom: 8 }}>Клиент выбрал вас!</Text> : null}
-        {order.chat_id ? <Button title="Открыть чат с клиентом" onPress={() => openChat(order.chat_id!)} /> : null}
+        <Text style={[styles.muted, { marginVertical: 6 }]}>{t('price', { v: formatPrice(t, order.my_response.price) })}</Text>
+        {order.specialist_id === user?.id ? <Text style={{ color: colors.success, marginBottom: 8 }}>{t('clientChoseYou')}</Text> : null}
+        {order.chat_id ? <Button title={t('openChat')} onPress={() => openChat(order.chat_id!)} /> : null}
       </Card>
     );
   }
-  if (order.status !== 'open') return <Text style={styles.muted}>Заказ больше не принимает отклики.</Text>;
+  if (order.status !== 'open') return <Text style={styles.muted}>{t('noMoreResponses')}</Text>;
   if (!user?.has_specialist_profile) {
-    return <Button title="Заполнить анкету, чтобы откликаться" onPress={() => router.push('/specialist-profile')} />;
+    return <Button title={t('fillProfileToRespond')} onPress={() => router.push('/specialist-profile')} />;
   }
 
   async function respond() {
@@ -149,13 +155,13 @@ function SpecialistView({ order, reload }: { order: Order; reload: () => Promise
 
   return (
     <Card>
-      <Text style={styles.h2}>Откликнуться</Text>
-      <Field value={message} onChangeText={setMessage} multiline placeholder="Расскажите, как вы решите задачу, и задайте уточняющие вопросы" />
-      <Field label="Ваша цена, ₽" value={price} onChangeText={setPrice} keyboardType="number-pad" />
+      <Text style={styles.h2}>{t('respond')}</Text>
+      <Field value={message} onChangeText={setMessage} multiline placeholder={t('respondPlaceholder')} />
+      <Field label={t('yourPrice')} value={price} onChangeText={setPrice} keyboardType="number-pad" />
       <ErrorText text={error} />
-      <Button title="Отправить отклик" onPress={respond} loading={busy} disabled={!message.trim()} />
+      <Button title={t('sendResponse')} onPress={respond} loading={busy} disabled={!message.trim()} />
       {!user.subscription_until ? (
-        <Text style={[styles.muted, { marginTop: 8 }]}>Для отклика нужна активная подписка.</Text>
+        <Text style={[styles.muted, { marginTop: 8 }]}>{t('needSubscription')}</Text>
       ) : null}
     </Card>
   );

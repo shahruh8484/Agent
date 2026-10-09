@@ -5,11 +5,13 @@ import { CityPicker } from '../components/CityPicker';
 import { Button, Card, ErrorText, Field, styles } from '../components/ui';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useT } from '../lib/i18n';
 import { colors } from '../lib/theme';
 import type { Role, User } from '../lib/types';
 
 export default function Onboarding() {
   const { user, setUser } = useAuth();
+  const { t } = useT();
   const [name, setName] = useState(user?.name ?? '');
   const [city, setCity] = useState(user?.city ?? '');
   const [role, setRole] = useState<Role>(user?.role ?? 'client');
@@ -19,7 +21,7 @@ export default function Onboarding() {
   async function save() {
     setBusy(true);
     try {
-      setUser(await api<User>('/me', { method: 'PATCH', body: { name: name.trim(), city: city.trim(), role } }));
+      setUser(await api<User>('/me', { method: 'PATCH', body: { name: name.trim(), city, role } }));
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
@@ -35,13 +37,13 @@ export default function Onboarding() {
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Field label="Как вас зовут?" value={name} onChangeText={setName} placeholder="Имя" />
+      <Field label={t('yourName')} value={name} onChangeText={setName} placeholder={t('namePlaceholder')} />
       <CityPicker value={city} onChange={setCity} />
-      <Text style={[styles.label, { marginTop: 8 }]}>Я хочу</Text>
-      {roleCard('client', 'Найти специалиста', 'Разместите заказ — специалисты сами предложат свои услуги.')}
-      {roleCard('specialist', 'Находить клиентов', 'Откликайтесь на заказы по подписке. Первые дни — бесплатно.')}
+      <Text style={styles.label}>{t('iWant')}</Text>
+      {roleCard('client', t('wantClient'), t('wantClientText'))}
+      {roleCard('specialist', t('wantSpecialist'), t('wantSpecialistText'))}
       <ErrorText text={error} />
-      <Button title="Продолжить" onPress={save} loading={busy} disabled={!name.trim() || !city.trim()} />
+      <Button title={t('continue')} onPress={save} loading={busy} disabled={!name.trim() || !city} />
     </ScrollView>
   );
 }

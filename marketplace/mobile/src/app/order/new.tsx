@@ -6,12 +6,14 @@ import { CityPicker } from '../../components/CityPicker';
 import { Button, Chip, ErrorText, Field, Loading, styles } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { useT } from '../../lib/i18n';
 import type { Order, Section } from '../../lib/types';
 import { useApi } from '../../lib/useApi';
 
 export default function NewOrder() {
   const params = useLocalSearchParams<{ category_id?: string }>();
   const { user } = useAuth();
+  const { t } = useT();
   const { data: sections } = useApi<Section[]>('/categories');
   const [categoryId, setCategoryId] = useState<number | null>(params.category_id ? Number(params.category_id) : null);
   const [sectionId, setSectionId] = useState<number | null>(null);
@@ -58,14 +60,14 @@ export default function NewOrder() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text style={styles.label}>Услуга</Text>
+      <Text style={styles.label}>{t('service')}</Text>
       {selected ? (
         <View style={styles.wrap}>
           <Chip label={`${selected.name}  ✕`} selected onPress={() => setCategoryId(null)} />
         </View>
       ) : activeSection ? (
         <View style={styles.wrap}>
-          <Chip label="← Разделы" onPress={() => { setSectionId(null); setCategoryId(null); }} />
+          <Chip label={t('sections')} onPress={() => { setSectionId(null); setCategoryId(null); }} />
           {activeSection.children.map((c) => (
             <Chip key={c.id} label={c.name} onPress={() => setCategoryId(c.id)} />
           ))}
@@ -75,17 +77,17 @@ export default function NewOrder() {
           {sections.map((s) => <Chip key={s.id} label={s.name} onPress={() => setSectionId(s.id)} />)}
         </View>
       )}
-      <Field label="Что нужно сделать?" value={title} onChangeText={setTitle} placeholder="Например: репетитор по математике для 9 класса" />
-      <Field label="Подробности" value={description} onChangeText={setDescription} multiline placeholder="Опишите задачу, пожелания, адрес или район" />
-      <Field label="Когда" value={whenText} onChangeText={setWhenText} placeholder="Например: по вечерам, с 1 ноября" />
-      <Field label="Бюджет, ₽" value={budget} onChangeText={setBudget} keyboardType="number-pad" placeholder="Можно оставить пустым" />
+      <Field label={t('whatToDo')} value={title} onChangeText={setTitle} placeholder={t('whatToDoPlaceholder')} />
+      <Field label={t('details')} value={description} onChangeText={setDescription} multiline placeholder={t('detailsPlaceholder')} />
+      <Field label={t('when')} value={whenText} onChangeText={setWhenText} placeholder={t('whenPlaceholder')} />
+      <Field label={t('budget')} value={budget} onChangeText={setBudget} keyboardType="number-pad" placeholder={t('optional')} />
       <View style={[styles.row, { justifyContent: 'space-between', marginBottom: 12 }]}>
-        <Text style={styles.text}>Можно удалённо / онлайн</Text>
+        <Text style={styles.text}>{t('remoteOk')}</Text>
         <Switch value={remote} onValueChange={setRemote} />
       </View>
       <CityPicker value={city} onChange={setCity} />
       <ErrorText text={error} />
-      <Button title="Опубликовать заказ" onPress={submit} loading={busy} disabled={!selected || title.trim().length < 3} />
+      <Button title={t('publish')} onPress={submit} loading={busy} disabled={!selected || title.trim().length < 3} />
     </ScrollView>
   );
 }

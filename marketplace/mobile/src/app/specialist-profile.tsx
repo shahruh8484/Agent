@@ -5,10 +5,12 @@ import { ScrollView, Switch, Text, View } from 'react-native';
 import { Button, Chip, ErrorText, Field, Loading, styles } from '../components/ui';
 import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useT } from '../lib/i18n';
 import type { Section, Specialist } from '../lib/types';
 
 export default function SpecialistProfile() {
   const { user, refresh } = useAuth();
+  const { t, lang } = useT();
   const [sections, setSections] = useState<Section[] | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [open, setOpen] = useState<number | null>(null);
@@ -31,7 +33,7 @@ export default function SpecialistProfile() {
         setRemote(s.remote);
       })
       .catch((e) => { if (!(e instanceof ApiError && e.status === 404)) setError(e.message); });
-  }, [user]);
+  }, [user, lang]);
 
   if (!sections) return <Loading />;
 
@@ -62,8 +64,8 @@ export default function SpecialistProfile() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text style={styles.h2}>Мои услуги ({selected.length})</Text>
-      <Text style={[styles.muted, { marginBottom: 8 }]}>Вы будете получать заказы по выбранным услугам.</Text>
+      <Text style={styles.h2}>{t('myServices', { n: selected.length })}</Text>
+      <Text style={[styles.muted, { marginBottom: 8 }]}>{t('myServicesHint')}</Text>
       {sections.map((s) => {
         const count = s.children.filter((c) => selected.includes(c.id)).length;
         return (
@@ -79,15 +81,15 @@ export default function SpecialistProfile() {
           </View>
         );
       })}
-      <Field label="О себе" value={bio} onChangeText={setBio} multiline placeholder="Образование, опыт, чем вы лучше других" />
-      <Field label="Опыт, лет" value={experience} onChangeText={setExperience} keyboardType="number-pad" />
-      <Field label="Цена от, ₽" value={price} onChangeText={setPrice} keyboardType="number-pad" />
+      <Field label={t('about')} value={bio} onChangeText={setBio} multiline placeholder={t('aboutPlaceholder')} />
+      <Field label={t('experienceYears')} value={experience} onChangeText={setExperience} keyboardType="number-pad" />
+      <Field label={t('priceFromLabel')} value={price} onChangeText={setPrice} keyboardType="number-pad" />
       <View style={[styles.row, { justifyContent: 'space-between', marginBottom: 16 }]}>
-        <Text style={styles.text}>Работаю онлайн / по всей стране</Text>
+        <Text style={styles.text}>{t('remoteWork')}</Text>
         <Switch value={remote} onValueChange={setRemote} />
       </View>
       <ErrorText text={error} />
-      <Button title="Сохранить анкету" onPress={save} loading={busy} disabled={!selected.length} />
+      <Button title={t('saveProfile')} onPress={save} loading={busy} disabled={!selected.length} />
     </ScrollView>
   );
 }

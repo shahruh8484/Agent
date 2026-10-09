@@ -1,68 +1,64 @@
-"""Outbound integrations: SMS codes, YooKassa payments, Expo push notifications.
+"""Outbound integrations: SMS codes via Eskiz.uz and Expo push notifications.
 
 Each one has a "dev" mode so the app runs end-to-end without accounts or keys.
 """
 from __future__ import annotations
 
 import logging
-import uuid
+from threading import Lock
 
 import requests
 
-from servio.config import Plan, Settings
+from servio.config import Settings
 
 log = logging.getLogger(__name__)
 
+ESKIZ_API = "https://notify.eskiz.uz/api"
+_eskiz_token: str | None = None
+_eskiz_lock = Lock()
 
-def send_sms_code(settings: Settings, phone: str, code: str) -> None:
-    if settings.sms_provider == "dev":
-        log.info("SMS code for %s: %s", phone, code)
-        return
-    if settings.sms_provider == "smsru":
-        resp = requests.get(
-            "https://sms.ru/sms/send",
-            params={
-                "api_id": settings.smsru_api_id,
-                "to": phone.lstrip("+"),
-                "msg": f"{settings.app_name}: код входа {code}",
-                "json": 1,
-            },
+
+def _eskiz_login(settings: Settings) -> str:
+    resp = requests.post(
+        f"{ESKIZ_API}/auth/login",
+        data={"email": settings.eskiz_email, "password": settings.eskiz_password},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    return resp.json()["data"]["token"]
+
+
+def _eskiz_send(settings: Settings, phone: str, text: str) -> None:
+    """Eskiz tokens live ~30 days; log in lazily and once more on 401."""
+    global _eskiz_token
+    for attempt in range(2):
+        with _eskiz_lock:
+            if _eskiz_token is None:
+                _eskiz_token = _eskiz_login(settings)
+            token = _eskiz_token
+        resp = requests.post(
+            f"{ESKIZ_API}/message/sms/send",
+            headers={"Authorization": f"Bearer {token}"},
+            data={"mobile_phone": phone.lstrip("+"), "message": text, "from": settings.eskiz_from},
             timeout=10,
         )
+        if resp.status_code == 401 and attempt == 0:
+            with _eskiz_lock:
+                _eskiz_token = None
+            continue
         resp.raise_for_status()
         return
+
+
+def send_sms_code(settings: Settings, phone: str, code: str) -> None:
+    text = settings.sms_template.format(code=code)
+    if settings.sms_provider == "dev":
+        log.info("SMS to %s: %s", phone, text)
+        return
+    if settings.sms_provider == "eskiz":
+        _eskiz_send(settings, phone, text)
+        return
     raise ValueError(f"Unknown sms_provider: {settings.sms_provider}")
-
-
-def create_yookassa_payment(settings: Settings, plan: Plan, payment_id: int) -> tuple[str, str]:
-    """Creates a payment and returns (provider_id, confirmation_url)."""
-    resp = requests.post(
-        "https://api.yookassa.ru/v3/payments",
-        auth=(settings.yookassa_shop_id, settings.yookassa_secret_key),
-        headers={"Idempotence-Key": str(uuid.uuid4())},
-        json={
-            "amount": {"value": f"{plan.price}.00", "currency": settings.currency},
-            "capture": True,
-            "confirmation": {"type": "redirect", "return_url": settings.payment_return_url},
-            "description": f"{settings.app_name}: подписка «{plan.title}»",
-            "metadata": {"payment_id": payment_id},
-        },
-        timeout=15,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    return data["id"], data["confirmation"]["confirmation_url"]
-
-
-def fetch_yookassa_status(settings: Settings, provider_id: str) -> str:
-    """Webhook bodies are not signed, so the status is always re-read from the API."""
-    resp = requests.get(
-        f"https://api.yookassa.ru/v3/payments/{provider_id}",
-        auth=(settings.yookassa_shop_id, settings.yookassa_secret_key),
-        timeout=15,
-    )
-    resp.raise_for_status()
-    return resp.json()["status"]
 
 
 def send_push(settings: Settings, tokens: list[str], title: str, body: str, data: dict) -> None:

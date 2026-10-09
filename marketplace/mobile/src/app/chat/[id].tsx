@@ -4,8 +4,9 @@ import { FlatList, KeyboardAvoidingView, Platform, Text, TextInput, View } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button, ErrorText, styles } from '../../components/ui';
-import { api, formatDate } from '../../lib/api';
+import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { formatDate, useT } from '../../lib/i18n';
 import { colors, radius } from '../../lib/theme';
 import type { Message } from '../../lib/types';
 
@@ -14,6 +15,7 @@ const POLL_MS = 4000;
 export default function ChatScreen() {
   const { id, title } = useLocalSearchParams<{ id: string; title?: string }>();
   const { user } = useAuth();
+  const { t, lang } = useT();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +56,7 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['bottom']}>
-      <Stack.Screen options={{ title: title || 'Чат' }} />
+      <Stack.Screen options={{ title: title || t('chat') }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
         <FlatList
           ref={list}
@@ -77,7 +79,7 @@ export default function ChatScreen() {
               >
                 <Text style={{ color: mine ? '#fff' : colors.text, fontSize: 15 }}>{item.text}</Text>
                 <Text style={{ color: mine ? '#DCE6FF' : colors.muted, fontSize: 11, marginTop: 4 }}>
-                  {formatDate(item.created_at)}
+                  {formatDate(item.created_at, lang)}
                 </Text>
               </View>
             );
@@ -89,7 +91,7 @@ export default function ChatScreen() {
             style={[styles.input, { flex: 1 }]}
             value={text}
             onChangeText={setText}
-            placeholder="Сообщение"
+            placeholder={t('message')}
             placeholderTextColor={colors.muted}
             multiline
           />

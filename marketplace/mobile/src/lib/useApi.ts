@@ -2,9 +2,11 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
 import { api } from './api';
+import { useT } from './i18n';
 
-/** Loads `path` every time the screen gains focus; `reload` refetches on demand. */
+/** Loads `path` every time the screen gains focus or the language changes; `reload` refetches on demand. */
 export function useApi<T>(path: string | null) {
+  const { lang } = useT();
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -17,7 +19,7 @@ export function useApi<T>(path: string | null) {
     } catch (e) {
       setError((e as Error).message);
     }
-  }, [path]);
+  }, [path, lang]);
 
   useFocusEffect(
     useCallback(() => {

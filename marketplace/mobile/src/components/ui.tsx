@@ -11,6 +11,7 @@ import {
   ViewStyle,
 } from 'react-native';
 
+import { useT } from '../lib/i18n';
 import { colors, radius, space } from '../lib/theme';
 
 export function Screen({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
@@ -81,11 +82,12 @@ export function Chip({ label, selected, onPress }: { label: string; selected?: b
 }
 
 export function Stars({ rating, count }: { rating: number | null; count?: number }) {
-  if (!rating) return <Text style={styles.muted}>Нет отзывов</Text>;
+  const { t } = useT();
+  if (!rating) return <Text style={styles.muted}>{t('noReviews')}</Text>;
   return (
     <Text style={{ color: colors.text }}>
       <Text style={{ color: colors.star }}>★</Text> {rating.toFixed(1)}
-      {count != null ? <Text style={styles.muted}> · {count} отзыв(ов)</Text> : null}
+      {count != null ? <Text style={styles.muted}> · {t('reviewsCount', { n: count })}</Text> : null}
     </Text>
   );
 }
