@@ -33,6 +33,17 @@
 </div>
 
 <div class="card">
+  <h2>Закупки товара <a href="/product" style="font-size:0.8rem; font-weight:400; margin-left:8px">внести на странице «Мой товар» →</a></h2>
+  <div class="table-wrap"><table>
+    <tr><th>Дата</th><th>Товар</th><th class="num">Штук</th><th class="num">Заплатили</th><th>Заметка</th></tr>
+    {% for m in purchases %}
+    <tr><td>{{ m.date }}</td><td>{{ m.product_name }}</td><td class="num">{{ m.qty|num }}</td>
+      <td class="num neg">−{{ m.cost_usd|usd }}</td><td class="muted">{{ m.note }}</td></tr>
+    {% else %}<tr><td colspan="5" class="muted">За период закупок нет.</td></tr>{% endfor %}
+  </table></div>
+</div>
+
+<div class="card">
   <h2>Платежи <a href="/import" style="font-size:0.8rem; font-weight:400; margin-left:8px">импорт из таблицы →</a></h2>
   <form class="inline" method="post" action="/money/payment">
     <input type="hidden" name="next" value="/money">

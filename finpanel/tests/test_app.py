@@ -261,3 +261,16 @@ def test_custom_date_range(settings, repo):
     july = client.get("/traffic?from=2026-07-01&to=2026-07-31").text
     assert "2026-07-15" in july and "2026-08-15" not in july
     assert client.get("/traffic?from=bad&to=2026-07-31").status_code == 200  # falls back to preset
+
+
+def test_purchases_listed(settings, repo):
+    product = repo.add_product("Glycofort", 2.2, 1070, "2026-10-01")
+    repo.add_stock_move("2026-08-28", product, 759, "purchase", cost_usd=1670, note="Данил")
+    repo.add_stock_move("2026-10-09", product, -759, "adjust")
+    assert [m["qty"] for m in repo.stock_purchases()] == [759]
+    assert repo.stock_purchases("2026-09-01", None) == []
+    client = make_client(settings, repo)
+    login(client)
+    money = client.get("/money?period=all").text
+    assert "Закупки товара" in money and "Данил" in money and "$1,670.00" in money
+    assert "Закупки товара за период: <b>$1,670.00</b>" in client.get("/product?period=all").text

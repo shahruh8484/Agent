@@ -741,6 +741,20 @@ class Repo:
             params.append(product_id)
         return self.db.query(sql + " ORDER BY m.date DESC, m.id DESC LIMIT ?", params + [limit])
 
+    def stock_purchases(self, start: str | None = None, end: str | None = None) -> list[sqlite3.Row]:
+        sql = (
+            "SELECT m.*, p.name AS product_name FROM stock_moves m JOIN products p ON p.id = m.product_id "
+            "WHERE m.kind = 'purchase'"
+        )
+        params: list = []
+        if start:
+            sql += " AND m.date >= ?"
+            params.append(start)
+        if end:
+            sql += " AND m.date <= ?"
+            params.append(end)
+        return self.db.query(sql + " ORDER BY m.date DESC, m.id DESC", params)
+
     def delete_stock_move(self, move_id: int) -> None:
         # Only manual moves — ship/return moves belong to their order.
         self.db.execute(

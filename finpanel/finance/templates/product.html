@@ -27,6 +27,8 @@
     <tr><td>Прочие расходы по товару</td><td class="num neg">−{{ rep.expenses|usd }}</td></tr>
     <tr class="total"><td>Прибыль</td><td class="num {{ 'pos' if rep.profit > 0 else 'neg' if rep.profit < 0 }}">{{ rep.profit|usd(true) }}</td></tr>
   </table></div>
+  {% set bought = purchases|sum(attribute='cost_usd') %}
+  <p class="hint">Закупки товара за период: <b>{{ bought|usd }}</b>{% if purchases %} ({{ purchases|sum(attribute='qty')|num }} шт){% endif %} — это деньги, вложенные в склад: они видны в кассе, а в прибыль идут по себестоимости проданного.</p>
   <p class="hint">Один выкупленный заказ в среднем оставляет {{ rep.net_per_delivered|usd }} до оплаты трафика. Отправлено за период: {{ rep.shipped }}.</p>
 </div>
 
