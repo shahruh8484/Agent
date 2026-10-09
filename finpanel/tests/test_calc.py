@@ -307,3 +307,14 @@ def test_reconcile_sets_balance_to_owner_figure(repo):
     # a negative target works too (you owe the web)
     calc.reconcile(repo, TODAY, "web", donik, "traffic", -100, "2026-10-10")
     assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(-100)
+
+
+def test_redate_reconcile_corrections_cleans_month(repo):
+    maks = repo.add_web("Макс")
+    repo.add_payment("2026-08-01", "traffic", "web", maks, 1000)
+    calc.reconcile(repo, TODAY, "web", maks, "traffic", -500, "2026-10-10")
+    repo.add_accrual("2026-10-05", "traffic", "web", maks, 10, "штраф")
+    assert calc.traffic_report(repo, "2026-10-01", "2026-10-31", TODAY).total.web_amount == pytest.approx(1510)
+    assert repo.redate_reconcile_accruals("2026-09-30") == 1
+    assert calc.traffic_report(repo, "2026-10-01", "2026-10-31", TODAY).total.web_amount == pytest.approx(10)
+    assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(-510)

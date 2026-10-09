@@ -79,6 +79,13 @@
     <label>Заметка<input name="note" placeholder="итог до сегодня"></label>
     <button>Записать</button>
   </form>
+  {% if has_reconcile %}
+  <form class="inline" method="post" action="/accruals/redate" style="margin-top:12px">
+    <label>Перенести все корректировки «сверка» на дату<input type="date" name="date" value="2026-09-30" required></label>
+    <button class="ghost" style="color:#8fa6ff">Перенести</button>
+  </form>
+  <p class="hint">Сверка поправляет всю историю, а не один месяц. Поставьте её последним днём до начала ровного учёта (например 30.09), чтобы прибыль текущего месяца была чистой. На «Всё время» и на балансы перенос не влияет.</p>
+  {% endif %}
   {% if accruals %}
   <div class="table-wrap" style="margin-top:12px"><table>
     <tr><th>Дата</th><th>Кто</th><th>Направление</th><th class="num">Сумма</th><th>Заметка</th><th></th></tr>

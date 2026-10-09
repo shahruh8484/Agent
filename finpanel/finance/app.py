@@ -519,6 +519,7 @@ def create_app(
             product={b.party_id: b for b in calc.web_balances(repo, today, "product")},
             adv_balances=calc.advertiser_balances(repo, today),
             accruals=repo.accruals(),
+            has_reconcile=any(c["note"].startswith("сверка") for c in repo.accruals()),
         )
 
     @app.post("/reconcile")
@@ -565,6 +566,19 @@ def create_app(
             return f"Начисление {fmt_usd(amount)} записано."
 
         return run(_safe_next(next), do)
+
+    @app.post("/accruals/redate")
+    def accruals_redate(request: Request, date_: str = Form(..., alias="date")):
+        if not authed(request):
+            return login_redirect()
+
+        def do():
+            if not _is_iso_date(date_):
+                raise ValueError("Укажите дату.")
+            n = repo.redate_reconcile_accruals(date_)
+            return f"Корректировок сверки перенесено на {date_}: {n}."
+
+        return run("/webs", do)
 
     @app.post("/accruals/delete")
     def accrual_delete(request: Request, accrual_id: int = Form(...), next: str = Form("/webs")):

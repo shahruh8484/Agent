@@ -806,6 +806,14 @@ class Repo:
     def delete_accrual(self, accrual_id: int) -> None:
         self.db.execute("DELETE FROM accruals WHERE id = ?", (accrual_id,))
 
+    def redate_reconcile_accruals(self, new_date: str) -> int:
+        """Move every reconciliation correction to one date. They fix up
+        the whole history, so booking them on the day of the reconcile
+        makes that month's profit look wrong."""
+        n = self.db.one("SELECT COUNT(*) AS n FROM accruals WHERE note LIKE 'сверка%'")["n"]
+        self.db.execute("UPDATE accruals SET date = ? WHERE note LIKE 'сверка%'", (new_date,))
+        return n
+
     # --- import aliases ---
 
     def import_aliases(self) -> dict[str, str]:
