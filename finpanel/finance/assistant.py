@@ -61,7 +61,8 @@ TOOLS = [
     _tool("add_link", "Создать связку веб → оффер → рекл со ставками (направление 'Трафик').",
           {**_LINK_KEY, **_RATE_FIELDS},
           ["web", "advertiser", "offer", "valid_from", "adv_pay_type", "adv_rate", "guarantee_pct", "web_pay_type", "web_rate", "web_guarantee_pct"]),
-    _tool("set_link_rate", "Изменить ставки существующей связки начиная с даты (старые дни считаются по старым ставкам).",
+    _tool("set_link_rate", "Изменить ставки СУЩЕСТВУЮЩЕЙ связки начиная с даты (старые дни считаются по старым ставкам). "
+                           "Используй это, а не add_link, когда связка уже есть в списке.",
           {**_LINK_KEY, **_RATE_FIELDS},
           ["web", "advertiser", "offer", "valid_from", "adv_pay_type", "adv_rate", "guarantee_pct", "web_pay_type", "web_rate", "web_guarantee_pct"]),
     _tool("add_traffic_stat", "Записать статистику связки за день (перезаписывает этот день, если он уже был).",
@@ -284,7 +285,10 @@ def apply_action(repo: Repo, name: str, a: dict) -> str:
         if name == "add_link":
             web = _require(repo.find_web(a["web"]), "Веб", a["web"])
             adv = _require(repo.find_advertiser(a["advertiser"]), "Рекл", a["advertiser"])
+            existed = repo.same_link(web["id"], adv["id"], a.get("offer", ""))
             repo.add_link(web["id"], adv["id"], a.get("offer", ""), *rate_args)
+            if existed:
+                return f"Связка {web['name']} → {adv['name']} уже была — ставки с {a['valid_from']} обновлены."
             return f"Связка {web['name']} → {adv['name']} создана."
         link = _find_link(repo, a)
         repo.set_link_rate(link["id"], *rate_args)

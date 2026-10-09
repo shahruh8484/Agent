@@ -275,3 +275,15 @@ def test_guarantee_counts_whole_approves(repo):
     assert agg.adv_amount == pytest.approx((45 + 45 + 30) * 25)
     assert agg.web_amount == pytest.approx((45 + 45 + 30) * 23)
     assert calc.guaranteed_approves(300, 7) == 21
+
+
+def test_same_link_is_not_created_twice_and_can_be_deleted(repo):
+    web = repo.add_web("Тл")
+    adv = repo.add_advertiser("Санж")
+    a = repo.add_link(web, adv, "", "2026-08-12", "approve", 25, 10, "approve", 23, 10)
+    b = repo.add_link(web, adv, "", "2026-09-02", "approve", 25, 10, "approve", 24, 10)
+    assert a == b and len(repo.links()) == 1
+    assert [r["web_rate"] for r in repo.link_rates(a)] == [23, 24]
+    repo.upsert_traffic_stat(a, "2026-09-05", 100, 90, 10)
+    repo.delete_link(a)
+    assert repo.links() == [] and repo.traffic_stats() == [] and repo.all_link_rates() == []

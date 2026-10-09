@@ -68,6 +68,27 @@
       <button>Создать</button>
     </form>
   </details>
+  <details><summary>История ставок и удаление связок</summary>
+    <div class="table-wrap"><table>
+      <tr><th>#</th><th>Связка</th><th>С даты</th><th>Рекл платит</th><th>Вебу</th><th class="num">Дней статистики</th><th></th></tr>
+      {% for l in links %}
+        {% for r in rate_history.get(l.id, []) %}
+        <tr>
+          <td class="muted">{{ l.id if loop.first }}</td>
+          <td>{{ link_names[l.id] if loop.first }}</td>
+          <td>{{ r.valid_from }}</td>
+          <td>${{ r.adv_rate|num(2) }}/{{ 'апрув' if r.adv_pay_type == 'approve' else 'валид' }}{% if r.guarantee_pct %} · гарант {{ r.guarantee_pct|num }}%{% endif %}</td>
+          <td>${{ r.web_rate|num(2) }}/{{ 'апрув' if r.web_pay_type == 'approve' else 'лид' }}{% if r.web_guarantee_pct and r.web_pay_type == 'approve' %} · гарант {{ r.web_guarantee_pct|num }}%{% endif %}</td>
+          <td class="num">{{ link_stats.get(l.id, 0) if loop.first }}</td>
+          <td style="display:flex; gap:4px">
+            {% if not loop.first or rate_history[l.id]|length > 1 %}<form method="post" action="/traffic/rate/delete" onsubmit="return confirm('Удалить ставку с {{ r.valid_from }}?')"><input type="hidden" name="rate_id" value="{{ r.id }}"><button class="ghost" title="удалить эту ставку">✕ ставку</button></form>{% endif %}
+            {% if loop.first %}<form method="post" action="/traffic/link/delete" onsubmit="return confirm('Удалить связку {{ link_names[l.id] }} вместе со всеми ставками и статистикой ({{ link_stats.get(l.id, 0) }} дн.)?')"><input type="hidden" name="link_id" value="{{ l.id }}"><button class="ghost" title="удалить связку">✕ связку</button></form>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      {% endfor %}
+    </table></div>
+  </details>
   <details><summary>✎ Изменить ставки связки</summary>
     <form class="inline" method="post" action="/traffic/rate">
       <label>Связка<select name="link_id">{% for l in links %}<option value="{{ l.id }}">{{ link_names[l.id] }}</option>{% endfor %}</select></label>

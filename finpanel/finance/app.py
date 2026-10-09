@@ -204,6 +204,13 @@ def create_app(
         period, start, end = period_ctx(request)
         links = repo.links()
         rates = {l["id"]: repo.rate_on(l["id"], today.isoformat()) for l in links}
+        rate_history: dict[int, list] = {}
+        for r in repo.all_link_rates():
+            rate_history.setdefault(r["link_id"], []).append(r)
+        link_stats = {
+            row["link_id"]: row["n"]
+            for row in repo.db.query("SELECT link_id, COUNT(*) AS n FROM traffic_stats GROUP BY link_id")
+        }
         rep = calc.traffic_report(repo, start, end, today)
         link_names = {
             l["id"]: f"{l['web_name']} → {l['advertiser_name']}" + (f" ({l['offer']})" if l["offer"] else "")
@@ -217,6 +224,8 @@ def create_app(
             rep=rep,
             links=links,
             rates=rates,
+            rate_history=rate_history,
+            link_stats=link_stats,
             link_names=link_names,
             webs=repo.webs(),
             advertisers=repo.advertisers(),
@@ -281,6 +290,20 @@ def create_app(
             return f"Ставки с {valid_from} сохранены."
 
         return run("/traffic", do)
+
+    @app.post("/traffic/link/delete")
+    def traffic_delete_link(request: Request, link_id: int = Form(...)):
+        if not authed(request):
+            return login_redirect()
+        repo.delete_link(link_id)
+        return back("/traffic", msg="Связка удалена вместе с её ставками и статистикой.")
+
+    @app.post("/traffic/rate/delete")
+    def traffic_delete_rate(request: Request, rate_id: int = Form(...)):
+        if not authed(request):
+            return login_redirect()
+        repo.delete_link_rate(rate_id)
+        return back("/traffic", msg="Ставка удалена.")
 
     @app.post("/traffic/link/toggle")
     def traffic_toggle_link(request: Request, link_id: int = Form(...), active: int = Form(...)):

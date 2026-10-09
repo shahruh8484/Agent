@@ -351,10 +351,17 @@ class Repo:
         web_rate: float,
         web_guarantee_pct: float = 0,
     ) -> int:
-        link_id = self.db.execute(
-            "INSERT INTO links(web_id, advertiser_id, offer, created_at) VALUES (?, ?, ?, ?)",
-            (web_id, advertiser_id, offer.strip(), now_str()),
-        )
+        """Create a link — or, if this web → rekl (offer) link already
+        exists, just add the rates from valid_from to it, so the same link
+        never ends up twice."""
+        existing = self.same_link(web_id, advertiser_id, offer)
+        if existing:
+            link_id = existing["id"]
+        else:
+            link_id = self.db.execute(
+                "INSERT INTO links(web_id, advertiser_id, offer, created_at) VALUES (?, ?, ?, ?)",
+                (web_id, advertiser_id, offer.strip(), now_str()),
+            )
         self.set_link_rate(
             link_id, valid_from, adv_pay_type, adv_rate, guarantee_pct, web_pay_type, web_rate,
             web_guarantee_pct,
@@ -434,6 +441,26 @@ class Repo:
             chosen["web_rate"],
             chosen["web_guarantee_pct"],
         )
+
+    def same_link(self, web_id: int, advertiser_id: int, offer: str) -> sqlite3.Row | None:
+        key = offer.strip().casefold()
+        for row in self.db.query(
+            "SELECT * FROM links WHERE web_id = ? AND advertiser_id = ? ORDER BY id", (web_id, advertiser_id)
+        ):
+            if row["offer"].strip().casefold() == key:
+                return row
+        return None
+
+    def delete_link(self, link_id: int) -> None:
+        self.db.execute("DELETE FROM traffic_stats WHERE link_id = ?", (link_id,))
+        self.db.execute("DELETE FROM link_rates WHERE link_id = ?", (link_id,))
+        self.db.execute("DELETE FROM links WHERE id = ?", (link_id,))
+
+    def delete_link_rate(self, rate_id: int) -> None:
+        self.db.execute("DELETE FROM link_rates WHERE id = ?", (rate_id,))
+
+    def all_link_rates(self) -> list[sqlite3.Row]:
+        return self.db.query("SELECT * FROM link_rates ORDER BY link_id, valid_from")
 
     def set_link_active(self, link_id: int, active: bool) -> None:
         self.db.execute("UPDATE links SET active = ? WHERE id = ?", (1 if active else 0, link_id))
