@@ -6,16 +6,25 @@
   .chat { max-width: 760px; }
   .msg { display: flex; margin-bottom: 10px; }
   .msg.user { justify-content: flex-end; }
-  .bubble { max-width: 80%; padding: 9px 12px; border-radius: 12px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
+  .bubble { max-width: 80%; padding: 8px 12px; border-radius: 12px; line-height: 1.4; word-wrap: break-word; }
+  .bubble .text { white-space: pre-wrap; }
+  .bubble.long .text { max-height: 7.2em; overflow: hidden; position: relative; cursor: pointer; }
+  .bubble.long .text::after { content: "…  показать полностью"; position: absolute; right: 0; bottom: 0; padding-left: 30px;
+    background: linear-gradient(90deg, transparent, var(--panel) 30px); color: #8fa6ff; font-size: 0.78rem; }
+  .bubble.long.open .text { max-height: none; }
+  .bubble.long.open .text::after { display: none; }
+  .actions details summary { color: var(--muted); font-size: 0.8rem; margin: 0; }
+  .older { text-align: center; margin-bottom: 12px; }
+  .older a { color: #8fa6ff; font-size: 0.82rem; }
   .msg.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
   .msg.assistant .bubble { background: var(--panel); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
-  .actions { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; white-space: normal; }
+  .actions { margin-top: 6px; border-top: 1px solid var(--border); padding-top: 6px; }
   .actions ol { margin: 0 0 8px; padding-left: 20px; }
   .actions li { margin-bottom: 3px; }
   .actions .btns { display: flex; gap: 8px; }
   .actions .reject { background: var(--panel2); color: var(--muted); }
   .result { white-space: pre-wrap; font-size: 0.82rem; color: var(--muted); margin-top: 6px; }
-  .time { font-size: 0.68rem; color: var(--muted); margin-top: 4px; }
+  .time { font-size: 0.66rem; color: var(--muted); margin-top: 3px; }
   .composer { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0; display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
   .composer textarea { flex: 1; min-width: 220px; resize: vertical; min-height: 44px; }
   .attach { background: var(--panel2); color: var(--muted); }
@@ -44,22 +53,28 @@
   </div>
   {% endif %}
   <div id="messages">
+    {% if hidden %}<div class="older"><a href="/chat?all=1">Показать ранние сообщения ({{ hidden }})</a></div>{% endif %}
     {% for m in messages %}
+    {% set is_last = loop.last %}
     <div class="msg {{ m.role }}">
-      <div class="bubble">{{ m.content }}
-        {% if m.actions %}
+      <div class="bubble {{ 'long' if m.content|length > 280 and not is_last }}" {% if m.content|length > 280 and not is_last %}onclick="this.classList.add('open')"{% endif %}>
+        <div class="text">{{ m.content|trim }}</div>
+        {%- if m.actions %}
         <div class="actions">
+          {%- if m.actions_status == 'pending' %}
           <ol>{% for d in m.described %}<li>{{ d }}</li>{% endfor %}</ol>
-          {% if m.actions_status == 'pending' %}
           <div class="btns">
             <button onclick="act({{ m.id }}, 'apply', this)">Подтвердить</button>
             <button class="reject" onclick="act({{ m.id }}, 'reject', this)">Отклонить</button>
           </div>
-          {% else %}
-          <div class="result">{{ m.actions_result }}</div>
-          {% endif %}
+          {%- else %}
+          <details><summary>{{ 'Применено' if m.actions_status == 'applied' else 'Отклонено' }}: {{ m.actions|length }} действ.</summary>
+            <ol>{% for d in m.described %}<li>{{ d }}</li>{% endfor %}</ol>
+            <div class="result">{{ m.actions_result }}</div>
+          </details>
+          {%- endif %}
         </div>
-        {% endif %}
+        {%- endif %}
         <div class="time">{{ m.created_at }}</div>
       </div>
     </div>
@@ -107,6 +122,7 @@ function addBubble(role, content, cls) {
   const b = document.createElement('div');
   b.className = 'bubble' + (cls ? ' ' + cls : '');
   b.textContent = content;
+  b.style.whiteSpace = 'pre-wrap';
   row.appendChild(b);
   document.getElementById('messages').appendChild(row);
   window.scrollTo(0, document.body.scrollHeight);

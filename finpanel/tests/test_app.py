@@ -285,3 +285,19 @@ def test_reconcile_route(settings, repo):
     r = client.post("/reconcile", data={"party": f"web:{maks}", "direction": "traffic", "target": -2231}, follow_redirects=False)
     assert "Сверено" in r.headers["location"] or "%D0%A1%D0%B2%D0%B5%D1%80%D0%B5%D0%BD%D0%BE" in r.headers["location"]
     assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(-2231)
+
+
+def test_chat_shows_recent_messages_and_collapses_old(settings, repo):
+    for i in range(25):
+        repo.add_chat_message("user" if i % 2 == 0 else "assistant", f"сообщение номер {i}")
+    repo.add_chat_message("assistant", "длинный ответ " * 40, [{"name": "add_web", "input": {"name": "Вася"}}])
+    repo.set_chat_actions_status(repo.chat_messages()[-1]["id"], "applied", "✓ Веб Вася сохранён.")
+    repo.add_chat_message("user", "последнее")
+    client = make_client(settings, repo)
+    login(client)
+    page = client.get("/chat").text
+    assert "Показать ранние сообщения (7)" in page
+    assert "сообщение номер 0<" not in page and "сообщение номер 24" in page
+    assert "Применено: 1 действ." in page and 'class="bubble long"' in page
+    full = client.get("/chat?all=1").text
+    assert "сообщение номер 0<" in full and "Показать ранние" not in full

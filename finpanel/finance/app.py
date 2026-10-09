@@ -34,6 +34,7 @@ from finance.security import verify_password
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
+CHAT_VISIBLE = 20  # older chat messages sit behind "Показать ранние"
 IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 
 
@@ -858,10 +859,13 @@ def create_app(
     def chat_page(request: Request):
         if not authed(request):
             return login_redirect()
+        show_all = request.query_params.get("all") == "1"
         messages = repo.chat_messages()
+        hidden = 0 if show_all else max(len(messages) - CHAT_VISIBLE, 0)
+        messages = messages[hidden:]
         for m in messages:
             m["described"] = [describe_action(a["name"], a["input"]) for a in m["actions"]]
-        return render(request, "chat.html", "chat", messages=messages,
+        return render(request, "chat.html", "chat", messages=messages, hidden=hidden,
                       chat_enabled=bool(assistant_provider(settings)))
 
     @app.post("/chat/send")
