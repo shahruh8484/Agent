@@ -521,6 +521,29 @@ def create_app(
             accruals=repo.accruals(),
         )
 
+    @app.post("/reconcile")
+    def reconcile_balance(
+        request: Request,
+        party: str = Form(...),
+        target: float = Form(...),
+        direction: str = Form("traffic"),
+        date_: str = Form("", alias="date"),
+    ):
+        if not authed(request):
+            return login_redirect()
+
+        def do():
+            party_type, _, party_id = party.partition(":")
+            if party_type not in ("web", "advertiser") or not party_id.isdigit():
+                raise ValueError("Не понял, чей баланс.")
+            on_date = date_ or today_fn().isoformat()
+            diff = calc.reconcile(repo, today_fn(), party_type, int(party_id), direction, target, on_date)
+            if not diff:
+                return "Уже совпадает — ничего не меняли."
+            return f"Сверено: добавлено начисление {fmt_usd(diff)}, баланс теперь {fmt_usd(target)}."
+
+        return run("/webs", do)
+
     @app.post("/accruals/add")
     def accrual_add(
         request: Request,

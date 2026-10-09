@@ -488,6 +488,25 @@ def web_balances(repo: Repo, today: date, direction: str) -> list[Balance]:
     ]
 
 
+def reconcile(repo: Repo, today: date, party_type: str, party_id: int, direction: str,
+              target: float, on_date: str, note: str = "") -> float:
+    """Make a web's / rekl's balance equal `target` (your own figure) by
+    adding a manual accrual for the difference. Returns that difference
+    (0 if already equal). Balance = paid - accrued for both sides, so
+    accruing (balance - target) brings it to target."""
+    if party_type == "advertiser":
+        balances = advertiser_balances(repo, today)
+        direction = "traffic"
+    else:
+        balances = web_balances(repo, today, direction)
+    current = next((b.balance for b in balances if b.party_id == party_id), 0.0)
+    diff = round(current - target, 2)
+    if abs(diff) >= 0.01:
+        repo.add_accrual(on_date, direction, party_type, party_id, diff,
+                         note or f"сверка: баланс {current:,.2f} → {target:,.2f}")
+    return diff
+
+
 @dataclass
 class CourierBalance:
     delivered_uzs: float

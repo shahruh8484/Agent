@@ -31,6 +31,35 @@
 </div>
 
 <div class="card">
+  <h2>Сверка: выставить баланс по моим данным</h2>
+  <p class="muted" style="line-height:1.55">
+    Впишите, какой баланс <b>по вашим подсчётам</b> на сегодня, и нажмите «Сверить» — панель добавит начисление-корректировку
+    на разницу, и баланс станет ровно вашим. Знак как в таблицах: <b>плюс</b> — вы заплатили вперёд / у вас лежит предоплата рекла,
+    <b>минус</b> — вы должны вебу / рекл должен вам.
+    После сверки загружайте статистику <b>с завтрашнего дня</b>, чтобы не пересчитать заново уже сверенные дни.
+  </p>
+  <div class="table-wrap"><table>
+    <tr><th>Кто</th><th class="num">Сейчас в панели</th><th>По моим данным</th></tr>
+    {% for w in webs %}{% for direction, label, bal in (('traffic', 'трафик', traffic.get(w.id)), ('product', 'товар', product.get(w.id))) %}{% if bal %}
+    <tr><td>веб {{ w.name }} <span class="muted">({{ label }})</span></td>
+      <td class="num {{ 'pos' if bal.balance > 0 else 'neg' if bal.balance < 0 }}">{{ bal.balance|usd }}</td>
+      <td><form class="inline" method="post" action="/reconcile">
+        <input type="hidden" name="party" value="web:{{ w.id }}"><input type="hidden" name="direction" value="{{ direction }}">
+        <input type="number" step="0.01" name="target" placeholder="напр. -2231" required>
+        <button class="ghost" style="color:#8fa6ff">Сверить</button></form></td></tr>
+    {% endif %}{% endfor %}{% endfor %}
+    {% for b in adv_balances %}
+    <tr><td>рекл {{ b.name }}</td>
+      <td class="num {{ 'pos' if b.balance > 0 else 'neg' if b.balance < 0 }}">{{ b.balance|usd }}</td>
+      <td><form class="inline" method="post" action="/reconcile">
+        <input type="hidden" name="party" value="advertiser:{{ b.party_id }}">
+        <input type="number" step="0.01" name="target" placeholder="напр. 3117" required>
+        <button class="ghost" style="color:#8fa6ff">Сверить</button></form></td></tr>
+    {% endfor %}
+  </table></div>
+</div>
+
+<div class="card">
   <h2>Начисление вручную</h2>
   <p class="muted" style="line-height:1.55">
     Когда нет статистики лидов/апрувов за прошлый период — впишите итог: сколько <b>веб заработал</b> (вы ему должны за его трафик)

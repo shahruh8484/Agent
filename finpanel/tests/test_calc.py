@@ -287,3 +287,23 @@ def test_same_link_is_not_created_twice_and_can_be_deleted(repo):
     repo.upsert_traffic_stat(a, "2026-09-05", 100, 90, 10)
     repo.delete_link(a)
     assert repo.links() == [] and repo.traffic_stats() == [] and repo.all_link_rates() == []
+
+
+def test_reconcile_sets_balance_to_owner_figure(repo):
+    donik = repo.add_web("Доник")
+    sanzh = repo.add_advertiser("Санж")
+    repo.add_payment("2026-09-20", "traffic", "web", donik, 17708)
+    repo.add_accrual("2026-10-01", "traffic", "web", donik, 12496.40)
+    assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(5211.60)
+
+    diff = calc.reconcile(repo, TODAY, "web", donik, "traffic", 4713, "2026-10-10")
+    assert diff == pytest.approx(498.60)
+    assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(4713)
+    assert calc.reconcile(repo, TODAY, "web", donik, "traffic", 4713, "2026-10-10") == 0  # idempotent
+
+    repo.add_payment("2026-09-01", "traffic", "advertiser", sanzh, 39000)
+    calc.reconcile(repo, TODAY, "advertiser", sanzh, "product", 3117, "2026-10-10")  # direction forced
+    assert calc.advertiser_balances(repo, TODAY)[0].balance == pytest.approx(3117)
+    # a negative target works too (you owe the web)
+    calc.reconcile(repo, TODAY, "web", donik, "traffic", -100, "2026-10-10")
+    assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(-100)

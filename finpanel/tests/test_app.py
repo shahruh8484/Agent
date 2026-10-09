@@ -274,3 +274,14 @@ def test_purchases_listed(settings, repo):
     money = client.get("/money?period=all").text
     assert "Закупки товара" in money and "Данил" in money and "$1,670.00" in money
     assert "Закупки товара за период: <b>$1,670.00</b>" in client.get("/product?period=all").text
+
+
+def test_reconcile_route(settings, repo):
+    maks = repo.add_web("Макс")
+    repo.add_payment("2026-08-01", "traffic", "web", maks, 13148)
+    client = make_client(settings, repo)
+    login(client)
+    assert "Сверка: выставить баланс" in client.get("/webs").text
+    r = client.post("/reconcile", data={"party": f"web:{maks}", "direction": "traffic", "target": -2231}, follow_redirects=False)
+    assert "Сверено" in r.headers["location"] or "%D0%A1%D0%B2%D0%B5%D1%80%D0%B5%D0%BD%D0%BE" in r.headers["location"]
+    assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(-2231)
