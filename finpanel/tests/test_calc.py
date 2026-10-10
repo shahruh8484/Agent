@@ -318,3 +318,25 @@ def test_redate_reconcile_corrections_cleans_month(repo):
     assert repo.redate_reconcile_accruals("2026-09-30") == 1
     assert calc.traffic_report(repo, "2026-10-01", "2026-10-31", TODAY).total.web_amount == pytest.approx(10)
     assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(-510)
+
+
+def test_cash_by_direction_adds_up(repo):
+    sanzh = repo.add_advertiser("Санж")
+    maks = repo.add_web("Макс")
+    product = repo.add_product("Glycofort", 2.2, 0, "2026-10-01")
+    repo.add_payment("2026-10-02", "traffic", "advertiser", sanzh, 3000)
+    repo.add_payment("2026-10-03", "traffic", "web", maks, 1500)
+    repo.add_expense("2026-10-03", "traffic", "Комиссия", 5)
+    repo.add_payment("2026-10-04", "product", "courier", None, 400)
+    repo.add_payment("2026-10-04", "product", "web", maks, 100)
+    repo.add_stock_move("2026-10-04", product, 100, "purchase", cost_usd=220)
+    repo.add_expense("2026-10-05", "general", "Сервер", 20)
+    repo.add_payment("2026-10-05", "general", "owner", None, 1000)
+
+    by = calc.cash_by_direction(repo, None, None)
+    assert (by["traffic"].inflow, by["traffic"].outflow) == (3000, 1505)
+    assert (by["product"].inflow, by["product"].outflow) == (400, 320)
+    assert (by["general"].inflow, by["general"].outflow) == (0, 20)
+    total = calc.cash_flow(repo, None, None)
+    assert sum(c.net for c in by.values()) == pytest.approx(total.net)
+    assert total.owner == 1000

@@ -35,6 +35,21 @@
   <b>Касса</b> — сколько денег реально пришло и ушло (предоплаты реклов, выплаты вебам, наложка, закупки).
 </p>
 
+<div class="card">
+  <h2>Касса по направлениям</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Направление</th><th class="num">Пришло</th><th class="num">Ушло</th><th class="num">Итого</th></tr>
+    {% for key, label in cash_directions %}{% set c = s.cash_by_direction[key] %}
+    <tr><td>{{ label }}</td><td class="num">{{ c.inflow|usd if c.inflow else '—' }}</td><td class="num">{{ c.outflow|usd if c.outflow else '—' }}</td>
+      <td class="num {{ 'pos' if c.net > 0 else 'neg' if c.net < 0 }}">{{ c.net|usd(true) }}</td></tr>
+    {% endfor %}
+    <tr class="total"><td>Всего</td><td class="num">{{ s.cash.inflow|usd }}</td><td class="num">{{ s.cash.outflow|usd }}</td>
+      <td class="num {{ 'pos' if s.cash.net > 0 else 'neg' if s.cash.net < 0 }}">{{ s.cash.net|usd(true) }}</td></tr>
+    {% if s.cash.owner %}<tr><td class="muted">Свои деньги (вложил / вывел)</td><td></td><td></td><td class="num muted">{{ s.cash.owner|usd(true) }}</td></tr>{% endif %}
+  </table></div>
+  <p class="hint">Трафик: предоплаты реклов минус выплаты вебам и расходы по трафику. Товар: наложка от курьерки минус выплаты вебам, закупки и расходы по товару. Пришло по трафику включает чужие деньги — предоплаты реклов, ещё не отработанные.</p>
+</div>
+
 {% if alerts %}
 <div class="card">
   <h2>Внимание</h2>

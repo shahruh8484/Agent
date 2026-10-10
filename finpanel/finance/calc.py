@@ -575,6 +575,7 @@ class Summary:
     product: ProductReport
     general_expenses: float
     cash: Cash
+    cash_by_direction: dict[str, Cash] = field(default_factory=dict)
 
     @property
     def total_profit(self) -> float:
@@ -588,7 +589,19 @@ def summary(repo: Repo, start: str | None, end: str | None, today: date) -> Summ
         product=product_report(repo, start, end),
         general_expenses=general,
         cash=cash_flow(repo, start, end),
+        cash_by_direction=cash_by_direction(repo, start, end),
     )
+
+
+CASH_DIRECTIONS = [("traffic", "Трафик"), ("product", "Мой товар"), ("general", "Общие расходы")]
+
+
+def cash_by_direction(repo: Repo, start: str | None, end: str | None) -> dict[str, Cash]:
+    """Cash split the same way as profit: traffic (rekl prepayments in,
+    web payouts and traffic expenses out), product (courier payouts in,
+    webs / purchases / product expenses out) and general expenses.
+    Own money put in or taken out stays apart in Cash.owner of the total."""
+    return {d: cash_flow(repo, start, end, d) for d, _ in CASH_DIRECTIONS}
 
 
 # --------------------------------------------------------------------------

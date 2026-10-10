@@ -193,6 +193,7 @@ def create_app(
             web_product=calc.web_balances(repo, today, "product"),
             courier=calc.courier_balance(repo),
             stock=calc.stock_info(repo, today),
+            cash_directions=calc.CASH_DIRECTIONS,
         )
 
     # --------------------------------------------------------------- traffic
@@ -604,6 +605,8 @@ def create_app(
             expenses=repo.expenses(start, end),
             purchases=repo.stock_purchases(start, end),
             cash=calc.cash_flow(repo, start, end),
+            cash_dirs=calc.cash_by_direction(repo, start, end),
+            cash_directions=calc.CASH_DIRECTIONS,
             webs=repo.webs(),
             advertisers=repo.advertisers(),
         )
