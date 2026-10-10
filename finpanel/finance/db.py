@@ -175,6 +175,19 @@ CREATE TABLE IF NOT EXISTS accruals (
     created_at TEXT NOT NULL
 );
 
+-- Reconciliation points: "on <date> the balance with this party was X".
+-- Balances start from X and only count what is dated after <date>.
+CREATE TABLE IF NOT EXISTS balance_checkpoints (
+    id INTEGER PRIMARY KEY,
+    party_type TEXT NOT NULL,        -- 'advertiser' | 'web'
+    party_id INTEGER NOT NULL,
+    direction TEXT NOT NULL,         -- 'traffic' | 'product'
+    date TEXT NOT NULL,
+    balance REAL NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(party_type, party_id, direction)
+);
+
 -- Remembered "this name in my spreadsheet means X" choices from imports.
 CREATE TABLE IF NOT EXISTS import_aliases (
     name TEXT PRIMARY KEY COLLATE NOCASE,
@@ -813,6 +826,32 @@ class Repo:
         n = self.db.one("SELECT COUNT(*) AS n FROM accruals WHERE note LIKE 'сверка%'")["n"]
         self.db.execute("UPDATE accruals SET date = ? WHERE note LIKE 'сверка%'", (new_date,))
         return n
+
+    # --- reconciliation checkpoints ---
+
+    def set_checkpoint(self, party_type: str, party_id: int, direction: str, date: str, balance: float) -> None:
+        if party_type not in ("advertiser", "web") or direction not in ("traffic", "product"):
+            raise ValueError("Сверка: для рекла или веба, трафик или товар.")
+        self.db.execute(
+            "INSERT INTO balance_checkpoints(party_type, party_id, direction, date, balance, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(party_type, party_id, direction) DO UPDATE SET "
+            "date = excluded.date, balance = excluded.balance, created_at = excluded.created_at",
+            (party_type, party_id, direction, date, round(balance, 2), now_str()),
+        )
+
+    def checkpoints(self, party_type: str, direction: str) -> dict[int, dict]:
+        return {
+            r["party_id"]: dict(r)
+            for r in self.db.query(
+                "SELECT * FROM balance_checkpoints WHERE party_type = ? AND direction = ?", (party_type, direction)
+            )
+        }
+
+    def delete_checkpoint(self, party_type: str, party_id: int, direction: str) -> None:
+        self.db.execute(
+            "DELETE FROM balance_checkpoints WHERE party_type = ? AND party_id = ? AND direction = ?",
+            (party_type, party_id, direction),
+        )
 
     # --- import aliases ---
 

@@ -282,10 +282,13 @@ def test_reconcile_route(settings, repo):
     client = make_client(settings, repo)
     login(client)
     assert "Сверка: выставить баланс" in client.get("/webs").text
-    r = client.post("/reconcile", data={"party": f"web:{maks}", "direction": "traffic", "target": -2231}, follow_redirects=False)
-    assert "Сверено" in r.headers["location"] or "%D0%A1%D0%B2%D0%B5%D1%80%D0%B5%D0%BD%D0%BE" in r.headers["location"]
+    r = client.post("/reconcile", data={"party": f"web:{maks}", "direction": "traffic", "target": -2231,
+                                         "date": "2026-10-10"}, follow_redirects=False)
+    assert "error" not in r.headers["location"]
     assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(-2231)
-
+    assert "сверено 2026-10-10" in client.get("/webs").text
+    client.post("/reconcile/delete", data={"party": f"web:{maks}", "direction": "traffic"})
+    assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(13148)
 
 def test_chat_shows_recent_messages_and_collapses_old(settings, repo):
     for i in range(25):

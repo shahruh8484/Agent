@@ -394,14 +394,16 @@ def stock_info(repo: Repo, today: date, window_days: int = 14) -> list[StockInfo
 class Balance:
     party_id: int | None
     name: str
-    paid: float        # money that moved (to/from them)
-    accrued: float     # what was earned/owed by the work done
+    paid: float        # money that moved (to/from them) — since the checkpoint, if any
+    accrued: float     # what was earned/owed by the work done — since the checkpoint, if any
     avg_daily: float = 0.0
     last_stat_date: str | None = None
+    opening: float = 0.0            # balance agreed at the checkpoint
+    checkpoint: str | None = None   # date of the last reconciliation
 
     @property
     def balance(self) -> float:
-        return self.paid - self.accrued
+        return self.opening + self.paid - self.accrued
 
     @property
     def days_left(self) -> float | None:
@@ -410,101 +412,96 @@ class Balance:
         return round(self.balance / self.avg_daily, 1)
 
 
+class _Ledger:
+    """Collects paid / accrued per party, honouring reconciliation
+    checkpoints: anything dated on or before a party's checkpoint is
+    already inside the agreed opening balance and is skipped."""
+
+    def __init__(self, checkpoints: dict[int, dict], week_ago: str):
+        self.cp = checkpoints
+        self.week_ago = week_ago
+        self.paid: dict[int, float] = {}
+        self.accrued: dict[int, float] = {}
+        self.recent: dict[int, float] = {}
+        self.last: dict[int, str] = {}
+
+    def _counts(self, party: int, day: str) -> bool:
+        cp = self.cp.get(party)
+        return cp is None or day > cp["date"]
+
+    def pay(self, party: int, day: str, amount: float) -> None:
+        if self._counts(party, day):
+            self.paid[party] = self.paid.get(party, 0) + amount
+
+    def accrue(self, party: int, day: str, amount: float) -> None:
+        # Recent volume (for "days left") and last activity ignore checkpoints.
+        if day >= self.week_ago:
+            self.recent[party] = self.recent.get(party, 0) + amount
+        self.last[party] = max(self.last.get(party, ""), day)
+        if self._counts(party, day):
+            self.accrued[party] = self.accrued.get(party, 0) + amount
+
+    def balance(self, party: int, name: str) -> Balance:
+        cp = self.cp.get(party)
+        return Balance(
+            party, name, self.paid.get(party, 0), self.accrued.get(party, 0),
+            self.recent.get(party, 0) / 7, self.last.get(party),
+            opening=cp["balance"] if cp else 0.0, checkpoint=cp["date"] if cp else None,
+        )
+
+    def touched(self, party: int) -> bool:
+        return party in self.paid or party in self.accrued or party in self.cp or party in self.last
+
+
 def advertiser_balances(repo: Repo, today: date) -> list[Balance]:
     """balance > 0: prepayment not yet worked off (it's the rekl's money).
     balance < 0: the rekl owes you."""
     links = {l["id"]: l for l in repo.links()}
-    week_ago = (today - timedelta(days=7)).isoformat()
-    accrued: dict[int, float] = {}
-    recent: dict[int, float] = {}
-    last: dict[int, str] = {}
+    led = _Ledger(repo.checkpoints("advertiser", "traffic"), (today - timedelta(days=7)).isoformat())
     for stat in repo.traffic_stats():
         link = links.get(stat["link_id"])
-        if not link:
-            continue
-        r = traffic_row(repo, stat, today)
-        a = link["advertiser_id"]
-        accrued[a] = accrued.get(a, 0) + r.adv_amount
-        if stat["date"] >= week_ago:
-            recent[a] = recent.get(a, 0) + r.adv_amount
-        last[a] = max(last.get(a, ""), stat["date"])
-    paid: dict[int, float] = {}
+        if link:
+            led.accrue(link["advertiser_id"], stat["date"], traffic_row(repo, stat, today).adv_amount)
     for p in repo.payments():
         if p["party_type"] == "advertiser":
-            paid[p["party_id"]] = paid.get(p["party_id"], 0) + p["amount_usd"]
+            led.pay(p["party_id"], p["date"], p["amount_usd"])
     for c in repo.accruals():
         if c["party_type"] == "advertiser":
-            a = c["party_id"]
-            accrued[a] = accrued.get(a, 0) + c["amount_usd"]
-            last[a] = max(last.get(a, ""), c["date"])
-    return [
-        Balance(a["id"], a["name"], paid.get(a["id"], 0), accrued.get(a["id"], 0),
-                recent.get(a["id"], 0) / 7, last.get(a["id"]))
-        for a in repo.advertisers()
-    ]
+            led.accrue(c["party_id"], c["date"], c["amount_usd"])
+    return [led.balance(a["id"], a["name"]) for a in repo.advertisers()]
 
 
 def web_balances(repo: Repo, today: date, direction: str) -> list[Balance]:
     """balance > 0: you prepaid, the web still owes traffic.
     balance < 0: you owe the web."""
-    week_ago = (today - timedelta(days=7)).isoformat()
-    accrued: dict[int, float] = {}
-    recent: dict[int, float] = {}
-    last: dict[int, str] = {}
+    led = _Ledger(repo.checkpoints("web", direction), (today - timedelta(days=7)).isoformat())
     if direction == "traffic":
         links = {l["id"]: l for l in repo.links()}
         for stat in repo.traffic_stats():
             link = links.get(stat["link_id"])
-            if not link:
-                continue
-            w = link["web_id"]
-            amount = traffic_row(repo, stat, today).web_amount
-            accrued[w] = accrued.get(w, 0) + amount
-            if stat["date"] >= week_ago:
-                recent[w] = recent.get(w, 0) + amount
-            last[w] = max(last.get(w, ""), stat["date"])
+            if link:
+                led.accrue(link["web_id"], stat["date"], traffic_row(repo, stat, today).web_amount)
     else:
         for stat in repo.product_stats():
-            w = stat["web_id"]
-            amount = product_web_cost(repo, stat) or 0
-            accrued[w] = accrued.get(w, 0) + amount
-            if stat["date"] >= week_ago:
-                recent[w] = recent.get(w, 0) + amount
-            last[w] = max(last.get(w, ""), stat["date"])
-    paid: dict[int, float] = {}
+            led.accrue(stat["web_id"], stat["date"], product_web_cost(repo, stat) or 0)
     for p in repo.payments():
         if p["party_type"] == "web" and p["direction"] == direction:
-            paid[p["party_id"]] = paid.get(p["party_id"], 0) + p["amount_usd"]
+            led.pay(p["party_id"], p["date"], p["amount_usd"])
     for c in repo.accruals():
         if c["party_type"] == "web" and c["direction"] == direction:
-            w = c["party_id"]
-            accrued[w] = accrued.get(w, 0) + c["amount_usd"]
-            last[w] = max(last.get(w, ""), c["date"])
-    return [
-        Balance(w["id"], w["name"], paid.get(w["id"], 0), accrued.get(w["id"], 0),
-                recent.get(w["id"], 0) / 7, last.get(w["id"]))
-        for w in repo.webs()
-        if w["id"] in accrued or w["id"] in paid
-    ]
+            led.accrue(c["party_id"], c["date"], c["amount_usd"])
+    return [led.balance(w["id"], w["name"]) for w in repo.webs() if led.touched(w["id"])]
 
 
 def reconcile(repo: Repo, today: date, party_type: str, party_id: int, direction: str,
-              target: float, on_date: str, note: str = "") -> float:
-    """Make a web's / rekl's balance equal `target` (your own figure) by
-    adding a manual accrual for the difference. Returns that difference
-    (0 if already equal). Balance = paid - accrued for both sides, so
-    accruing (balance - target) brings it to target."""
+              target: float, on_date: str) -> None:
+    """Fix a web's / rekl's balance at `target` (your own figure) as of
+    `on_date`. From then on only payments and traffic dated after that day
+    move the balance — reloading older days (late approves) no longer
+    shifts an agreed figure."""
     if party_type == "advertiser":
-        balances = advertiser_balances(repo, today)
         direction = "traffic"
-    else:
-        balances = web_balances(repo, today, direction)
-    current = next((b.balance for b in balances if b.party_id == party_id), 0.0)
-    diff = round(current - target, 2)
-    if abs(diff) >= 0.01:
-        repo.add_accrual(on_date, direction, party_type, party_id, diff,
-                         note or f"сверка: баланс {current:,.2f} → {target:,.2f}")
-    return diff
+    repo.set_checkpoint(party_type, party_id, direction, on_date, target)
 
 
 @dataclass

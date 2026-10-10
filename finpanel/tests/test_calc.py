@@ -289,30 +289,39 @@ def test_same_link_is_not_created_twice_and_can_be_deleted(repo):
     assert repo.links() == [] and repo.traffic_stats() == [] and repo.all_link_rates() == []
 
 
-def test_reconcile_sets_balance_to_owner_figure(repo):
-    donik = repo.add_web("Доник")
-    sanzh = repo.add_advertiser("Санж")
-    repo.add_payment("2026-09-20", "traffic", "web", donik, 17708)
-    repo.add_accrual("2026-10-01", "traffic", "web", donik, 12496.40)
-    assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(5211.60)
+def test_reconcile_checkpoint_freezes_the_past(repo):
+    web = repo.add_web("Max")
+    adv = repo.add_advertiser("Sanzh")
+    link = repo.add_link(web, adv, "", "2026-07-01", "approve", 25, 0, "approve", 23)
+    repo.add_payment("2026-09-01", "traffic", "advertiser", adv, 39000)
+    repo.add_payment("2026-09-01", "traffic", "web", web, 13148)
+    repo.upsert_traffic_stat(link, "2026-10-05", 300, 250, 30)
 
-    diff = calc.reconcile(repo, TODAY, "web", donik, "traffic", 4713, "2026-10-10")
-    assert diff == pytest.approx(498.60)
-    assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(4713)
-    assert calc.reconcile(repo, TODAY, "web", donik, "traffic", 4713, "2026-10-10") == 0  # idempotent
+    calc.reconcile(repo, TODAY, "advertiser", adv, "product", 5217, "2026-10-08")  # direction forced
+    calc.reconcile(repo, TODAY, "web", web, "traffic", -2622, "2026-10-08")
+    assert calc.advertiser_balances(repo, TODAY)[0].balance == pytest.approx(5217)
+    assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(-2622)
 
-    repo.add_payment("2026-09-01", "traffic", "advertiser", sanzh, 39000)
-    calc.reconcile(repo, TODAY, "advertiser", sanzh, "product", 3117, "2026-10-10")  # direction forced
-    assert calc.advertiser_balances(repo, TODAY)[0].balance == pytest.approx(3117)
-    # a negative target works too (you owe the web)
-    calc.reconcile(repo, TODAY, "web", donik, "traffic", -100, "2026-10-10")
-    assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(-100)
+    # Late approves for a day before the checkpoint: balances don't move.
+    repo.upsert_traffic_stat(link, "2026-10-05", 300, 250, 45)
+    assert calc.advertiser_balances(repo, TODAY)[0].balance == pytest.approx(5217)
 
+    # New traffic and money after the checkpoint do.
+    repo.upsert_traffic_stat(link, "2026-10-09", 100, 90, 10)    # rekl 250, web 230
+    repo.add_payment("2026-10-09", "traffic", "web", web, 1000)
+    sanzh = calc.advertiser_balances(repo, TODAY)[0]
+    assert sanzh.balance == pytest.approx(5217 - 250)
+    assert (sanzh.opening, sanzh.checkpoint) == (5217, "2026-10-08")
+    assert calc.web_balances(repo, TODAY, "traffic")[0].balance == pytest.approx(-2622 - 230 + 1000)
+
+    # Removing the checkpoint goes back to the full history.
+    repo.delete_checkpoint("advertiser", adv, "traffic")
+    assert calc.advertiser_balances(repo, TODAY)[0].balance == pytest.approx(39000 - 45 * 25 - 250)
 
 def test_redate_reconcile_corrections_cleans_month(repo):
     maks = repo.add_web("Макс")
     repo.add_payment("2026-08-01", "traffic", "web", maks, 1000)
-    calc.reconcile(repo, TODAY, "web", maks, "traffic", -500, "2026-10-10")
+    repo.add_accrual("2026-10-10", "traffic", "web", maks, 1500, "сверка: баланс 1,000.00 → -500.00")
     repo.add_accrual("2026-10-05", "traffic", "web", maks, 10, "штраф")
     assert calc.traffic_report(repo, "2026-10-01", "2026-10-31", TODAY).total.web_amount == pytest.approx(1510)
     assert repo.redate_reconcile_accruals("2026-09-30") == 1

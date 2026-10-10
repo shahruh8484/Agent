@@ -539,13 +539,21 @@ def create_app(
             party_type, _, party_id = party.partition(":")
             if party_type not in ("web", "advertiser") or not party_id.isdigit():
                 raise ValueError("Не понял, чей баланс.")
-            on_date = date_ or today_fn().isoformat()
-            diff = calc.reconcile(repo, today_fn(), party_type, int(party_id), direction, target, on_date)
-            if not diff:
-                return "Уже совпадает — ничего не меняли."
-            return f"Сверено: добавлено начисление {fmt_usd(diff)}, баланс теперь {fmt_usd(target)}."
+            on_date = date_ if _is_iso_date(date_) else today_fn().isoformat()
+            calc.reconcile(repo, today_fn(), party_type, int(party_id), direction, target, on_date)
+            return (f"Сверено на {on_date}: баланс {fmt_usd(target)}. Дальше считаются только "
+                    f"платежи и трафик после {on_date}.")
 
         return run("/webs", do)
+
+    @app.post("/reconcile/delete")
+    def reconcile_delete(request: Request, party: str = Form(...), direction: str = Form("traffic")):
+        if not authed(request):
+            return login_redirect()
+        party_type, _, party_id = party.partition(":")
+        if party_id.isdigit():
+            repo.delete_checkpoint(party_type, int(party_id), "traffic" if party_type == "advertiser" else direction)
+        return back("/webs", msg="Сверка снята — баланс снова считается по всей истории.")
 
     @app.post("/accruals/add")
     def accrual_add(
