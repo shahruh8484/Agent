@@ -168,6 +168,15 @@ def test_chat_with_screenshot(settings, repo):
     assert bad.status_code == 400
 
 
+def test_chat_gives_backend_the_report_tool(settings, repo):
+    backend = FakeBackend("ok")
+    client = make_client(settings, repo, backend)
+    login(client)
+    assert client.post("/chat/send", data={"message": "я в плюсе с 1 по 8?"}).status_code == 200
+    report = backend.read_tool("get_report", {"start": "2026-10-01", "end": "2026-10-08"})
+    assert "ИТОГО ПРИБЫЛЬ: $0.00" in report
+
+
 def test_chat_backend_error(settings, repo):
     def broken():
         raise AssistantError("ANTHROPIC_API_KEY не задан")

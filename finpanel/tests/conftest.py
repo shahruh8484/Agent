@@ -21,6 +21,7 @@ class FakeBackend:
         self.actions = actions or []
         self.calls: list[tuple[str, list[dict]]] = []
 
-    def respond(self, system, messages):
+    def respond(self, system, messages, read_tool=None):
         self.calls.append((system, messages))
+        self.read_tool = read_tool
         return self.text, self.actions

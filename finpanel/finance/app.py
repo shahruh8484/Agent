@@ -26,6 +26,7 @@ from finance.assistant import (
     describe_action,
     history_to_messages,
     make_backend,
+    run_read_tool,
     user_content,
 )
 from finance.config import Settings, assistant_provider, get_settings
@@ -975,10 +976,12 @@ def create_app(
 
         try:
             backend = backend_factory()
-            system = SYSTEM_PROMPT + "\n\n--- ТЕКУЩИЕ ДАННЫЕ ---\n" + build_context(repo, today_fn())
+            today = today_fn()
+            system = SYSTEM_PROMPT + "\n\n--- ТЕКУЩИЕ ДАННЫЕ ---\n" + build_context(repo, today)
             msgs = history_to_messages(repo.chat_messages(limit=40))
             msgs.append({"role": "user", "content": user_content(message, img)})
-            text, actions = backend.respond(system, msgs)
+            text, actions = backend.respond(
+                system, msgs, read_tool=lambda name, args: run_read_tool(repo, today, name, args))
         except AssistantError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 

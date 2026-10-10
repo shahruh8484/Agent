@@ -143,6 +143,20 @@ TOOLS = [
 
 TOOL_NAMES = {t["name"] for t in TOOLS}
 
+# Read-only tools: run right away on the server, the result goes back to the
+# model. They never change data, so they need no confirmation.
+READ_TOOLS = [
+    _tool("get_report",
+          "Посчитать точный отчёт панели за любой период: прибыль по трафику (по связкам), по товару, расходы, "
+          "итог, кассу и закрыт ли период (гарант применён). Вызывай ВСЕГДА, когда спрашивают про даты/период, "
+          "которых нет в готовых итогах.",
+          {"start": {"type": "string", "description": "Первый день, YYYY-MM-DD."},
+           "end": {"type": "string", "description": "Последний день включительно, YYYY-MM-DD."}},
+          ["start", "end"]),
+]
+READ_TOOL_NAMES = {t["name"] for t in READ_TOOLS}
+MAX_TOOL_ROUNDS = 4
+
 SYSTEM_PROMPT = """Ты — финансовый помощник и бухгалтер владельца бизнеса. Говоришь по-русски, коротко и по делу, как опытный финдиректор: цифры, вывод, что делать.
 
 У бизнеса два направления.
@@ -155,14 +169,15 @@ SYSTEM_PROMPT = """Ты — финансовый помощник и бухга�
    - Клиент платит в сумах; курс задаётся в настройках. Оператор получает % от суммы только выкупленного заказа. Невыкуп сейчас бесплатный. Налоги — % в настройках.
 
 Правила:
-- Никогда не выдумывай цифры. Считай только по данным ниже. Если данных не хватает — так и скажи и спроси.
+- Никогда не выдумывай и не пересчитывай цифры сам. Называй только цифры из данных ниже или из результата get_report. Про любой период, которого нет в «Итогах по периодам» (конкретные даты, «с 1 по 8», «сентябрь», «прошлая неделя»), сначала вызови get_report и отвечай его цифрами. Если данных не хватает — так и скажи.
+- Последние 2 дня — предварительные (гарант рекла ещё не применён), прибыль за них занижена. Говоря «в плюсе ли я», опирайся на закрытые дни и скажи это.
 - Чтобы внести или изменить данные — ОБЯЗАТЕЛЬНО вызывай инструменты в этом же ответе. Только по вызову инструмента у владельца появится кнопка «Подтвердить»; текст без вызова ничего не записывает. Инструменты не выполняются сразу: владелец увидит список и подтвердит. Поэтому не пиши «записал», пиши «вот что внесу — подтверди».
 - Если из сообщения или скрина непонятно, кто это, какая дата, какая валюта или какая связка — сначала уточни, не угадывай.
 - Используй имена вебов, реклов и товаров ровно как в списках ниже. Нового участника сначала добавь (add_web / add_advertiser / add_product).
 - «Сегодня», «вчера», «позавчера» переводи в даты относительно сегодняшней даты ниже.
 - На скриншотах из кабинетов внимательно выпиши цифры по каждой строке, покажи их и предложи действия.
 - Скрин «Общая статистика» из CPA-сети: сверху фильтры «Веб-мастер» (например «#106 (почта)») и «Рекламодатель» (например «Khadya Nur») — найди по ним веба и рекла в списках ниже (поле «в сети»), а значит и связку. Если не находишь или фильтр пустой — спроси, чья это статистика. Строки таблицы — дни (строку «Итого» не вноси). Колонки «Конверсии»: Σ — все лиды (leads), Σв — валидные (valid), зелёная галочка — апрувы (approves), часы — в обработке, красный крестик — отклонённые; остальное не нужно. На каждый день — отдельный add_traffic_stat. Повторный скрин за те же дни нормален: апрувы досчитываются задним числом, запись дня перезаписывается.
-- Когда спрашивают «я в плюсе или минусе» — отвечай по прибыли (начисления) и отдельно по деньгам на руках (касса), и объясни разницу одной фразой."""
+- Когда спрашивают «я в плюсе или минусе» — отвечай по прибыли (начисления) и отдельно по деньгам на руках (касса), и объясни разницу одной фразой. Касса — это движение денег (предоплаты реклов, выплаты вебам), она не равна прибыли."""
 
 
 # --------------------------------------------------------------------------
@@ -248,6 +263,69 @@ def build_context(repo: Repo, today: date) -> str:
     if warn:
         lines += ["", "Предупреждения:"] + [f"  - {a.text}" for a in warn]
     return "\n".join(lines)
+
+
+def _summary_lines(repo: Repo, start: str, end: str, today: date, links: dict) -> list[str]:
+    sm = calc.summary(repo, start, end, today)
+    t = sm.traffic
+    lines = [
+        f"  ТРАФИК: реклы начислили {_money(t.total.adv_amount)} (из них за счёт гаранта {_money(t.total.guarantee_bonus)}), "
+        f"вебам начислено {_money(t.total.web_amount)}, расходы трафика {_money(t.expenses)} → прибыль {_money(t.net_profit)}; "
+        f"лидов {t.total.leads}, апрувов {t.total.approves}",
+    ]
+    for link_id, agg in sorted(t.by_link.items(), key=lambda kv: -kv[1].profit):
+        l = links.get(link_id)
+        name = f"{l['web_name']} → {l['advertiser_name']}" + (f" ({l['offer']})" if l and l["offer"] else "") if l else f"связка #{link_id}"
+        lines.append(f"    {name}: лидов {agg.leads}, апрувов {agg.approves}, рекл {_money(agg.adv_amount)}, "
+                     f"веб {_money(agg.web_amount)}, прибыль {_money(agg.profit)}"
+                     + (" (в плюсе только за счёт гаранта)" if agg.only_by_guarantee else ""))
+    manual = [c for c in repo.accruals(start, end) if c["direction"] == "traffic"]
+    if manual:
+        lines.append(f"    ручные начисления по трафику: {len(manual)} шт, учтены в суммах выше")
+    p = sm.product
+    lines.append(f"  МОЙ ТОВАР: выручка {_money(p.revenue)}, себестоимость {_money(p.cogs)}, оператор {_money(p.operator)}, "
+                 f"доставка {_money(p.delivery)}, налог {_money(p.tax)}, вебам {_money(p.web_cost)}, расходы {_money(p.expenses)} "
+                 f"→ прибыль {_money(p.profit)}; выкуплено {p.delivered}, невыкуп {p.returned}")
+    lines.append(f"  ОБЩИЕ РАСХОДЫ: {_money(sm.general_expenses)}")
+    lines.append(f"  ИТОГО ПРИБЫЛЬ: {_money(sm.total_profit)}")
+    c = sm.cash
+    lines.append(f"  КАССА (движение денег, не прибыль): пришло {_money(c.inflow)}, ушло {_money(c.outflow)}, разница {_money(c.net)}"
+                 + (f"; свои деньги вложил/вывел {_money(c.owner)}" if c.owner else ""))
+    return lines
+
+
+def period_report(repo: Repo, start: str, end: str, today: date) -> str:
+    """Exact panel figures for any date range — what the assistant quotes
+    instead of guessing."""
+    try:
+        d1, d2 = date.fromisoformat(start), date.fromisoformat(end)
+    except (TypeError, ValueError):
+        return "Ошибка: даты нужны в формате YYYY-MM-DD."
+    if d1 > d2:
+        d1, d2 = d2, d1
+    start, end = d1.isoformat(), d2.isoformat()
+    links = {l["id"]: l for l in repo.links()}
+    closed_until = today - timedelta(days=calc.GUARANTEE_LAG_DAYS)
+    lines = [f"Отчёт панели за {start} — {end}:"]
+    if d2 <= closed_until:
+        lines.append("  Все дни закрыты, гарант применён — цифры окончательные.")
+        lines += _summary_lines(repo, start, end, today, links)
+    elif d1 > closed_until:
+        lines.append("  Все дни ПРЕДВАРИТЕЛЬНЫЕ: гарант рекла ещё не применён, прибыль по трафику занижена, апрувы могут досчитаться.")
+        lines += _summary_lines(repo, start, end, today, links)
+    else:
+        lines.append(f"  Дни после {closed_until.isoformat()} предварительные (гарант ещё не применён).")
+        lines += _summary_lines(repo, start, end, today, links)
+        lines.append("")
+        lines.append(f"Только закрытые дни {start} — {closed_until.isoformat()} (на это опирайся, говоря «в плюсе ли я»):")
+        lines += _summary_lines(repo, start, closed_until.isoformat(), today, links)
+    return "\n".join(lines)
+
+
+def run_read_tool(repo: Repo, today: date, name: str, args: dict) -> str:
+    if name == "get_report":
+        return period_report(repo, str(args.get("start", "")), str(args.get("end", "")), today)
+    return f"Неизвестный инструмент {name}"
 
 
 # --------------------------------------------------------------------------
@@ -462,14 +540,14 @@ class ClaudeBackend:
         self._client = anthropic.Anthropic(api_key=api_key)
         self._model = model
 
-    def respond(self, system: str, messages: list[dict]) -> tuple[str, list[dict]]:
+    def _create(self, system: str, messages: list[dict], tools: list[dict]):
         try:
-            response = self._client.beta.messages.create(
+            return self._client.beta.messages.create(
                 model=self._model,
                 max_tokens=16000,
                 system=system,
                 messages=messages,
-                tools=TOOLS,
+                tools=tools,
                 output_config={"effort": "medium"},
                 betas=["server-side-fallback-2026-07-01"],
                 fallbacks="default",
@@ -480,21 +558,42 @@ class ClaudeBackend:
         except self._anthropic.APIConnectionError as exc:
             raise AssistantError("Нет связи с Claude API.") from exc
 
-        if response.stop_reason == "refusal":
-            return "Модель отказалась отвечать на этот запрос. Переформулируйте, пожалуйста.", []
-        text = "".join(b.text for b in response.content if b.type == "text").strip()
-        actions = [
-            {"name": b.name, "input": dict(b.input)}
-            for b in response.content
-            if b.type == "tool_use" and b.name in TOOL_NAMES
-        ]
-        return text, actions
+    def respond(self, system: str, messages: list[dict], read_tool=None) -> tuple[str, list[dict]]:
+        """read_tool(name, args) -> str runs read-only tools (reports) and
+        feeds the result back; write tools are only collected as proposals."""
+        tools = TOOLS + READ_TOOLS if read_tool else TOOLS
+        msgs = list(messages)
+        texts, actions = [], []
+        for _ in range(MAX_TOOL_ROUNDS):
+            response = self._create(system, msgs, tools)
+            if response.stop_reason == "refusal":
+                return "Модель отказалась отвечать на этот запрос. Переформулируйте, пожалуйста.", []
+            text = "".join(b.text for b in response.content if b.type == "text").strip()
+            if text:
+                texts.append(text)
+            uses = [b for b in response.content if b.type == "tool_use"]
+            actions += [{"name": b.name, "input": dict(b.input)} for b in uses if b.name in TOOL_NAMES]
+            if not read_tool or response.stop_reason != "tool_use" or not any(b.name in READ_TOOL_NAMES for b in uses):
+                break
+            results = [
+                {"type": "tool_result", "tool_use_id": b.id,
+                 "content": read_tool(b.name, dict(b.input)) if b.name in READ_TOOL_NAMES
+                 else "Предложено, ждёт подтверждения владельца."}
+                for b in uses
+            ]
+            msgs = msgs + [{"role": "assistant", "content": response.content}, {"role": "user", "content": results}]
+        return "\n\n".join(texts), actions
 
 
-OPENAI_TOOLS = [
-    {"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["input_schema"]}}
-    for t in TOOLS
-]
+def _openai_tools(tools: list[dict]) -> list[dict]:
+    return [
+        {"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["input_schema"]}}
+        for t in tools
+    ]
+
+
+OPENAI_TOOLS = _openai_tools(TOOLS)
+OPENAI_READ_TOOLS = _openai_tools(READ_TOOLS)
 
 
 def _to_openai_content(content: list[dict] | str) -> list[dict] | str:
@@ -522,12 +621,12 @@ class OpenAIBackend:
         self._client = client or openai.OpenAI(api_key=api_key)
         self._model = model
 
-    def _complete(self, chat: list[dict], tool_choice: str = "auto"):
+    def _complete(self, chat: list[dict], tool_choice: str = "auto", tools: list[dict] | None = None):
         try:
             response = self._client.chat.completions.create(
                 model=self._model,
                 messages=chat,
-                tools=OPENAI_TOOLS,
+                tools=tools or OPENAI_TOOLS,
                 tool_choice=tool_choice,
                 max_completion_tokens=4000,
             )
@@ -536,24 +635,57 @@ class OpenAIBackend:
             raise AssistantError(f"Ошибка OpenAI API ({exc.status_code}): {exc.message}") from exc
         except self._openai.APIConnectionError as exc:
             raise AssistantError("Нет связи с OpenAI API.") from exc
-        message = response.choices[0].message
-        actions = []
+        return response.choices[0].message
+
+    @staticmethod
+    def _calls(message) -> list[tuple[object, str, dict]]:
+        """(call, name, args) for every well-formed function call."""
+        calls = []
         for call in message.tool_calls or []:
-            if call.type != "function" or call.function.name not in TOOL_NAMES:
+            if call.type != "function" or call.function.name not in TOOL_NAMES | READ_TOOL_NAMES:
                 continue
             try:
                 args = json.loads(call.function.arguments or "{}")
             except json.JSONDecodeError:
                 logger.warning("Skipping tool call with invalid JSON: %s", call.function.name)
                 continue
-            actions.append({"name": call.function.name, "input": args})
-        return (message.content or "").strip(), actions
+            calls.append((call, call.function.name, args))
+        return calls
 
-    def respond(self, system: str, messages: list[dict]) -> tuple[str, list[dict]]:
+    def respond(self, system: str, messages: list[dict], read_tool=None) -> tuple[str, list[dict]]:
+        """read_tool(name, args) -> str runs read-only tools (reports) and
+        feeds the result back; write tools are only collected as proposals."""
         chat = [{"role": "system", "content": system}] + [
             {"role": m["role"], "content": _to_openai_content(m["content"])} for m in messages
         ]
-        text, actions = self._complete(chat)
+        tools = OPENAI_TOOLS + OPENAI_READ_TOOLS if read_tool else OPENAI_TOOLS
+        texts, actions = [], []
+        for _ in range(MAX_TOOL_ROUNDS):
+            message = self._complete(chat, tools=tools)
+            text = (message.content or "").strip()
+            if text:
+                texts.append(text)
+            calls = self._calls(message)
+            actions += [{"name": name, "input": args} for _, name, args in calls if name in TOOL_NAMES]
+            if not read_tool or not any(name in READ_TOOL_NAMES for _, name, _ in calls):
+                break
+            # Every tool call in the assistant turn needs a matching tool reply.
+            raw = [c for c in message.tool_calls or [] if c.type == "function"]
+            chat.append({"role": "assistant", "content": message.content, "tool_calls": [
+                {"id": c.id, "type": "function", "function": {"name": c.function.name, "arguments": c.function.arguments}}
+                for c in raw
+            ]})
+            parsed = {id(c): (name, args) for c, name, args in calls}
+            for c in raw:
+                name, args = parsed.get(id(c), (c.function.name, None))
+                if args is None:
+                    result = "Ошибка: некорректный вызов."
+                elif name in READ_TOOL_NAMES:
+                    result = read_tool(name, args)
+                else:
+                    result = "Предложено, ждёт подтверждения владельца."
+                chat.append({"role": "tool", "tool_call_id": c.id, "content": result})
+        text = "\n\n".join(texts)
         if not actions and _announces_actions(text):
             # GPT models sometimes describe the change in prose ("проверь и
             # подтверди") without emitting the tool call, which leaves the
@@ -562,7 +694,8 @@ class OpenAIBackend:
                 {"role": "assistant", "content": text},
                 {"role": "user", "content": "Оформи ровно то, что ты предложил выше, вызовами инструментов. Ничего не добавляй от себя."},
             ]
-            _, actions = self._complete(followup, tool_choice="required")
+            message = self._complete(followup, tool_choice="required")
+            actions = [{"name": name, "input": args} for _, name, args in self._calls(message) if name in TOOL_NAMES]
         return text, actions
 
 
