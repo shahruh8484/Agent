@@ -45,9 +45,10 @@
     <tr><td>− Вы должны вебам</td><td class="num neg">−{{ pos.you_owe_webs|usd }}</td></tr>
     {% if pos.rekl_owe_you %}<tr><td>+ Реклы должны вам</td><td class="num pos">+{{ pos.rekl_owe_you|usd }}</td></tr>{% endif %}
     {% if pos.courier_owes_usd %}<tr><td>+ Курьерка должна перечислить</td><td class="num pos">+{{ pos.courier_owes_usd|usd }}</td></tr>{% endif %}
+    {% if pos.stock_usd %}<tr><td>+ Товар на складе и в пути (по себестоимости)</td><td class="num pos">+{{ pos.stock_usd|usd }}</td></tr>{% endif %}
     <tr class="total"><td>Ваши собственные деньги</td><td class="num {{ 'pos' if pos.own > 0 else 'neg' if pos.own < 0 }}">{{ pos.own|usd(true) }}</td></tr>
   </table></div>
-  <p class="hint">Товар на складе сюда не входит — это ваши деньги в товаре.</p>
+  <p class="hint">Товар считается по себестоимости: это деньги, вложенные в товар, а не будущая выручка.</p>
 </div>
 {% endif %}
 

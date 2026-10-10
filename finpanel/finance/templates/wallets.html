@@ -11,9 +11,11 @@
   <div class="stat"><div class="label">Вам должны / вы должны</div>
     <div class="value">{{ (pos.rekl_owe_you + pos.webs_owe_you + pos.courier_owes_usd - pos.you_owe_webs)|usd(true) }}</div>
     <div class="sub">вебы вперёд {{ pos.webs_owe_you|usd }} · реклы должны {{ pos.rekl_owe_you|usd }} · курьерка {{ pos.courier_owes_usd|usd }} · вебам должны −{{ pos.you_owe_webs|usd }}</div></div>
+  <div class="stat"><div class="label">Товар (по себестоимости)</div><div class="value">{{ pos.stock_usd|usd }}</div>
+    <div class="sub">склад и заказы в пути</div></div>
   <div class="stat"><div class="label">Ваши собственные деньги</div>
     <div class="value {{ 'pos' if pos.own > 0 else 'neg' if pos.own < 0 }}">{{ pos.own|usd(true) }}</div>
-    <div class="sub">на кошельках − чужое + долги вам − ваши долги</div></div>
+    <div class="sub">на кошельках − чужое + долги вам − ваши долги + товар</div></div>
 </div>
 {% endif %}
 

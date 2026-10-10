@@ -90,3 +90,12 @@ def test_assistant_wallet(repo):
     with pytest.raises(ValueError, match="Кошелёк"):
         apply_action(repo, "add_expense", {"direction": "general", "category": "X", "amount": 1, "currency": "usd",
                                            "date": "2026-10-05", "wallet": "Нет такого"})
+
+
+def test_position_counts_stock_at_cost(repo):
+    repo.add_wallet("Payeer", "usd", 100, "2026-10-01")
+    product = repo.add_product("Glycofort", 2.2, 1070, "2026-10-01")
+    repo.add_order("2026-10-05", product, 5, 990_000)  # 5 units in transit, 1065 on hand
+    pos = calc.position(repo, TODAY)
+    assert pos.stock_usd == pytest.approx(1070 * 2.2)
+    assert pos.own == pytest.approx(100 + 1070 * 2.2)

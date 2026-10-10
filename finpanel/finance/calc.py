@@ -762,11 +762,12 @@ class Position:
     webs_owe_you: float         # webs you prepaid (they owe traffic)
     you_owe_webs: float         # webs you owe
     courier_owes_usd: float     # cash on delivery collected but not sent yet
+    stock_usd: float = 0.0      # goods on the shelf and in transit, at cost
 
     @property
     def own(self) -> float:
         return (self.wallets_usd - self.rekl_prepaid + self.rekl_owe_you
-                + self.webs_owe_you - self.you_owe_webs + self.courier_owes_usd)
+                + self.webs_owe_you - self.you_owe_webs + self.courier_owes_usd + self.stock_usd)
 
 
 def position(repo: Repo, today: date) -> Position:
@@ -779,4 +780,12 @@ def position(repo: Repo, today: date) -> Position:
         webs_owe_you=sum(b for b in webs if b > 0),
         you_owe_webs=-sum(b for b in webs if b < 0),
         courier_owes_usd=max(courier_balance(repo).owed_uzs, 0) / repo.usd_uzs_rate(),
+        stock_usd=stock_value(repo, today),
     )
+
+
+def stock_value(repo: Repo, today: date) -> float:
+    """Goods on the shelf plus parcels still on the way, at unit cost."""
+    cost = {p["id"]: p["unit_cost_usd"] for p in repo.products()}
+    return sum(max(s.on_hand, 0) * cost.get(s.product_id, 0) + s.in_transit * cost.get(s.product_id, 0)
+               for s in stock_info(repo, today))
