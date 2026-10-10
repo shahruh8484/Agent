@@ -188,6 +188,31 @@ CREATE TABLE IF NOT EXISTS balance_checkpoints (
     UNIQUE(party_type, party_id, direction)
 );
 
+-- Where your money physically sits: e-wallet, card, cash... Each has its
+-- own currency. balance/balance_date is the last reconciled amount: only
+-- movements dated after balance_date change it.
+CREATE TABLE IF NOT EXISTS wallets (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'usd',   -- 'usd' | 'uzs'
+    balance REAL NOT NULL DEFAULT 0,
+    balance_date TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+-- Money moved between your own wallets (amount_out leaves `from`, amount_in
+-- arrives in `to`, each in that wallet's currency — covers exchange too).
+CREATE TABLE IF NOT EXISTS wallet_transfers (
+    id INTEGER PRIMARY KEY,
+    date TEXT NOT NULL,
+    from_wallet INTEGER NOT NULL,
+    to_wallet INTEGER NOT NULL,
+    amount_out REAL NOT NULL,
+    amount_in REAL NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
 -- Remembered "this name in my spreadsheet means X" choices from imports.
 CREATE TABLE IF NOT EXISTS import_aliases (
     name TEXT PRIMARY KEY COLLATE NOCASE,
@@ -243,6 +268,10 @@ class DB:
         cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(link_rates)")}
         if "web_guarantee_pct" not in cols:
             self._conn.execute("ALTER TABLE link_rates ADD COLUMN web_guarantee_pct REAL NOT NULL DEFAULT 0")
+        for table in ("payments", "expenses", "stock_moves"):
+            cols = {r["name"] for r in self._conn.execute(f"PRAGMA table_info({table})")}
+            if "wallet_id" not in cols:
+                self._conn.execute(f"ALTER TABLE {table} ADD COLUMN wallet_id INTEGER")
 
     def query(self, sql: str, params: tuple | list = ()) -> list[sqlite3.Row]:
         with self._lock:
@@ -515,6 +544,7 @@ class Repo:
         amount_uzs: float | None = None,
         rate: float | None = None,
         note: str = "",
+        wallet_id: int | None = None,
     ) -> int:
         if party_type == "owner":
             direction = "general"
@@ -526,14 +556,16 @@ class Repo:
             raise ValueError("Сумма не может быть нулевой.")
         return self.db.execute(
             "INSERT INTO payments(date, direction, party_type, party_id, amount_usd, amount_uzs, "
-            "rate, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (date, direction, party_type, party_id, round(amount_usd, 2), amount_uzs, rate, note.strip(), now_str()),
+            "rate, note, created_at, wallet_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (date, direction, party_type, party_id, round(amount_usd, 2), amount_uzs, rate, note.strip(), now_str(),
+             wallet_id),
         )
 
     def payments(self, start: str | None = None, end: str | None = None) -> list[sqlite3.Row]:
         sql, params = _date_filter(
             "SELECT p.*, COALESCE(w.name, a.name, CASE p.party_type WHEN 'owner' THEN 'Свои деньги' "
-            "ELSE 'Курьерка' END) AS party_name FROM payments p "
+            "ELSE 'Курьерка' END) AS party_name, wl.name AS wallet_name FROM payments p "
+            "LEFT JOIN wallets wl ON wl.id = p.wallet_id "
             "LEFT JOIN webs w ON p.party_type = 'web' AND w.id = p.party_id "
             "LEFT JOIN advertisers a ON p.party_type = 'advertiser' AND a.id = p.party_id",
             "p.date",
@@ -554,6 +586,7 @@ class Repo:
         amount_uzs: float | None = None,
         rate: float | None = None,
         note: str = "",
+        wallet_id: int | None = None,
     ) -> int:
         if direction not in ("traffic", "product", "general"):
             raise ValueError("Направление: traffic, product или general.")
@@ -561,13 +594,17 @@ class Repo:
             raise ValueError("Сумма расхода должна быть больше нуля.")
         return self.db.execute(
             "INSERT INTO expenses(date, direction, category, amount_usd, amount_uzs, rate, note, "
-            "created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (date, direction, category.strip() or "Прочее", round(amount_usd, 2), amount_uzs, rate, note.strip(), now_str()),
+            "created_at, wallet_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (date, direction, category.strip() or "Прочее", round(amount_usd, 2), amount_uzs, rate, note.strip(), now_str(),
+             wallet_id),
         )
 
     def expenses(self, start: str | None = None, end: str | None = None) -> list[sqlite3.Row]:
-        sql, params = _date_filter("SELECT * FROM expenses", "date", start, end)
-        return self.db.query(sql + " ORDER BY date DESC, id DESC", params)
+        sql, params = _date_filter(
+            "SELECT e.*, wl.name AS wallet_name FROM expenses e LEFT JOIN wallets wl ON wl.id = e.wallet_id",
+            "e.date", start, end,
+        )
+        return self.db.query(sql + " ORDER BY e.date DESC, e.id DESC", params)
 
     def delete_expense(self, expense_id: int) -> None:
         self.db.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
@@ -739,11 +776,12 @@ class Repo:
         order_id: int | None = None,
         cost_usd: float = 0,
         note: str = "",
+        wallet_id: int | None = None,
     ) -> int:
         return self.db.execute(
-            "INSERT INTO stock_moves(date, product_id, qty, kind, order_id, cost_usd, note, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (date, product_id, qty, kind, order_id, cost_usd, note.strip(), now_str()),
+            "INSERT INTO stock_moves(date, product_id, qty, kind, order_id, cost_usd, note, created_at, wallet_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (date, product_id, qty, kind, order_id, cost_usd, note.strip(), now_str(), wallet_id),
         )
 
     def stock_moves(self, product_id: int | None = None, limit: int = 200) -> list[sqlite3.Row]:
@@ -826,6 +864,60 @@ class Repo:
         n = self.db.one("SELECT COUNT(*) AS n FROM accruals WHERE note LIKE 'сверка%'")["n"]
         self.db.execute("UPDATE accruals SET date = ? WHERE note LIKE 'сверка%'", (new_date,))
         return n
+
+    # --- wallets ---
+
+    def add_wallet(self, name: str, currency: str, balance: float, date: str) -> int:
+        name = name.strip()
+        if not name:
+            raise ValueError("Название кошелька не может быть пустым.")
+        if currency not in ("usd", "uzs"):
+            raise ValueError("Валюта кошелька: usd или uzs.")
+        if self.find_wallet(name):
+            raise ValueError(f"Кошелёк «{name}» уже есть.")
+        return self.db.execute(
+            "INSERT INTO wallets(name, currency, balance, balance_date, created_at) VALUES (?, ?, ?, ?, ?)",
+            (name, currency, round(balance, 2), date, now_str()),
+        )
+
+    def wallets(self) -> list[sqlite3.Row]:
+        return self.db.query("SELECT * FROM wallets ORDER BY id")
+
+    def wallet(self, wallet_id: int) -> sqlite3.Row | None:
+        return self.db.one("SELECT * FROM wallets WHERE id = ?", (wallet_id,))
+
+    def find_wallet(self, name: str) -> sqlite3.Row | None:
+        return self._find("wallets", name)
+
+    def set_wallet_balance(self, wallet_id: int, balance: float, date: str) -> None:
+        self.db.execute("UPDATE wallets SET balance = ?, balance_date = ? WHERE id = ?", (round(balance, 2), date, wallet_id))
+
+    def delete_wallet(self, wallet_id: int) -> None:
+        for table in ("payments", "expenses", "stock_moves"):
+            self.db.execute(f"UPDATE {table} SET wallet_id = NULL WHERE wallet_id = ?", (wallet_id,))
+        self.db.execute("DELETE FROM wallet_transfers WHERE from_wallet = ? OR to_wallet = ?", (wallet_id, wallet_id))
+        self.db.execute("DELETE FROM wallets WHERE id = ?", (wallet_id,))
+
+    def add_transfer(self, date: str, from_wallet: int, to_wallet: int, amount_out: float, amount_in: float, note: str = "") -> int:
+        if from_wallet == to_wallet:
+            raise ValueError("Выберите два разных кошелька.")
+        if amount_out <= 0 or amount_in <= 0:
+            raise ValueError("Суммы перевода должны быть больше нуля.")
+        return self.db.execute(
+            "INSERT INTO wallet_transfers(date, from_wallet, to_wallet, amount_out, amount_in, note, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (date, from_wallet, to_wallet, round(amount_out, 2), round(amount_in, 2), note.strip(), now_str()),
+        )
+
+    def transfers(self) -> list[sqlite3.Row]:
+        return self.db.query(
+            "SELECT t.*, f.name AS from_name, f.currency AS from_currency, d.name AS to_name, d.currency AS to_currency "
+            "FROM wallet_transfers t JOIN wallets f ON f.id = t.from_wallet JOIN wallets d ON d.id = t.to_wallet "
+            "ORDER BY t.date DESC, t.id DESC"
+        )
+
+    def delete_transfer(self, transfer_id: int) -> None:
+        self.db.execute("DELETE FROM wallet_transfers WHERE id = ?", (transfer_id,))
 
     # --- reconciliation checkpoints ---
 

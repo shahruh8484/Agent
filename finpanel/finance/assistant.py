@@ -81,7 +81,8 @@ TOOLS = [
            "amount": {"type": "number"},
            "currency": {"type": "string", "enum": ["usd", "uzs"]},
            "date": _DATE,
-           "note": {"type": "string"}},
+           "note": {"type": "string"},
+           "wallet": {"type": "string", "description": "Кошелёк, на который пришли / с которого ушли деньги (имя из списка кошельков); пустая строка, если не сказано."},},
           ["party_type", "party_name", "direction", "amount", "currency", "date"]),
     _tool("add_accrual", "Начисление вручную, когда нет статистики лидов за период (например, история до панели): "
                          "сколько веб заработал (вы ему должны) или сколько рекл должен вам за трафик. "
@@ -100,7 +101,8 @@ TOOLS = [
            "amount": {"type": "number"},
            "currency": {"type": "string", "enum": ["usd", "uzs"]},
            "date": _DATE,
-           "note": {"type": "string"}},
+           "note": {"type": "string"},
+           "wallet": {"type": "string", "description": "Кошелёк, на который пришли / с которого ушли деньги (имя из списка кошельков); пустая строка, если не сказано."},},
           ["direction", "category", "amount", "currency", "date"]),
     _tool("add_product", "Добавить свой товар (или обновить себестоимость).",
           {"name": {"type": "string"}, "unit_cost_usd": {"type": "number", "description": "Себестоимость 1 шт в $."},
@@ -131,7 +133,8 @@ TOOLS = [
     _tool("add_stock_purchase", "Записать закупку товара на склад.",
           {"product": {"type": "string"}, "qty": {"type": "integer"},
            "cost_usd": {"type": "number", "description": "Сколько заплатили за всю партию, $; 0 если уже учтено."},
-           "date": _DATE},
+           "date": _DATE,
+           "wallet": {"type": "string", "description": "Кошелёк, на который пришли / с которого ушли деньги (имя из списка кошельков); пустая строка, если не сказано."},},
           ["product", "qty", "cost_usd", "date"]),
     _tool("update_settings", "Изменить курс сума, % оператора или % налога. Передавай -1 для того, что не меняется.",
           {"usd_uzs_rate": {"type": "number"}, "operator_pct": {"type": "number"}, "tax_pct": {"type": "number"}},
@@ -183,6 +186,8 @@ def build_context(repo: Repo, today: date) -> str:
         f"позавчера {(today - timedelta(days=2)).isoformat()}).",
         f"Настройки: курс {s['usd_uzs_rate']:,.0f} сум/$, оператор {s['operator_pct']}%, налог {s['tax_pct']}%.",
         "",
+        "Кошельки: " + (", ".join(f"{w.name} ({'сум' if w.currency == 'uzs' else '$'}, остаток {w.balance:,.2f})"
+                                  for w in calc.wallet_states(repo)) or "нет"),
         "Вебы: " + (", ".join(_party_line(w) for w in repo.webs()) or "нет"),
         "Реклы: " + (", ".join(_party_line(a) for a in repo.advertisers()) or "нет"),
         "",
@@ -270,6 +275,13 @@ def _find_link(repo: Repo, a: dict):
     return link
 
 
+def _wallet(repo: Repo, a: dict) -> int | None:
+    name = (a.get("wallet") or "").strip()
+    if not name:
+        return None
+    return _require(repo.find_wallet(name), "Кошелёк", name)["id"]
+
+
 def apply_action(repo: Repo, name: str, a: dict) -> str:
     """Run one confirmed action. Returns a short description of what was
     done; raises ValueError with a readable message on bad input."""
@@ -305,7 +317,8 @@ def apply_action(repo: Repo, name: str, a: dict) -> str:
             party_id = _require(repo.find_advertiser(a["party_name"]), "Рекл", a["party_name"])["id"]
         direction = {"advertiser": "traffic", "courier": "product", "owner": "general"}.get(a["party_type"], a["direction"])
         usd, uzs, rate = _usd(repo, float(a["amount"]), a["currency"])
-        repo.add_payment(a["date"], direction, a["party_type"], party_id, usd, uzs, rate, a.get("note", ""))
+        repo.add_payment(a["date"], direction, a["party_type"], party_id, usd, uzs, rate, a.get("note", ""),
+                         wallet_id=_wallet(repo, a))
         return f"Платёж {_money(usd)} записан."
     if name == "add_accrual":
         finder = repo.find_web if a["party_type"] == "web" else repo.find_advertiser
@@ -314,7 +327,8 @@ def apply_action(repo: Repo, name: str, a: dict) -> str:
         return f"Начисление {_money(float(a['amount']))} для {party['name']} записано."
     if name == "add_expense":
         usd, uzs, rate = _usd(repo, float(a["amount"]), a["currency"])
-        repo.add_expense(a["date"], a["direction"], a["category"], usd, uzs, rate, a.get("note", ""))
+        repo.add_expense(a["date"], a["direction"], a["category"], usd, uzs, rate, a.get("note", ""),
+                         wallet_id=_wallet(repo, a))
         return f"Расход {a['category']} {_money(usd)} записан."
     if name == "add_product":
         repo.add_product(a["name"], float(a["unit_cost_usd"]), int(a.get("initial_stock") or 0), a["date"])
@@ -346,7 +360,8 @@ def apply_action(repo: Repo, name: str, a: dict) -> str:
         product = _require(repo.find_product(a["product"]), "Товар", a["product"])
         if int(a["qty"]) <= 0:
             raise ValueError("Количество закупки должно быть больше нуля.")
-        repo.add_stock_move(a["date"], product["id"], int(a["qty"]), "purchase", cost_usd=float(a.get("cost_usd") or 0))
+        repo.add_stock_move(a["date"], product["id"], int(a["qty"]), "purchase", cost_usd=float(a.get("cost_usd") or 0),
+                            wallet_id=_wallet(repo, a))
         return f"Закупка {a['qty']} шт {product['name']} записана."
     if name == "update_settings":
         changed = []
@@ -366,6 +381,13 @@ _STATUS = {"delivered": "выкуплен", "returned": "невыкуп (на с
 
 def describe_action(name: str, a: dict) -> str:
     """One readable line per proposed action, shown before confirmation."""
+    text = _describe(name, a)
+    if a.get("wallet") and name in ("add_payment", "add_expense", "add_stock_purchase"):
+        text += f" · кошелёк: {a['wallet']}"
+    return text
+
+
+def _describe(name: str, a: dict) -> str:
     try:
         if name == "add_web":
             return (f"Веб {a['name']}" + (f" ({a['terms']})" if a.get("terms") else "")

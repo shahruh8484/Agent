@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Кошельки{% endblock %}
+{% block heading %}Кошельки{% endblock %}
+{% block content %}
+{% if states %}
+<div class="grid">
+  <div class="stat"><div class="label">На всех кошельках</div><div class="value">{{ pos.wallets_usd|usd }}</div>
+    <div class="sub">сумы пересчитаны по курсу {{ settings.usd_uzs_rate|num }}</div></div>
+  <div class="stat"><div class="label">Из них чужие (предоплаты реклов)</div><div class="value neg">−{{ pos.rekl_prepaid|usd }}</div>
+    <div class="sub">ещё не отработаны трафиком</div></div>
+  <div class="stat"><div class="label">Вам должны / вы должны</div>
+    <div class="value">{{ (pos.rekl_owe_you + pos.webs_owe_you + pos.courier_owes_usd - pos.you_owe_webs)|usd(true) }}</div>
+    <div class="sub">вебы вперёд {{ pos.webs_owe_you|usd }} · реклы должны {{ pos.rekl_owe_you|usd }} · курьерка {{ pos.courier_owes_usd|usd }} · вебам должны −{{ pos.you_owe_webs|usd }}</div></div>
+  <div class="stat"><div class="label">Ваши собственные деньги</div>
+    <div class="value {{ 'pos' if pos.own > 0 else 'neg' if pos.own < 0 }}">{{ pos.own|usd(true) }}</div>
+    <div class="sub">на кошельках − чужое + долги вам − ваши долги</div></div>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Кошельки</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Кошелёк</th><th class="num">Остаток</th><th class="num">≈ $</th><th>Сверен</th><th class="num">Пришло после</th><th class="num">Ушло после</th><th>Сверить остаток</th><th></th></tr>
+    {% for w in states %}
+    <tr><td><b>{{ w.name }}</b> <span class="tag">{{ 'сум' if w.currency == 'uzs' else '$' }}</span></td>
+      <td class="num {{ 'neg' if w.balance < 0 }}">{{ w.balance|uzs if w.currency == 'uzs' else w.balance|usd }}</td>
+      <td class="num muted">{{ w.balance_usd|usd }}</td>
+      <td class="muted">{{ w.since }}: {{ w.opening|uzs if w.currency == 'uzs' else w.opening|usd }}</td>
+      <td class="num pos">{{ (w.inflow|uzs if w.currency == 'uzs' else w.inflow|usd) if w.inflow else '' }}</td>
+      <td class="num neg">{{ (w.outflow|uzs if w.currency == 'uzs' else w.outflow|usd) if w.outflow else '' }}</td>
+      <td><form class="inline" method="post" action="/wallets/reconcile">
+        <input type="hidden" name="wallet_id" value="{{ w.id }}">
+        <input type="number" step="0.01" name="balance" placeholder="реальный остаток" required>
+        <input type="date" name="date" value="{{ today }}" required>
+        <button class="ghost" style="color:#8fa6ff">Сверить</button></form></td>
+      <td><form method="post" action="/wallets/delete" onsubmit="return confirm('Удалить кошелёк {{ w.name }}? Платежи останутся, но без кошелька.')"><input type="hidden" name="wallet_id" value="{{ w.id }}"><button class="ghost">✕</button></form></td></tr>
+    {% else %}<tr><td colspan="8" class="muted">Кошельков пока нет — добавьте ниже.</td></tr>{% endfor %}
+  </table></div>
+  <p class="hint">Остаток = сверенная сумма + платежи, расходы, закупки и переводы с этим кошельком <b>после</b> даты сверки.
+    Платежи без кошелька сюда не попадают — выбирайте кошелёк в формах (по умолчанию стоит первый).</p>
+
+  <details {{ 'open' if not states }}><summary>+ Добавить кошелёк</summary>
+    <form class="inline" method="post" action="/wallets/add">
+      <label>Название<input name="name" placeholder="Электронный кошелёк / Карта Uzcard / Наличные" required style="width:260px"></label>
+      <label>Валюта<select name="currency"><option value="usd">$ (доллары, USDT)</option><option value="uzs">сум</option></select></label>
+      <label>Остаток сейчас<input type="number" step="0.01" name="balance" value="0" required></label>
+      <label>На дату<input type="date" name="date" value="{{ today }}" required></label>
+      <button>Добавить</button>
+    </form>
+    <p class="hint">Впишите, сколько на нём сейчас. Дальше остаток будет меняться от платежей с этим кошельком.</p>
+  </details>
+</div>
+
+{% if states|length > 1 %}
+<div class="card">
+  <h2>Перевод между кошельками</h2>
+  <form class="inline" method="post" action="/wallets/transfer">
+    <label>Откуда<select name="from_wallet">{% for w in states %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select></label>
+    <label>Сумма списана<input type="number" step="0.01" name="amount_out" required></label>
+    <label>Куда<select name="to_wallet">{% for w in states %}<option value="{{ w.id }}" {{ 'selected' if loop.index == 2 }}>{{ w.name }}</option>{% endfor %}</select></label>
+    <label>Сумма пришла<input type="number" step="0.01" name="amount_in" placeholder="= списанной"></label>
+    <label>Дата<input type="date" name="date" value="{{ today }}" required></label>
+    <label>Заметка<input name="note"></label>
+    <button>Записать</button>
+  </form>
+  <p class="hint">Каждая сумма — в валюте своего кошелька (так записывается и обмен $ → сум). Если пришло меньше из-за комиссии,
+    запишите комиссию отдельно расходом «Комиссия» без кошелька — чтобы она попала в расходы.</p>
+  {% if transfers %}
+  <div class="table-wrap" style="margin-top:12px"><table>
+    <tr><th>Дата</th><th>Откуда</th><th class="num">Списано</th><th>Куда</th><th class="num">Пришло</th><th>Заметка</th><th></th></tr>
+    {% for t in transfers %}
+    <tr><td>{{ t.date }}</td><td>{{ t.from_name }}</td><td class="num">{{ t.amount_out|uzs if t.from_currency == 'uzs' else t.amount_out|usd }}</td>
+      <td>{{ t.to_name }}</td><td class="num">{{ t.amount_in|uzs if t.to_currency == 'uzs' else t.amount_in|usd }}</td>
+      <td class="muted">{{ t.note }}</td>
+      <td><form method="post" action="/wallets/transfer/delete" onsubmit="return confirm('Удалить перевод?')"><input type="hidden" name="transfer_id" value="{{ t.id }}"><button class="ghost">✕</button></form></td></tr>
+    {% endfor %}
+  </table></div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

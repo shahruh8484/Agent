@@ -149,7 +149,7 @@ def _display_name(name: str) -> str:
     return name if any(c.isupper() for c in name) else name[:1].upper() + name[1:]
 
 
-def apply(repo: Repo, rows: list[Row], mapping: dict[str, str]) -> ImportResult:
+def apply(repo: Repo, rows: list[Row], mapping: dict[str, str], wallet_id: int | None = None) -> ImportResult:
     res = ImportResult(created=[], errors=[])
     party_ids: dict[str, int] = {}
     # The same sheet can legitimately have two identical rows on one day
@@ -185,7 +185,7 @@ def apply(repo: Repo, rows: list[Row], mapping: dict[str, str]) -> ImportResult:
                                 repo.count_expenses(r.date, category, amount)):
                     res.duplicates += 1
                     continue
-                repo.add_expense(r.date, kind.removeprefix("expense_"), category, amount, note=note)
+                repo.add_expense(r.date, kind.removeprefix("expense_"), category, amount, note=note, wallet_id=wallet_id)
                 res.expenses += 1
                 continue
 
@@ -214,7 +214,7 @@ def apply(repo: Repo, rows: list[Row], mapping: dict[str, str]) -> ImportResult:
                             repo.count_payments(r.date, party_type, party_id, amount)):
                 res.duplicates += 1
                 continue
-            repo.add_payment(r.date, direction, party_type, party_id, amount, note=note)
+            repo.add_payment(r.date, direction, party_type, party_id, amount, note=note, wallet_id=wallet_id)
             res.payments += 1
         except ValueError as exc:
             res.errors.append(f"Строка {r.line}: {exc}")

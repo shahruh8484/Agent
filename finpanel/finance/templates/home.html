@@ -35,6 +35,22 @@
   <b>Касса</b> — сколько денег реально пришло и ушло (предоплаты реклов, выплаты вебам, наложка, закупки).
 </p>
 
+{% if pos %}
+<div class="card">
+  <h2>Деньги сейчас <a href="/wallets" style="font-size:0.8rem; font-weight:400; margin-left:8px">кошельки →</a></h2>
+  <div class="table-wrap"><table>
+    <tr><td>На всех кошельках</td><td class="num">{{ pos.wallets_usd|usd }}</td></tr>
+    <tr><td>− Чужие деньги: предоплаты реклов</td><td class="num neg">−{{ pos.rekl_prepaid|usd }}</td></tr>
+    <tr><td>+ Вебы должны вам трафиком (заплатили вперёд)</td><td class="num pos">+{{ pos.webs_owe_you|usd }}</td></tr>
+    <tr><td>− Вы должны вебам</td><td class="num neg">−{{ pos.you_owe_webs|usd }}</td></tr>
+    {% if pos.rekl_owe_you %}<tr><td>+ Реклы должны вам</td><td class="num pos">+{{ pos.rekl_owe_you|usd }}</td></tr>{% endif %}
+    {% if pos.courier_owes_usd %}<tr><td>+ Курьерка должна перечислить</td><td class="num pos">+{{ pos.courier_owes_usd|usd }}</td></tr>{% endif %}
+    <tr class="total"><td>Ваши собственные деньги</td><td class="num {{ 'pos' if pos.own > 0 else 'neg' if pos.own < 0 }}">{{ pos.own|usd(true) }}</td></tr>
+  </table></div>
+  <p class="hint">Товар на складе сюда не входит — это ваши деньги в товаре.</p>
+</div>
+{% endif %}
+
 <div class="card">
   <h2>Касса по направлениям</h2>
   <div class="table-wrap"><table>

@@ -673,3 +673,110 @@ def alerts(repo: Repo, today: date) -> list[Alert]:
     if any(r.missing_rate for r in rep.rows):
         out.append(Alert("info", "Есть статистика трафика по связкам без ставок — она не посчитана."))
     return out
+
+
+# --------------------------------------------------------------------------
+# Wallets: where the money physically is, and how much of it is yours
+# --------------------------------------------------------------------------
+
+
+@dataclass
+class WalletState:
+    id: int
+    name: str
+    currency: str
+    opening: float
+    since: str
+    inflow: float = 0.0
+    outflow: float = 0.0
+    usd_rate: float = 1.0   # wallet currency units per $1
+
+    @property
+    def balance(self) -> float:
+        return self.opening + self.inflow - self.outflow
+
+    @property
+    def balance_usd(self) -> float:
+        return self.balance / self.usd_rate
+
+
+def _in_wallet_currency(currency: str, amount_usd: float, amount_uzs: float | None, rate: float | None,
+                        current_rate: float) -> float:
+    if currency == "usd":
+        return amount_usd
+    if amount_uzs is not None:
+        return amount_uzs
+    return amount_usd * (rate or current_rate)
+
+
+def wallet_states(repo: Repo) -> list[WalletState]:
+    """Each wallet's balance in its own currency: the last reconciled amount
+    plus every payment / expense / purchase / transfer tied to it and
+    dated after that reconciliation. Money in: rekl and courier payments,
+    own money put in. Money out: webs, expenses, stock purchases."""
+    current_rate = repo.usd_uzs_rate()
+    states = {
+        w["id"]: WalletState(w["id"], w["name"], w["currency"], w["balance"], w["balance_date"],
+                             usd_rate=1.0 if w["currency"] == "usd" else current_rate)
+        for w in repo.wallets()
+    }
+
+    def book(wallet_id, day, amount, outgoing):
+        st = states.get(wallet_id)
+        if st is None or day <= st.since:
+            return
+        if amount < 0:  # refunds go the other way
+            amount, outgoing = -amount, not outgoing
+        if outgoing:
+            st.outflow += amount
+        else:
+            st.inflow += amount
+
+    for p in repo.payments():
+        st = states.get(p["wallet_id"])
+        if st:
+            amt = _in_wallet_currency(st.currency, p["amount_usd"], p["amount_uzs"], p["rate"], current_rate)
+            book(p["wallet_id"], p["date"], amt, outgoing=p["party_type"] == "web")
+    for e in repo.expenses():
+        st = states.get(e["wallet_id"])
+        if st:
+            book(e["wallet_id"], e["date"],
+                 _in_wallet_currency(st.currency, e["amount_usd"], e["amount_uzs"], e["rate"], current_rate), True)
+    for m in repo.db.query("SELECT * FROM stock_moves WHERE kind = 'purchase' AND wallet_id IS NOT NULL"):
+        st = states.get(m["wallet_id"])
+        if st:
+            book(m["wallet_id"], m["date"], _in_wallet_currency(st.currency, m["cost_usd"], None, None, current_rate), True)
+    for t in repo.transfers():
+        book(t["from_wallet"], t["date"], t["amount_out"], True)
+        book(t["to_wallet"], t["date"], t["amount_in"], False)
+    return list(states.values())
+
+
+@dataclass
+class Position:
+    """How much of the money on hand is actually yours."""
+
+    wallets_usd: float          # money on all wallets, in $
+    rekl_prepaid: float         # rekls' money you hold (their positive balances)
+    rekl_owe_you: float         # rekls who owe you
+    webs_owe_you: float         # webs you prepaid (they owe traffic)
+    you_owe_webs: float         # webs you owe
+    courier_owes_usd: float     # cash on delivery collected but not sent yet
+
+    @property
+    def own(self) -> float:
+        return (self.wallets_usd - self.rekl_prepaid + self.rekl_owe_you
+                + self.webs_owe_you - self.you_owe_webs + self.courier_owes_usd)
+
+
+def position(repo: Repo, today: date) -> Position:
+    rekls = [b.balance for b in advertiser_balances(repo, today)]
+    webs = [b.balance for d in ("traffic", "product") for b in web_balances(repo, today, d)]
+    return Position(
+        wallets_usd=sum(w.balance_usd for w in wallet_states(repo)),
+        rekl_prepaid=sum(b for b in rekls if b > 0),
+        rekl_owe_you=-sum(b for b in rekls if b < 0),
+        webs_owe_you=sum(b for b in webs if b > 0),
+        you_owe_webs=-sum(b for b in webs if b < 0),
+        courier_owes_usd=max(courier_balance(repo).owed_uzs, 0) / repo.usd_uzs_rate(),
+    )

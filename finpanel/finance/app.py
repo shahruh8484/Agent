@@ -118,6 +118,7 @@ def create_app(
                 "error": request.query_params.get("error"),
                 "msg": request.query_params.get("msg"),
                 "periods": calc.PERIODS,
+                "wallets": repo.wallets(),
                 "date_from": request.query_params.get("from", ""),
                 "date_to": request.query_params.get("to", ""),
                 "settings": repo.settings(),
@@ -194,6 +195,7 @@ def create_app(
             courier=calc.courier_balance(repo),
             stock=calc.stock_info(repo, today),
             cash_directions=calc.CASH_DIRECTIONS,
+            pos=calc.position(repo, today) if repo.wallets() else None,
         )
 
     # --------------------------------------------------------------- traffic
@@ -395,6 +397,7 @@ def create_app(
         kind: str = Form("purchase"),
         cost_usd: float = Form(0),
         note: str = Form(""),
+        wallet_id: str = Form(""),
     ):
         if not authed(request):
             return login_redirect()
@@ -406,7 +409,8 @@ def create_app(
                 raise ValueError("Неизвестный тип движения.")
             if kind == "purchase" and qty <= 0:
                 raise ValueError("Количество закупки должно быть больше нуля.")
-            repo.add_stock_move(date_, product_id, qty, kind, cost_usd=cost_usd if kind == "purchase" else 0, note=note)
+            repo.add_stock_move(date_, product_id, qty, kind, cost_usd=cost_usd if kind == "purchase" else 0, note=note,
+                                wallet_id=_wallet_id(wallet_id) if kind == "purchase" else None)
             return "Склад обновлён."
 
         return run("/product", do)
@@ -629,6 +633,7 @@ def create_app(
         currency: str = Form("usd"),
         note: str = Form(""),
         next: str = Form("/money"),
+        wallet_id: str = Form(""),
     ):
         if not authed(request):
             return login_redirect()
@@ -638,7 +643,8 @@ def create_app(
             party_type, _, party_id = party.partition(":")
             d = {"advertiser": "traffic", "courier": "product", "owner": "general"}.get(party_type, direction)
             usd, uzs, rate = amount_usd(amount, currency)
-            repo.add_payment(date_, d, party_type, int(party_id) if party_id else None, usd, uzs, rate, note)
+            repo.add_payment(date_, d, party_type, int(party_id) if party_id else None, usd, uzs, rate, note,
+                             wallet_id=_wallet_id(wallet_id))
             return f"Платёж {fmt_usd(usd)} записан."
 
         return run(_safe_next(next), do)
@@ -659,13 +665,14 @@ def create_app(
         amount: float = Form(...),
         currency: str = Form("usd"),
         note: str = Form(""),
+        wallet_id: str = Form(""),
     ):
         if not authed(request):
             return login_redirect()
 
         def do():
             usd, uzs, rate = amount_usd(amount, currency)
-            repo.add_expense(date_, direction, category, usd, uzs, rate, note)
+            repo.add_expense(date_, direction, category, usd, uzs, rate, note, wallet_id=_wallet_id(wallet_id))
             return f"Расход {fmt_usd(usd)} записан."
 
         return run("/money", do)
@@ -721,7 +728,7 @@ def create_app(
                 idx = key.removeprefix("name_")
                 mapping[str(value).strip().lower()] = str(form.get(f"kind_{idx}", "skip"))
         try:
-            res = importer.apply(repo, rows, mapping)
+            res = importer.apply(repo, rows, mapping, wallet_id=_wallet_id(str(form.get("wallet_id", ""))))
         except ValueError as exc:
             return back("/import", error=str(exc))
         msg = (
@@ -825,6 +832,76 @@ def create_app(
             msg=f"Загружено дней: {n} ({days[0].date} — {days[-1].date}). Сверьте итог с сетью.",
             **{"from": days[0].date, "to": days[-1].date},
         )
+
+    # -------------------------------------------------------------- wallets
+
+    @app.get("/wallets")
+    def wallets_page(request: Request):
+        if not authed(request):
+            return login_redirect()
+        today = today_fn()
+        return render(
+            request, "wallets.html", "wallets",
+            states=calc.wallet_states(repo),
+            pos=calc.position(repo, today),
+            transfers=repo.transfers()[:50],
+        )
+
+    @app.post("/wallets/add")
+    def wallets_add(request: Request, name: str = Form(...), currency: str = Form("usd"),
+                    balance: float = Form(0), date_: str = Form(..., alias="date")):
+        if not authed(request):
+            return login_redirect()
+        return run("/wallets", lambda: repo.add_wallet(name, currency, balance, date_) and f"Кошелёк «{name}» добавлен.")
+
+    @app.post("/wallets/reconcile")
+    def wallets_reconcile(request: Request, wallet_id: int = Form(...), balance: float = Form(...),
+                          date_: str = Form(..., alias="date")):
+        if not authed(request):
+            return login_redirect()
+
+        def do():
+            if repo.wallet(wallet_id) is None:
+                raise ValueError("Кошелёк не найден.")
+            repo.set_wallet_balance(wallet_id, balance, date_)
+            return f"Остаток сверен на {date_}."
+
+        return run("/wallets", do)
+
+    @app.post("/wallets/delete")
+    def wallets_delete(request: Request, wallet_id: int = Form(...)):
+        if not authed(request):
+            return login_redirect()
+        repo.delete_wallet(wallet_id)
+        return back("/wallets", msg="Кошелёк удалён (платежи остались, просто без кошелька).")
+
+    @app.post("/wallets/transfer")
+    def wallets_transfer(request: Request, from_wallet: int = Form(...), to_wallet: int = Form(...),
+                         amount_out: float = Form(...), amount_in: str = Form(""),
+                         date_: str = Form(..., alias="date"), note: str = Form("")):
+        if not authed(request):
+            return login_redirect()
+
+        def do():
+            src, dst = repo.wallet(from_wallet), repo.wallet(to_wallet)
+            if src is None or dst is None:
+                raise ValueError("Кошелёк не найден.")
+            got = float(amount_in) if amount_in.strip() else None
+            if got is None:
+                if src["currency"] != dst["currency"]:
+                    raise ValueError("Кошельки в разных валютах — укажите, сколько пришло.")
+                got = amount_out
+            repo.add_transfer(date_, from_wallet, to_wallet, amount_out, got, note)
+            return "Перевод записан."
+
+        return run("/wallets", do)
+
+    @app.post("/wallets/transfer/delete")
+    def wallets_transfer_delete(request: Request, transfer_id: int = Form(...)):
+        if not authed(request):
+            return login_redirect()
+        repo.delete_transfer(transfer_id)
+        return back("/wallets", msg="Перевод удалён.")
 
     # ------------------------------------------------------------- settings
 
@@ -953,6 +1030,10 @@ def create_app(
         return back("/chat")
 
     return app
+
+
+def _wallet_id(value: str) -> int | None:
+    return int(value) if value and value.strip().isdigit() else None
 
 
 def _is_iso_date(value: str) -> bool:

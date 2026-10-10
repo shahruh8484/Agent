@@ -56,6 +56,8 @@
       Новые реклы и вебы создадутся сами.
     </p>
     <div style="display:flex; gap:10px; margin-top:12px">
+      {% if wallets %}<label style="display:flex; flex-direction:column; font-size:0.74rem; color:var(--muted); gap:3px">Кошелёк для этих строк
+        <select name="wallet_id"><option value="">— без кошелька —</option>{% for w in wallets %}<option value="{{ w.id }}" {{ 'selected' if loop.first }}>{{ w.name }}</option>{% endfor %}</select></label>{% endif %}
       <button>Загрузить {{ rows|length }} строк</button>
       <a href="/import" style="align-self:center">← назад</a>
     </div>
