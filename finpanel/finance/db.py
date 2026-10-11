@@ -185,6 +185,7 @@ CREATE TABLE IF NOT EXISTS balance_checkpoints (
     date TEXT NOT NULL,
     balance REAL NOT NULL,
     created_at TEXT NOT NULL,
+    pending_json TEXT,               -- {day: accrued} for days still preliminary when reconciled
     UNIQUE(party_type, party_id, direction)
 );
 
@@ -270,6 +271,9 @@ class DB:
         cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(link_rates)")}
         if "web_guarantee_pct" not in cols:
             self._conn.execute("ALTER TABLE link_rates ADD COLUMN web_guarantee_pct REAL NOT NULL DEFAULT 0")
+        cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(balance_checkpoints)")}
+        if "pending_json" not in cols:
+            self._conn.execute("ALTER TABLE balance_checkpoints ADD COLUMN pending_json TEXT")
         for table in ("payments", "expenses", "stock_moves"):
             cols = {r["name"] for r in self._conn.execute(f"PRAGMA table_info({table})")}
             if "wallet_id" not in cols:
@@ -908,6 +912,9 @@ class Repo:
         self.db.execute("UPDATE wallets SET balance = ?, balance_date = ? WHERE id = ?", (round(balance, 2), date, wallet_id))
 
     def delete_wallet(self, wallet_id: int) -> None:
+        cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(balance_checkpoints)")}
+        if "pending_json" not in cols:
+            self._conn.execute("ALTER TABLE balance_checkpoints ADD COLUMN pending_json TEXT")
         for table in ("payments", "expenses", "stock_moves"):
             self.db.execute(f"UPDATE {table} SET wallet_id = NULL WHERE wallet_id = ?", (wallet_id,))
         self.db.execute("DELETE FROM wallet_transfers WHERE from_wallet = ? OR to_wallet = ?", (wallet_id, wallet_id))
@@ -936,23 +943,28 @@ class Repo:
 
     # --- reconciliation checkpoints ---
 
-    def set_checkpoint(self, party_type: str, party_id: int, direction: str, date: str, balance: float) -> None:
+    def set_checkpoint(self, party_type: str, party_id: int, direction: str, date: str, balance: float,
+                       pending: dict[str, float] | None = None) -> None:
         if party_type not in ("advertiser", "web") or direction not in ("traffic", "product"):
             raise ValueError("Сверка: для рекла или веба, трафик или товар.")
         self.db.execute(
-            "INSERT INTO balance_checkpoints(party_type, party_id, direction, date, balance, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(party_type, party_id, direction) DO UPDATE SET "
-            "date = excluded.date, balance = excluded.balance, created_at = excluded.created_at",
-            (party_type, party_id, direction, date, round(balance, 2), now_str()),
+            "INSERT INTO balance_checkpoints(party_type, party_id, direction, date, balance, created_at, pending_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(party_type, party_id, direction) DO UPDATE SET "
+            "date = excluded.date, balance = excluded.balance, created_at = excluded.created_at, "
+            "pending_json = excluded.pending_json",
+            (party_type, party_id, direction, date, round(balance, 2), now_str(),
+             json.dumps(pending) if pending is not None else None),
         )
 
     def checkpoints(self, party_type: str, direction: str) -> dict[int, dict]:
-        return {
-            r["party_id"]: dict(r)
-            for r in self.db.query(
-                "SELECT * FROM balance_checkpoints WHERE party_type = ? AND direction = ?", (party_type, direction)
-            )
-        }
+        out = {}
+        for r in self.db.query(
+            "SELECT * FROM balance_checkpoints WHERE party_type = ? AND direction = ?", (party_type, direction)
+        ):
+            cp = dict(r)
+            cp["pending"] = json.loads(cp["pending_json"]) if cp["pending_json"] else None
+            out[r["party_id"]] = cp
+        return out
 
     def delete_checkpoint(self, party_type: str, party_id: int, direction: str) -> None:
         self.db.execute(

@@ -349,3 +349,42 @@ def test_cash_by_direction_adds_up(repo):
     total = calc.cash_flow(repo, None, None)
     assert sum(c.net for c in by.values()) == pytest.approx(total.net)
     assert total.owner == 1000
+
+
+def _maks_link(repo):
+    web = repo.add_web("Макс")
+    adv = repo.add_advertiser("Санж")
+    link = repo.add_link(web, adv, "", "2026-07-01", "approve", 25, 10, "approve", 23, 10)
+    return web, adv, link
+
+
+def test_reconcile_today_keeps_guarantee_of_preliminary_days(repo):
+    from datetime import date
+
+    web, adv, link = _maks_link(repo)
+    repo.upsert_traffic_stat(link, "2026-10-08", 100, 100, 10)   # closed, frozen
+    repo.upsert_traffic_stat(link, "2026-10-10", 109, 71, 1)     # preliminary: $23 / $25
+    calc.reconcile(repo, TODAY, "web", web, "traffic", -2599, "2026-10-10")
+    calc.reconcile(repo, TODAY, "advertiser", adv, "traffic", 4192, "2026-10-10")
+    maks = next(b for b in calc.web_balances(repo, TODAY, "traffic") if b.party_id == web)
+    assert maks.balance == pytest.approx(-2599)
+
+    # Two days later 10.10 is closed: guarantee 10 approves, plus a late approve on 10.08 (frozen).
+    later = date(2026, 10, 12)
+    repo.upsert_traffic_stat(link, "2026-10-08", 100, 100, 11)
+    maks = next(b for b in calc.web_balances(repo, later, "traffic") if b.party_id == web)
+    assert maks.balance == pytest.approx(-2599 - 9 * 23)
+    sanzh = next(b for b in calc.advertiser_balances(repo, later) if b.party_id == adv)
+    assert sanzh.balance == pytest.approx(4192 - 9 * 25)
+
+
+def test_old_checkpoint_without_snapshot_adds_guarantee(repo):
+    from datetime import date
+
+    web, adv, link = _maks_link(repo)
+    repo.upsert_traffic_stat(link, "2026-10-10", 109, 71, 1)
+    repo.set_checkpoint("advertiser", adv, "traffic", "2026-10-10", 4192)  # legacy: no snapshot
+    repo.db.execute("UPDATE balance_checkpoints SET created_at = '2026-10-10 12:00'")
+    assert next(b for b in calc.advertiser_balances(repo, TODAY) if b.party_id == adv).balance == pytest.approx(4192)
+    later = date(2026, 10, 12)
+    assert next(b for b in calc.advertiser_balances(repo, later) if b.party_id == adv).balance == pytest.approx(4192 - 9 * 25)

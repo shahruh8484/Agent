@@ -415,7 +415,10 @@ class Balance:
 class _Ledger:
     """Collects paid / accrued per party, honouring reconciliation
     checkpoints: anything dated on or before a party's checkpoint is
-    already inside the agreed opening balance and is skipped."""
+    already inside the agreed opening balance and is skipped — except
+    traffic days that were still preliminary when the balance was agreed:
+    whatever they gain afterwards (the guarantee once the day closes, late
+    approves) still moves the balance."""
 
     def __init__(self, checkpoints: dict[int, dict], week_ago: str):
         self.cp = checkpoints
@@ -424,6 +427,7 @@ class _Ledger:
         self.accrued: dict[int, float] = {}
         self.recent: dict[int, float] = {}
         self.last: dict[int, str] = {}
+        self.pending_now: dict[int, dict[str, float]] = {}
 
     def _counts(self, party: int, day: str) -> bool:
         cp = self.cp.get(party)
@@ -441,8 +445,29 @@ class _Ledger:
         if self._counts(party, day):
             self.accrued[party] = self.accrued.get(party, 0) + amount
 
+    def accrue_stat(self, party: int, day: str, amount: float, guarantee_part: float) -> None:
+        """Accrual from a traffic stat row; guarantee_part is how much of
+        `amount` comes from the guarantee."""
+        self.accrue(party, day, amount)
+        cp = self.cp.get(party)
+        if cp is None or day > cp["date"]:
+            return
+        if cp["pending"] is not None:
+            if day in cp["pending"]:
+                days = self.pending_now.setdefault(party, {})
+                days[day] = days.get(day, 0) + amount
+        elif day > _days_before(cp["created_at"][:10], GUARANTEE_LAG_DAYS):
+            # Reconciled before snapshots were kept: of the then-preliminary
+            # days, count what the guarantee added once they closed.
+            self.accrued[party] = self.accrued.get(party, 0) + guarantee_part
+
     def balance(self, party: int, name: str) -> Balance:
         cp = self.cp.get(party)
+        if cp and cp["pending"]:
+            now = self.pending_now.get(party, {})
+            change = sum(now.get(day, 0) - before for day, before in cp["pending"].items())
+            if abs(change) > 1e-9:
+                self.accrued[party] = self.accrued.get(party, 0) + change
         return Balance(
             party, name, self.paid.get(party, 0), self.accrued.get(party, 0),
             self.recent.get(party, 0) / 7, self.last.get(party),
@@ -461,7 +486,8 @@ def advertiser_balances(repo: Repo, today: date) -> list[Balance]:
     for stat in repo.traffic_stats():
         link = links.get(stat["link_id"])
         if link:
-            led.accrue(link["advertiser_id"], stat["date"], traffic_row(repo, stat, today).adv_amount)
+            row = traffic_row(repo, stat, today)
+            led.accrue_stat(link["advertiser_id"], stat["date"], row.adv_amount, row.guarantee_bonus)
     for p in repo.payments():
         if p["party_type"] == "advertiser":
             led.pay(p["party_id"], p["date"], p["amount_usd"])
@@ -480,7 +506,8 @@ def web_balances(repo: Repo, today: date, direction: str) -> list[Balance]:
         for stat in repo.traffic_stats():
             link = links.get(stat["link_id"])
             if link:
-                led.accrue(link["web_id"], stat["date"], traffic_row(repo, stat, today).web_amount)
+                row = traffic_row(repo, stat, today)
+                led.accrue_stat(link["web_id"], stat["date"], row.web_amount, row.web_guarantee_cost)
     else:
         for stat in repo.product_stats():
             led.accrue(stat["web_id"], stat["date"], product_web_cost(repo, stat) or 0)
@@ -498,10 +525,31 @@ def reconcile(repo: Repo, today: date, party_type: str, party_id: int, direction
     """Fix a web's / rekl's balance at `target` (your own figure) as of
     `on_date`. From then on only payments and traffic dated after that day
     move the balance — reloading older days (late approves) no longer
-    shifts an agreed figure."""
+    shifts an agreed figure. Days still preliminary today are remembered
+    as they stand, so their guarantee and late approves are added later."""
     if party_type == "advertiser":
         direction = "traffic"
-    repo.set_checkpoint(party_type, party_id, direction, on_date, target)
+    pending = None
+    if direction == "traffic":
+        first_open = _days_before(today.isoformat(), GUARANTEE_LAG_DAYS - 1)
+        pending = {}
+        if on_date >= first_open:
+            day = date.fromisoformat(first_open)
+            while day.isoformat() <= on_date:
+                pending[day.isoformat()] = 0.0
+                day += timedelta(days=1)
+            links = {l["id"]: l for l in repo.links()}
+            side = "advertiser_id" if party_type == "advertiser" else "web_id"
+            for stat in repo.traffic_stats(first_open, on_date):
+                link = links.get(stat["link_id"])
+                if link and link[side] == party_id:
+                    row = traffic_row(repo, stat, today)
+                    pending[stat["date"]] += row.adv_amount if party_type == "advertiser" else row.web_amount
+    repo.set_checkpoint(party_type, party_id, direction, on_date, target, pending)
+
+
+def _days_before(day: str, n: int) -> str:
+    return (date.fromisoformat(day) - timedelta(days=n)).isoformat()
 
 
 @dataclass
