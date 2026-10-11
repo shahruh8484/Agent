@@ -236,6 +236,8 @@ DEFAULT_SETTINGS = {
     "tax_pct": "0",
     "restock_days": "10",
     "advertiser_low_days": "2",
+    "rate_auto": "0",          # 1 = take the USD rate from the Central Bank daily
+    "rate_adjust_pct": "0",    # correction to the CB rate, e.g. -2 = 2% below it
 }
 
 
@@ -307,7 +309,20 @@ class Repo:
     # --- settings ---
 
     def settings(self) -> dict[str, float]:
-        return {r["key"]: float(r["value"]) for r in self.db.query("SELECT * FROM settings")}
+        return {r["key"]: float(r["value"]) for r in self.db.query("SELECT * FROM settings")
+                if r["key"] in DEFAULT_SETTINGS}
+
+    def meta(self, key: str) -> str:
+        """Free-text values kept next to the settings (e.g. when the rate was last fetched)."""
+        row = self.db.one("SELECT value FROM settings WHERE key = ?", ("meta:" + key,))
+        return row["value"] if row else ""
+
+    def set_meta(self, key: str, value: str) -> None:
+        self.db.execute(
+            "INSERT INTO settings(key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            ("meta:" + key, value),
+        )
 
     def set_setting(self, key: str, value: float) -> None:
         if key not in DEFAULT_SETTINGS:

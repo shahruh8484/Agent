@@ -6,6 +6,8 @@ Run locally with:
 """
 from __future__ import annotations
 
+import threading
+import time
 from datetime import date, datetime
 from pathlib import Path
 from typing import Callable
@@ -17,7 +19,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from finance import calc, importer, stats_import
+from finance import calc, fx, importer, stats_import
 from finance.assistant import (
     SYSTEM_PROMPT,
     AssistantError,
@@ -69,6 +71,7 @@ def create_app(
     repo: Repo | None = None,
     backend_factory: Callable[[], object] | None = None,
     today_fn: Callable[[], date] | None = None,
+    rate_fetcher: Callable[[], tuple[float, str]] | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     if not settings.secret_key:
@@ -107,8 +110,26 @@ def create_app(
             query["msg"] = msg
         return RedirectResponse(path + ("?" + urlencode(query) if query else ""), status_code=302)
 
+    rate_fetcher = rate_fetcher or fx.fetch_cbu_rate
+    rate_job = {"last_try": 0.0, "running": False}
+
+    def maybe_update_rate(today: date) -> None:
+        """Daily CB rate refresh in the background, at most one try an hour."""
+        if rate_job["running"] or time.monotonic() - rate_job["last_try"] < 3600 or not fx.auto_update_due(repo, today):
+            return
+        rate_job.update(running=True, last_try=time.monotonic())
+
+        def job():
+            try:
+                fx.auto_update(repo, today, rate_fetcher)
+            finally:
+                rate_job["running"] = False
+
+        threading.Thread(target=job, daemon=True).start()
+
     def render(request: Request, name: str, nav: str, **ctx):
         today = today_fn()
+        maybe_update_rate(today)
         return templates.TemplateResponse(
             request,
             name,
@@ -913,6 +934,9 @@ def create_app(
         return render(
             request, "settings.html", "settings",
             chat_provider=provider_label.get(assistant_provider(settings), ""),
+            rate_cb=repo.meta("rate_cb"),
+            rate_cb_date=repo.meta("rate_cb_date"),
+            rate_checked=repo.meta("rate_checked"),
         )
 
     @app.post("/settings")
@@ -923,6 +947,8 @@ def create_app(
         tax_pct: float = Form(...),
         restock_days: float = Form(...),
         advertiser_low_days: float = Form(...),
+        rate_auto: str = Form(""),
+        rate_adjust_pct: float = Form(0),
     ):
         if not authed(request):
             return login_redirect()
@@ -930,7 +956,10 @@ def create_app(
         def do():
             if usd_uzs_rate <= 0:
                 raise ValueError("Курс должен быть больше нуля.")
+            was_auto = bool(repo.settings()["rate_auto"])
             for key, value in (
+                ("rate_auto", 1 if rate_auto else 0),
+                ("rate_adjust_pct", rate_adjust_pct),
                 ("usd_uzs_rate", usd_uzs_rate),
                 ("operator_pct", operator_pct),
                 ("tax_pct", tax_pct),
@@ -938,7 +967,27 @@ def create_app(
                 ("advertiser_low_days", advertiser_low_days),
             ):
                 repo.set_setting(key, value)
+            if rate_auto and not was_auto:
+                try:
+                    rate = fx.update_rate(repo, today_fn(), rate_fetcher)
+                except fx.RateError as exc:
+                    return f"Настройки сохранены. {exc} — попробую позже."
+                return f"Настройки сохранены. Курс ЦБ подтянут: {rate:,.2f} сум/$."
             return "Настройки сохранены."
+
+        return run("/settings", do)
+
+    @app.post("/settings/rate/update")
+    def settings_rate_update(request: Request):
+        if not authed(request):
+            return login_redirect()
+
+        def do():
+            try:
+                rate = fx.update_rate(repo, today_fn(), rate_fetcher)
+            except fx.RateError as exc:
+                raise ValueError(str(exc)) from exc
+            return f"Курс обновлён: {rate:,.2f} сум/$."
 
         return run("/settings", do)
 
