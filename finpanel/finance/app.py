@@ -15,7 +15,8 @@ from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -36,6 +37,7 @@ from finance.db import DB, Repo
 from finance.security import verify_password
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+STATIC_DIR = Path(__file__).parent / "static"
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 CHAT_VISIBLE = 20  # older chat messages sit behind "Показать ранние"
 IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
@@ -92,6 +94,17 @@ def create_app(
         https_only=settings.session_https_only,
     )
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+    # Browsers and phones ask for these at the site root.
+    @app.get("/favicon.ico", include_in_schema=False)
+    def favicon():
+        return FileResponse(STATIC_DIR / "favicon.ico", headers={"Cache-Control": "public, max-age=604800"})
+
+    @app.get("/apple-touch-icon.png", include_in_schema=False)
+    @app.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
+    def apple_touch_icon():
+        return FileResponse(STATIC_DIR / "apple-touch-icon.png", headers={"Cache-Control": "public, max-age=604800"})
     templates.env.filters["usd"] = fmt_usd
     templates.env.filters["uzs"] = fmt_uzs
     templates.env.filters["num"] = fmt_num
