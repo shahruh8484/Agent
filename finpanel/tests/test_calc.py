@@ -374,6 +374,9 @@ def test_reconcile_today_keeps_guarantee_of_preliminary_days(repo):
     repo.upsert_traffic_stat(link, "2026-10-08", 100, 100, 11)
     maks = next(b for b in calc.web_balances(repo, later, "traffic") if b.party_id == web)
     assert maks.balance == pytest.approx(-2599 - 9 * 23)
+    repo.upsert_traffic_stat(link, "2026-10-10", 109, 71, 10)   # guarantee booked as approves
+    maks = next(b for b in calc.web_balances(repo, later, "traffic") if b.party_id == web)
+    assert maks.balance == pytest.approx(-2599 - 9 * 23)
     sanzh = next(b for b in calc.advertiser_balances(repo, later) if b.party_id == adv)
     assert sanzh.balance == pytest.approx(4192 - 9 * 25)
 
@@ -388,3 +391,9 @@ def test_old_checkpoint_without_snapshot_adds_guarantee(repo):
     assert next(b for b in calc.advertiser_balances(repo, TODAY) if b.party_id == adv).balance == pytest.approx(4192)
     later = date(2026, 10, 12)
     assert next(b for b in calc.advertiser_balances(repo, later) if b.party_id == adv).balance == pytest.approx(4192 - 9 * 25)
+    # The network books the guarantee as approves: no double count, no jump back.
+    repo.upsert_traffic_stat(link, "2026-10-10", 109, 71, 10)
+    assert next(b for b in calc.advertiser_balances(repo, later) if b.party_id == adv).balance == pytest.approx(4192 - 9 * 25)
+    # A real late approve on top still counts.
+    repo.upsert_traffic_stat(link, "2026-10-10", 109, 71, 12)
+    assert next(b for b in calc.advertiser_balances(repo, later) if b.party_id == adv).balance == pytest.approx(4192 - 11 * 25)

@@ -445,21 +445,15 @@ class _Ledger:
         if self._counts(party, day):
             self.accrued[party] = self.accrued.get(party, 0) + amount
 
-    def accrue_stat(self, party: int, day: str, amount: float, guarantee_part: float) -> None:
-        """Accrual from a traffic stat row; guarantee_part is how much of
-        `amount` comes from the guarantee."""
+    def accrue_stat(self, party: int, day: str, amount: float) -> None:
+        """Accrual from a traffic stat row."""
         self.accrue(party, day, amount)
         cp = self.cp.get(party)
         if cp is None or day > cp["date"]:
             return
-        if cp["pending"] is not None:
-            if day in cp["pending"]:
-                days = self.pending_now.setdefault(party, {})
-                days[day] = days.get(day, 0) + amount
-        elif day > _days_before(cp["created_at"][:10], GUARANTEE_LAG_DAYS):
-            # Reconciled before snapshots were kept: of the then-preliminary
-            # days, count what the guarantee added once they closed.
-            self.accrued[party] = self.accrued.get(party, 0) + guarantee_part
+        if cp["pending"] and day in cp["pending"]:
+            days = self.pending_now.setdefault(party, {})
+            days[day] = days.get(day, 0) + amount
 
     def balance(self, party: int, name: str) -> Balance:
         cp = self.cp.get(party)
@@ -482,12 +476,12 @@ def advertiser_balances(repo: Repo, today: date) -> list[Balance]:
     """balance > 0: prepayment not yet worked off (it's the rekl's money).
     balance < 0: the rekl owes you."""
     links = {l["id"]: l for l in repo.links()}
+    _snapshot_old_checkpoints(repo, today, "advertiser")
     led = _Ledger(repo.checkpoints("advertiser", "traffic"), (today - timedelta(days=7)).isoformat())
     for stat in repo.traffic_stats():
         link = links.get(stat["link_id"])
         if link:
-            row = traffic_row(repo, stat, today)
-            led.accrue_stat(link["advertiser_id"], stat["date"], row.adv_amount, row.guarantee_bonus)
+            led.accrue_stat(link["advertiser_id"], stat["date"], traffic_row(repo, stat, today).adv_amount)
     for p in repo.payments():
         if p["party_type"] == "advertiser":
             led.pay(p["party_id"], p["date"], p["amount_usd"])
@@ -500,14 +494,15 @@ def advertiser_balances(repo: Repo, today: date) -> list[Balance]:
 def web_balances(repo: Repo, today: date, direction: str) -> list[Balance]:
     """balance > 0: you prepaid, the web still owes traffic.
     balance < 0: you owe the web."""
+    if direction == "traffic":
+        _snapshot_old_checkpoints(repo, today, "web")
     led = _Ledger(repo.checkpoints("web", direction), (today - timedelta(days=7)).isoformat())
     if direction == "traffic":
         links = {l["id"]: l for l in repo.links()}
         for stat in repo.traffic_stats():
             link = links.get(stat["link_id"])
             if link:
-                row = traffic_row(repo, stat, today)
-                led.accrue_stat(link["web_id"], stat["date"], row.web_amount, row.web_guarantee_cost)
+                led.accrue_stat(link["web_id"], stat["date"], traffic_row(repo, stat, today).web_amount)
     else:
         for stat in repo.product_stats():
             led.accrue(stat["web_id"], stat["date"], product_web_cost(repo, stat) or 0)
@@ -532,20 +527,43 @@ def reconcile(repo: Repo, today: date, party_type: str, party_id: int, direction
     pending = None
     if direction == "traffic":
         first_open = _days_before(today.isoformat(), GUARANTEE_LAG_DAYS - 1)
-        pending = {}
-        if on_date >= first_open:
-            day = date.fromisoformat(first_open)
-            while day.isoformat() <= on_date:
-                pending[day.isoformat()] = 0.0
-                day += timedelta(days=1)
-            links = {l["id"]: l for l in repo.links()}
-            side = "advertiser_id" if party_type == "advertiser" else "web_id"
-            for stat in repo.traffic_stats(first_open, on_date):
-                link = links.get(stat["link_id"])
-                if link and link[side] == party_id:
-                    row = traffic_row(repo, stat, today)
-                    pending[stat["date"]] += row.adv_amount if party_type == "advertiser" else row.web_amount
+        pending = _pending_snapshot(repo, today, party_type, party_id, first_open, on_date) if on_date >= first_open else {}
     repo.set_checkpoint(party_type, party_id, direction, on_date, target, pending)
+
+
+def _pending_snapshot(repo: Repo, today: date, party_type: str, party_id: int,
+                      first_day: str, last_day: str, without_guarantee: bool = False) -> dict[str, float]:
+    """Accrued per day for one party over [first_day, last_day]."""
+    pending: dict[str, float] = {}
+    day = date.fromisoformat(first_day)
+    while day.isoformat() <= last_day:
+        pending[day.isoformat()] = 0.0
+        day += timedelta(days=1)
+    links = {l["id"]: l for l in repo.links()}
+    side = "advertiser_id" if party_type == "advertiser" else "web_id"
+    for stat in repo.traffic_stats(first_day, last_day):
+        link = links.get(stat["link_id"])
+        if link and link[side] == party_id:
+            row = traffic_row(repo, stat, today)
+            if party_type == "advertiser":
+                amount = row.adv_amount - (row.guarantee_bonus if without_guarantee else 0)
+            else:
+                amount = row.web_amount - (row.web_guarantee_cost if without_guarantee else 0)
+            pending[stat["date"]] += amount
+    return pending
+
+
+def _snapshot_old_checkpoints(repo: Repo, today: date, party_type: str) -> None:
+    """Checkpoints made before snapshots were kept: remember the days that
+    were preliminary back then as they would have stood (no guarantee yet),
+    once, so their guarantee and later approves count without doubling."""
+    for party_id, cp in repo.checkpoints(party_type, "traffic").items():
+        if cp["pending"] is not None:
+            continue
+        first = _days_before(cp["created_at"][:10], GUARANTEE_LAG_DAYS - 1)
+        pending = (_pending_snapshot(repo, today, party_type, party_id, first, cp["date"], without_guarantee=True)
+                   if cp["date"] >= first else {})
+        repo.set_checkpoint_pending(cp["id"], pending)
 
 
 def _days_before(day: str, n: int) -> str:

@@ -956,6 +956,9 @@ class Repo:
              json.dumps(pending) if pending is not None else None),
         )
 
+    def set_checkpoint_pending(self, checkpoint_id: int, pending: dict[str, float]) -> None:
+        self.db.execute("UPDATE balance_checkpoints SET pending_json = ? WHERE id = ?", (json.dumps(pending), checkpoint_id))
+
     def checkpoints(self, party_type: str, direction: str) -> dict[int, dict]:
         out = {}
         for r in self.db.query(
