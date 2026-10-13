@@ -51,7 +51,7 @@
     {% set a = rep.by_link.get(l.id) %}{% set r = rates[l.id] %}
     <tr>
       <td>{{ link_names[l.id] }} {% if not l.active %}<span class="tag">выкл</span>{% endif %}</td>
-      <td class="muted">{% if r %}${{ r.adv_rate|num(2) }}/{{ 'апрув' if r.adv_pay_type == 'approve' else 'валид' }}{% if r.guarantee_pct %} · гарант {{ r.guarantee_pct|num }}%{% endif %} → вебу ${{ r.web_rate|num(2) }}/{{ 'апрув' if r.web_pay_type == 'approve' else 'лид' }}{% if r.web_guarantee_pct and r.web_pay_type == 'approve' %} · гарант {{ r.web_guarantee_pct|num }}%{% endif %}{% else %}нет ставок{% endif %}</td>
+      <td class="muted">{% if r %}${{ r.adv_rate|num(2) }}/{{ 'апрув' if r.adv_pay_type == 'approve' else 'валид' }}{% if r.guarantee_pct %} · гарант {{ r.guarantee_pct|num }}%{{ ' от валид' if r.guarantee_base == 'valid' }}{% endif %} → вебу ${{ r.web_rate|num(2) }}/{{ 'апрув' if r.web_pay_type == 'approve' else 'лид' }}{% if r.web_guarantee_pct and r.web_pay_type == 'approve' %} · гарант {{ r.web_guarantee_pct|num }}%{% endif %}{% else %}нет ставок{% endif %}</td>
       {% if a %}
       <td class="num">{{ a.leads|num }}</td><td class="num">{{ a.valid|num }}</td><td class="num">{{ a.approves|num }}</td>
       <td class="num">{{ a.approve_pct|num if a.approve_pct is not none else '—' }}</td>
@@ -76,6 +76,7 @@
       <label>Вебу платим за<select name="web_pay_type"><option value="lead">лид</option><option value="approve">апрув</option></select></label>
       <label>Ставка веба, $<input type="number" step="0.01" name="web_rate" required></label>
       <label>Гарант вебу, %<input type="number" step="0.1" name="web_guarantee_pct" value="0" title="Если платите вебу за апрув и даёте ему гарант"></label>
+      <label>Гарант считать от<select name="guarantee_base"><option value="leads">всех лидов</option><option value="valid">валидных лидов</option></select></label>
       <button>Создать</button>
     </form>
   </details>
@@ -88,7 +89,7 @@
           <td class="muted">{{ l.id if loop.first }}</td>
           <td>{{ link_names[l.id] if loop.first }}</td>
           <td>{{ r.valid_from }}</td>
-          <td>${{ r.adv_rate|num(2) }}/{{ 'апрув' if r.adv_pay_type == 'approve' else 'валид' }}{% if r.guarantee_pct %} · гарант {{ r.guarantee_pct|num }}%{% endif %}</td>
+          <td>${{ r.adv_rate|num(2) }}/{{ 'апрув' if r.adv_pay_type == 'approve' else 'валид' }}{% if r.guarantee_pct %} · гарант {{ r.guarantee_pct|num }}%{{ ' от валид' if r.guarantee_base == 'valid' }}{% endif %}</td>
           <td>${{ r.web_rate|num(2) }}/{{ 'апрув' if r.web_pay_type == 'approve' else 'лид' }}{% if r.web_guarantee_pct and r.web_pay_type == 'approve' %} · гарант {{ r.web_guarantee_pct|num }}%{% endif %}</td>
           <td class="num">{{ link_stats.get(l.id, 0) if loop.first }}</td>
           <td style="display:flex; gap:4px">
@@ -110,6 +111,7 @@
       <label>Вебу платим за<select name="web_pay_type"><option value="lead">лид</option><option value="approve">апрув</option></select></label>
       <label>Ставка веба, $<input type="number" step="0.01" name="web_rate" required></label>
       <label>Гарант вебу, %<input type="number" step="0.1" name="web_guarantee_pct" value="0" title="Если платите вебу за апрув и даёте ему гарант"></label>
+      <label>Гарант считать от<select name="guarantee_base"><option value="leads">всех лидов</option><option value="valid">валидных лидов</option></select></label>
       <button>Сохранить</button>
     </form>
     <p class="hint">Дни до этой даты останутся посчитаны по старым ставкам.</p>

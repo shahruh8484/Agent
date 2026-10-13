@@ -435,3 +435,14 @@ def test_closed_through_set_by_hand(repo):
     repo.set_meta("closed_through", "2026-10-08")                      # network closed the 8th
     sanzh = next(b for b in calc.advertiser_balances(repo, TODAY) if b.party_id == adv)
     assert sanzh.balance == pytest.approx(1000 - 9 * 25)
+
+
+def test_guarantee_from_valid_leads(repo):
+    web, adv, link = _maks_link(repo)
+    repo.set_link_rate(link, "2026-10-08", "approve", 25, 10, "approve", 23, 10, "valid")
+    repo.upsert_traffic_stat(link, "2026-10-07", 200, 120, 5)   # old rate: 10% of 200 = 20
+    repo.upsert_traffic_stat(link, "2026-10-08", 200, 120, 5)   # new rate: 10% of 120 = 12
+    rows = {r.date: r for r in calc.traffic_report(repo, None, None, TODAY).rows}
+    assert rows["2026-10-07"].adv_amount == pytest.approx(20 * 25)
+    assert rows["2026-10-08"].adv_amount == pytest.approx(12 * 25)
+    assert rows["2026-10-08"].web_amount == pytest.approx(12 * 23)

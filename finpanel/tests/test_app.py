@@ -345,3 +345,18 @@ def test_set_closed_date(settings, repo):
     assert "error" in client.post("/closed", data={"date": "2026-12-01"}, follow_redirects=False).headers["location"]
     client.post("/closed", data={"auto": "1", "next": "/"}, follow_redirects=False)
     assert repo.meta("closed_through") == ""
+
+
+def test_assistant_keeps_guarantee_base(repo):
+    from finance.assistant import apply_action
+
+    web = repo.add_web("Макс")
+    adv = repo.add_advertiser("Санж")
+    link = repo.add_link(web, adv, "", "2026-07-01", "approve", 25, 10, "approve", 23, 10)
+    rate = {"web": "Макс", "advertiser": "Санж", "offer": "", "adv_pay_type": "approve", "adv_rate": 25,
+            "guarantee_pct": 10, "web_pay_type": "approve", "web_rate": 23, "web_guarantee_pct": 10}
+    apply_action(repo, "set_link_rate", {**rate, "valid_from": "2026-10-14", "guarantee_base": "valid"})
+    assert repo.rate_on(link, "2026-10-14").guarantee_base == "valid"
+    apply_action(repo, "set_link_rate", {**rate, "valid_from": "2026-10-20", "web_rate": 24})
+    assert repo.rate_on(link, "2026-10-20").guarantee_base == "valid"
+    assert repo.rate_on(link, "2026-10-13").guarantee_base == "leads"

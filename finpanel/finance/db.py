@@ -58,7 +58,9 @@ CREATE TABLE IF NOT EXISTS link_rates (
     web_rate REAL NOT NULL,
     -- Guarantee you pass on to the web (paid per approve): the web is paid
     -- for max(approves, leads * pct) just like the rekl pays you.
-    web_guarantee_pct REAL NOT NULL DEFAULT 0
+    web_guarantee_pct REAL NOT NULL DEFAULT 0,
+    -- What the guarantee % is taken of, for both sides: all leads or valid ones.
+    guarantee_base TEXT NOT NULL DEFAULT 'leads'
 );
 
 CREATE TABLE IF NOT EXISTS traffic_stats (
@@ -271,6 +273,8 @@ class DB:
         cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(link_rates)")}
         if "web_guarantee_pct" not in cols:
             self._conn.execute("ALTER TABLE link_rates ADD COLUMN web_guarantee_pct REAL NOT NULL DEFAULT 0")
+        if "guarantee_base" not in cols:
+            self._conn.execute("ALTER TABLE link_rates ADD COLUMN guarantee_base TEXT NOT NULL DEFAULT 'leads'")
         cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(balance_checkpoints)")}
         if "pending_json" not in cols:
             self._conn.execute("ALTER TABLE balance_checkpoints ADD COLUMN pending_json TEXT")
@@ -302,6 +306,7 @@ class Rate:
     web_pay_type: str
     web_rate: float
     web_guarantee_pct: float = 0.0
+    guarantee_base: str = "leads"   # 'leads' | 'valid'
 
 
 class Repo:
@@ -415,6 +420,7 @@ class Repo:
         web_pay_type: str,
         web_rate: float,
         web_guarantee_pct: float = 0,
+        guarantee_base: str = "leads",
     ) -> int:
         """Create a link — or, if this web → rekl (offer) link already
         exists, just add the rates from valid_from to it, so the same link
@@ -429,7 +435,7 @@ class Repo:
             )
         self.set_link_rate(
             link_id, valid_from, adv_pay_type, adv_rate, guarantee_pct, web_pay_type, web_rate,
-            web_guarantee_pct,
+            web_guarantee_pct, guarantee_base,
         )
         return link_id
 
@@ -443,7 +449,10 @@ class Repo:
         web_pay_type: str,
         web_rate: float,
         web_guarantee_pct: float = 0,
+        guarantee_base: str = "leads",
     ) -> None:
+        if guarantee_base not in ("leads", "valid"):
+            raise ValueError("Гарант считается от 'leads' (всех лидов) или 'valid' (валидных).")
         if adv_pay_type not in ("approve", "valid"):
             raise ValueError("Рекл платит за 'approve' или 'valid'.")
         if web_pay_type not in ("approve", "lead"):
@@ -451,9 +460,9 @@ class Repo:
         self.db.execute("DELETE FROM link_rates WHERE link_id = ? AND valid_from = ?", (link_id, valid_from))
         self.db.execute(
             "INSERT INTO link_rates(link_id, valid_from, adv_pay_type, adv_rate, guarantee_pct, "
-            "web_pay_type, web_rate, web_guarantee_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "web_pay_type, web_rate, web_guarantee_pct, guarantee_base) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (link_id, valid_from, adv_pay_type, adv_rate, guarantee_pct or 0, web_pay_type, web_rate,
-             web_guarantee_pct or 0),
+             web_guarantee_pct or 0, guarantee_base),
         )
 
     def links(self) -> list[sqlite3.Row]:
@@ -505,6 +514,7 @@ class Repo:
             chosen["web_pay_type"],
             chosen["web_rate"],
             chosen["web_guarantee_pct"],
+            chosen["guarantee_base"],
         )
 
     def same_link(self, web_id: int, advertiser_id: int, offer: str) -> sqlite3.Row | None:

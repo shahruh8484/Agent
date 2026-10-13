@@ -123,13 +123,14 @@ def traffic_row(repo: Repo, stat, today: date) -> TrafficRow:
     if rate is None:
         row.missing_rate = True
         return row
+    base = stat["valid"] if rate.guarantee_base == "valid" else stat["leads"]
 
     if rate.adv_pay_type == "valid":
         row.adv_amount = stat["valid"] * rate.adv_rate
     else:
         paid_approves = float(stat["approves"])
         if final and rate.guarantee_pct > 0:
-            paid_approves = max(paid_approves, guaranteed_approves(stat["leads"], rate.guarantee_pct))
+            paid_approves = max(paid_approves, guaranteed_approves(base, rate.guarantee_pct))
         row.adv_amount = paid_approves * rate.adv_rate
         row.guarantee_bonus = (paid_approves - stat["approves"]) * rate.adv_rate
 
@@ -138,7 +139,7 @@ def traffic_row(repo: Repo, stat, today: date) -> TrafficRow:
     else:
         web_approves = float(stat["approves"])
         if final and rate.web_guarantee_pct > 0:
-            web_approves = max(web_approves, guaranteed_approves(stat["leads"], rate.web_guarantee_pct))
+            web_approves = max(web_approves, guaranteed_approves(base, rate.web_guarantee_pct))
         row.web_amount = web_approves * rate.web_rate
         row.web_guarantee_cost = (web_approves - stat["approves"]) * rate.web_rate
     return row
