@@ -321,3 +321,16 @@ def test_favicon_is_public(settings, repo):
     assert client.get("/apple-touch-icon.png").headers["content-type"] == "image/png"
     assert "<svg" in client.get("/static/favicon.svg").text
     assert 'rel="icon"' in client.get("/login").text
+
+
+def test_statement_page(settings, repo):
+    web = repo.add_web("Макс")
+    adv = repo.add_advertiser("Санж")
+    link = repo.add_link(web, adv, "", "2026-07-01", "approve", 25, 10, "approve", 23, 10)
+    repo.upsert_traffic_stat(link, "2026-10-08", 100, 100, 5)
+    client = make_client(settings, repo)
+    login(client)
+    page = client.get(f"/statement/advertiser/{adv}").text
+    assert "Выписка" in page and "2026-10-08" in page and "$125.00" in page  # guarantee 5 approves
+    assert client.get(f"/statement/web/{web}").status_code == 200
+    assert f"/statement/web/{web}" in client.get("/webs").text

@@ -397,3 +397,26 @@ def test_old_checkpoint_without_snapshot_adds_guarantee(repo):
     # A real late approve on top still counts.
     repo.upsert_traffic_stat(link, "2026-10-10", 109, 71, 12)
     assert next(b for b in calc.advertiser_balances(repo, later) if b.party_id == adv).balance == pytest.approx(4192 - 11 * 25)
+
+
+def test_statement_ends_at_balance(repo):
+    from datetime import date
+
+    web, adv, link = _maks_link(repo)
+    repo.upsert_traffic_stat(link, "2026-10-08", 100, 100, 10)
+    repo.upsert_traffic_stat(link, "2026-10-10", 109, 71, 1)
+    calc.reconcile(repo, TODAY, "advertiser", adv, "traffic", 4192, "2026-10-10")
+    repo.upsert_traffic_stat(link, "2026-10-11", 50, 40, 2)
+    repo.add_payment("2026-10-12", "traffic", "advertiser", adv, 500)
+    repo.add_payment("2026-10-12", "traffic", "web", web, 300)
+    later = date(2026, 10, 13)
+    for party_type, party, bal in (
+        ("advertiser", adv, next(b for b in calc.advertiser_balances(repo, later) if b.party_id == adv)),
+        ("web", web, next(b for b in calc.web_balances(repo, later, "traffic") if b.party_id == web)),
+    ):
+        lines = calc.statement(repo, later, party_type, party)
+        assert lines[-1].balance == pytest.approx(bal.balance)
+    adv_lines = calc.statement(repo, later, "advertiser", adv)
+    assert adv_lines[0].kind == "opening" and adv_lines[0].balance == 4192
+    assert any(l.kind == "pending" and l.guarantee == pytest.approx(9 * 25) for l in adv_lines)
+

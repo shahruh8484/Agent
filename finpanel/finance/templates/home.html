@@ -81,7 +81,7 @@
       <tr><th>Рекл</th><th class="num">Получено</th><th class="num">Отработано</th><th class="num">Баланс</th><th class="num">Хватит</th></tr>
       {% for b in adv_balances %}
       <tr>
-        <td>{{ b.name }}</td>
+        <td><a href="/statement/advertiser/{{ b.party_id }}">{{ b.name }}</a></td>
         <td class="num">{{ b.paid|usd }}</td>
         <td class="num">{{ b.accrued|usd }}</td>
         <td class="num {{ 'pos' if b.balance > 0 else 'neg' if b.balance < 0 }}">{{ b.balance|usd }}</td>
@@ -95,7 +95,7 @@
     <h2>Вебы — балансы</h2>
     <div class="table-wrap"><table>
       <tr><th>Веб</th><th>Направление</th><th class="num">Баланс</th></tr>
-      {% for b in web_traffic %}<tr><td>{{ b.name }}</td><td>Трафик</td><td class="num {{ 'pos' if b.balance > 0 else 'neg' if b.balance < 0 }}">{{ b.balance|usd }}</td></tr>{% endfor %}
+      {% for b in web_traffic %}<tr><td><a href="/statement/web/{{ b.party_id }}">{{ b.name }}</a></td><td>Трафик</td><td class="num {{ 'pos' if b.balance > 0 else 'neg' if b.balance < 0 }}">{{ b.balance|usd }}</td></tr>{% endfor %}
       {% for b in web_product %}<tr><td>{{ b.name }}</td><td>Товар</td><td class="num {{ 'pos' if b.balance > 0 else 'neg' if b.balance < 0 }}">{{ b.balance|usd }}</td></tr>{% endfor %}
       {% if not web_traffic and not web_product %}<tr><td colspan="3" class="muted">Нет данных.</td></tr>{% endif %}
     </table></div>

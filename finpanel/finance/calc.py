@@ -571,6 +571,88 @@ def _days_before(day: str, n: int) -> str:
 
 
 @dataclass
+class StatementLine:
+    date: str
+    kind: str            # 'opening' | 'traffic' | 'pending' | 'payment' | 'accrual'
+    text: str
+    leads: int = 0
+    approves: int = 0
+    guarantee: float = 0.0   # part of `accrued` that comes from the guarantee
+    accrued: float = 0.0
+    paid: float = 0.0
+    final: bool = True
+    balance: float = 0.0     # running balance after this line
+
+
+def statement(repo: Repo, today: date, party_type: str, party_id: int) -> list[StatementLine]:
+    """Day-by-day traffic ledger of one rekl or web, from its checkpoint
+    (or the beginning), ending at the same balance the balance tables show:
+    what to compare line by line with the network's own statement."""
+    side = "advertiser_id" if party_type == "advertiser" else "web_id"
+    if party_type == "advertiser":
+        _snapshot_old_checkpoints(repo, today, "advertiser")
+    else:
+        _snapshot_old_checkpoints(repo, today, "web")
+    cp = repo.checkpoints(party_type, "traffic").get(party_id)
+    cp_date = cp["date"] if cp else ""
+    lines: list[StatementLine] = []
+    if cp:
+        lines.append(StatementLine(cp_date, "opening", "Сверка: баланс на эту дату"))
+
+    links = {l["id"]: l for l in repo.links()}
+    days: dict[str, StatementLine] = {}
+    pending_now: dict[str, float] = {}
+    pending_guarantee: dict[str, float] = {}
+    for stat in repo.traffic_stats():
+        link = links.get(stat["link_id"])
+        if not link or link[side] != party_id:
+            continue
+        row = traffic_row(repo, stat, today)
+        amount = row.adv_amount if party_type == "advertiser" else row.web_amount
+        guarantee = row.guarantee_bonus if party_type == "advertiser" else row.web_guarantee_cost
+        day = stat["date"]
+        if cp and day <= cp_date:
+            if cp["pending"] and day in cp["pending"]:
+                pending_now[day] = pending_now.get(day, 0) + amount
+                pending_guarantee[day] = pending_guarantee.get(day, 0) + guarantee
+            continue
+        line = days.setdefault(day, StatementLine(day, "traffic", "Трафик"))
+        line.leads += stat["leads"]
+        line.approves += stat["approves"]
+        line.guarantee += guarantee
+        line.accrued += amount
+        line.final = line.final and row.final
+    lines += days.values()
+    if cp and cp["pending"]:
+        for day, before in cp["pending"].items():
+            change = pending_now.get(day, 0) - before
+            if abs(change) > 1e-9:
+                lines.append(StatementLine(
+                    day, "pending", "Доначислено после сверки (гарант / поздние апрувы)",
+                    guarantee=pending_guarantee.get(day, 0), accrued=change,
+                    final=day <= _days_before(today.isoformat(), GUARANTEE_LAG_DAYS)))
+    for p in repo.payments():
+        if p["party_type"] == party_type and p["party_id"] == party_id and p["direction"] == "traffic" \
+                and not (cp and p["date"] <= cp_date):
+            lines.append(StatementLine(p["date"], "payment", "Оплата" + (f" — {p['note']}" if p["note"] else ""),
+                                       paid=p["amount_usd"]))
+    for c in repo.accruals():
+        if c["party_type"] == party_type and c["party_id"] == party_id and c["direction"] == "traffic" \
+                and not (cp and c["date"] <= cp_date):
+            lines.append(StatementLine(c["date"], "accrual", "Начисление" + (f" — {c['note']}" if c["note"] else ""),
+                                       accrued=c["amount_usd"]))
+
+    order = {"opening": 0, "pending": 1, "traffic": 2, "accrual": 3, "payment": 4}
+    lines.sort(key=lambda l: (max(l.date, cp_date), order[l.kind], l.date))
+    running = cp["balance"] if cp else 0.0
+    for l in lines:
+        if l.kind != "opening":
+            running += l.paid - l.accrued
+        l.balance = running
+    return lines
+
+
+@dataclass
 class CourierBalance:
     delivered_uzs: float
     received_uzs: float

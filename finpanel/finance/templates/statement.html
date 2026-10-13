@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Выписка — {{ party.name }}{% endblock %}
+{% block heading %}Выписка: {{ 'рекл' if party_type == 'advertiser' else 'веб' }} {{ party.name }}{% endblock %}
+{% block content %}
+<div class="card">
+  <p><a href="/webs">← к балансам</a></p>
+  <div class="table-wrap"><table>
+    <tr><th>Дата</th><th>Что</th><th class="num">Лиды</th><th class="num">Апрувы</th><th class="num">Гарант</th>
+      <th class="num">{{ 'Отработано' if party_type == 'advertiser' else 'Начислено' }}</th>
+      <th class="num">{{ 'Получено' if party_type == 'advertiser' else 'Выплачено' }}</th><th class="num">Баланс</th></tr>
+    {% for l in lines %}
+    <tr{% if l.kind == 'opening' %} class="total"{% endif %}>
+      <td>{{ l.date }}</td>
+      <td>{{ l.text }}{% if not l.final %} <span class="tag">предв.</span>{% endif %}</td>
+      <td class="num">{{ l.leads|num if l.leads else '' }}</td>
+      <td class="num">{{ l.approves|num if l.approves else '' }}</td>
+      <td class="num">{{ l.guarantee|usd if l.guarantee else '' }}</td>
+      <td class="num">{{ l.accrued|usd if l.accrued else '' }}</td>
+      <td class="num">{{ l.paid|usd if l.paid else '' }}</td>
+      <td class="num {{ 'pos' if l.balance > 0 else 'neg' if l.balance < 0 }}">{{ l.balance|usd }}</td>
+    </tr>
+    {% else %}<tr><td colspan="8" class="muted">Записей нет.</td></tr>{% endfor %}
+  </table></div>
+  <p class="hint">Новые сверху. «Гарант» — сколько из суммы дня добавил гарант: сеть проводит его, когда день закрывается, поэтому по свежим закрытым дням панель может быть впереди сети.
+    «Предв.» — гарант ещё не применён. Баланс: {{ 'плюс — его предоплата, минус — он вам должен' if party_type == 'advertiser' else 'плюс — вы заплатили вперёд, минус — вы должны вебу' }}.</p>
+</div>
+{% endblock %}

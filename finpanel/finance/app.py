@@ -563,6 +563,19 @@ def create_app(
             has_reconcile=any(c["note"].startswith("сверка") for c in repo.accruals()),
         )
 
+    @app.get("/statement/{party_type}/{party_id}")
+    def statement_page(request: Request, party_type: str, party_id: int):
+        if not authed(request):
+            return login_redirect()
+        if party_type not in ("advertiser", "web"):
+            return back("/webs", error="Нет такой выписки.")
+        party = repo.db.one(f"SELECT * FROM {'advertisers' if party_type == 'advertiser' else 'webs'} WHERE id = ?", (party_id,))
+        if party is None:
+            return back("/webs", error="Нет такого участника.")
+        lines = calc.statement(repo, today_fn(), party_type, party_id)
+        return render(request, "statement.html", "webs", party=party, party_type=party_type,
+                      lines=list(reversed(lines)))
+
     @app.post("/reconcile")
     def reconcile_balance(
         request: Request,

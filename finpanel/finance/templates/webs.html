@@ -9,7 +9,7 @@
       <th class="num">Трафик: выплачено</th><th class="num">начислено</th><th class="num">баланс</th>
       <th class="num">Товар: выплачено</th><th class="num">начислено</th><th class="num">баланс</th></tr>
     {% for w in webs %}{% set t = traffic.get(w.id) %}{% set p = product.get(w.id) %}
-    <tr><td>{{ w.name }}{% if w.note %} <span class="tag">{{ w.note }}</span>{% endif %}</td><td class="muted">{{ w.terms }}</td>
+    <tr><td><a href="/statement/web/{{ w.id }}">{{ w.name }}</a>{% if w.note %} <span class="tag">{{ w.note }}</span>{% endif %}</td><td class="muted">{{ w.terms }}</td>
       <td class="num">{{ t.paid|usd if t else '—' }}</td><td class="num">{{ t.accrued|usd if t else '—' }}</td>
       <td class="num {{ 'pos' if t and t.balance > 0 else 'neg' if t and t.balance < 0 }}">{{ t.balance|usd if t else '—' }}</td>
       <td class="num">{{ p.paid|usd if p else '—' }}</td><td class="num">{{ p.accrued|usd if p else '—' }}</td>
@@ -23,11 +23,11 @@
   <div class="table-wrap"><table>
     <tr><th>Рекл</th><th class="num">Получено</th><th class="num">Отработано</th><th class="num">Баланс</th></tr>
     {% for b in adv_balances %}
-    <tr><td>{{ b.name }}</td><td class="num">{{ b.paid|usd }}</td><td class="num">{{ b.accrued|usd }}</td>
+    <tr><td><a href="/statement/advertiser/{{ b.party_id }}">{{ b.name }}</a></td><td class="num">{{ b.paid|usd }}</td><td class="num">{{ b.accrued|usd }}</td>
       <td class="num {{ 'pos' if b.balance > 0 else 'neg' if b.balance < 0 }}">{{ b.balance|usd }}</td></tr>
     {% else %}<tr><td colspan="4" class="muted">Реклов пока нет.</td></tr>{% endfor %}
   </table></div>
-  <p class="hint">Плюс — его предоплата, ещё не отработанная. Минус — он вам должен.</p>
+  <p class="hint">Плюс — его предоплата, ещё не отработанная. Минус — он вам должен. Нажмите на имя — выписка по дням.</p>
 </div>
 
 <div class="card">
