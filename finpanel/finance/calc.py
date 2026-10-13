@@ -847,6 +847,17 @@ def alerts(repo: Repo, today: date) -> list[Alert]:
                     + (" — держитесь только за счёт гаранта." if covered else " — вы теряете деньги."),
                 ))
                 continue
+        if rate and rate.web_pay_type == "lead" and rate.adv_pay_type == "valid" and rate.adv_rate:
+            max_trash = 100 - rate.web_rate / rate.adv_rate * 100
+            trash = round(100 - agg.valid / agg.leads * 100, 1)
+            if trash > max_trash:
+                out.append(Alert(
+                    "danger",
+                    f"Связка {name}: треш {trash}% выше допустимого {max_trash:.1f}% — вы теряете деньги "
+                    f"(минус ${-agg.profit:,.2f} за неделю)." if agg.profit < 0 else
+                    f"Связка {name}: треш {trash}% выше допустимого {max_trash:.1f}%.",
+                ))
+                continue
         if agg.only_by_guarantee:
             out.append(Alert("warn", f"Связка {name}: в плюсе только за счёт гаранта (без него ${agg.profit_without_guarantee:,.2f})."))
         elif agg.profit < 0:

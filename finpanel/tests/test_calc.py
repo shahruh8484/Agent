@@ -446,3 +446,14 @@ def test_guarantee_from_valid_leads(repo):
     assert rows["2026-10-07"].adv_amount == pytest.approx(20 * 25)
     assert rows["2026-10-08"].adv_amount == pytest.approx(12 * 25)
     assert rows["2026-10-08"].web_amount == pytest.approx(12 * 23)
+
+
+def test_trash_alert_for_valid_paid_link(repo):
+    web = repo.add_web("Доник")
+    adv = repo.add_advertiser("Викинг")
+    link = repo.add_link(web, adv, "", "2026-10-01", "valid", 4, 0, "lead", 2.2)
+    repo.upsert_traffic_stat(link, "2026-10-07", 100, 50, 0)   # trash 50% > 45%
+    texts = [a.text for a in calc.alerts(repo, TODAY)]
+    assert any("треш 50.0% выше допустимого 45.0%" in t for t in texts)
+    from finance.assistant import build_context
+    assert "треш не выше 45.0%" in build_context(repo, TODAY)
