@@ -91,8 +91,25 @@ def guaranteed_approves(leads: int, pct_value: float) -> int:
     return math.floor(round(leads * pct_value / 100, 6))
 
 
+def closed_through(repo: Repo, today: date) -> str:
+    """Last day whose guarantee is applied: the day the owner says the
+    network has closed, or, if not set, the day before yesterday."""
+    manual = repo.meta("closed_through")
+    if manual:
+        try:
+            if date.fromisoformat(manual) <= today:
+                return manual
+        except ValueError:
+            pass
+    return (today - timedelta(days=GUARANTEE_LAG_DAYS)).isoformat()
+
+
+def closed_is_manual(repo: Repo) -> bool:
+    return bool(repo.meta("closed_through"))
+
+
 def traffic_row(repo: Repo, stat, today: date) -> TrafficRow:
-    final = stat["date"] <= (today - timedelta(days=GUARANTEE_LAG_DAYS)).isoformat()
+    final = stat["date"] <= closed_through(repo, today)
     row = TrafficRow(
         stat_id=stat["id"],
         link_id=stat["link_id"],
@@ -526,7 +543,7 @@ def reconcile(repo: Repo, today: date, party_type: str, party_id: int, direction
         direction = "traffic"
     pending = None
     if direction == "traffic":
-        first_open = _days_before(today.isoformat(), GUARANTEE_LAG_DAYS - 1)
+        first_open = _days_before(closed_through(repo, today), -1)
         pending = _pending_snapshot(repo, today, party_type, party_id, first_open, on_date) if on_date >= first_open else {}
     repo.set_checkpoint(party_type, party_id, direction, on_date, target, pending)
 
@@ -630,7 +647,7 @@ def statement(repo: Repo, today: date, party_type: str, party_id: int) -> list[S
                 lines.append(StatementLine(
                     day, "pending", "Доначислено после сверки (гарант / поздние апрувы)",
                     guarantee=pending_guarantee.get(day, 0), accrued=change,
-                    final=day <= _days_before(today.isoformat(), GUARANTEE_LAG_DAYS)))
+                    final=day <= closed_through(repo, today)))
     for p in repo.payments():
         if p["party_type"] == party_type and p["party_id"] == party_id and p["direction"] == "traffic" \
                 and not (cp and p["date"] <= cp_date):
@@ -764,6 +781,10 @@ def alerts(repo: Repo, today: date) -> list[Alert]:
     out: list[Alert] = []
     s = repo.settings()
 
+    closed = closed_through(repo, today)
+    if closed_is_manual(repo) and closed < _days_before(today.isoformat(), 4):
+        out.append(Alert("warn", f"Дата «сеть закрыла по» — {closed}, давно не обновлялась: гарант после неё не применяется. Обновите на странице «Трафик»."))
+
     for b in advertiser_balances(repo, today):
         if b.balance < -0.005:
             out.append(Alert("danger", f"Рекл {b.name} должен вам ${-b.balance:,.2f}: предоплата закончилась."))
@@ -781,7 +802,7 @@ def alerts(repo: Repo, today: date) -> list[Alert]:
 
     # Risky links: you pay per lead, the rekl pays per approve.
     week_start = (today - timedelta(days=7)).isoformat()
-    final_end = (today - timedelta(days=GUARANTEE_LAG_DAYS)).isoformat()
+    final_end = closed_through(repo, today)
     rep = traffic_report(repo, week_start, final_end, today)
     for link in repo.links():
         agg = rep.by_link.get(link["id"])

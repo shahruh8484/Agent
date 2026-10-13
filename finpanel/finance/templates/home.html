@@ -30,7 +30,8 @@
     <div class="sub">пришло {{ s.cash.inflow|usd }} · ушло {{ s.cash.outflow|usd }}{% if s.cash.owner %} · свои {{ s.cash.owner|usd(true) }}{% endif %}</div>
   </div>
 </div>
-<p class="hint" style="margin-top:-6px; margin-bottom:16px;">
+<p class="hint" style="margin-top:-6px; margin-bottom:6px;">Гарант применён по <b>{{ closed_through }}</b>{{ ' (как в сети)' if closed_manual else ' (авто)' }} — <a href="/traffic">изменить</a>.</p>
+<p class="hint" style="margin-top:0; margin-bottom:16px;">
   <b>Прибыль</b> — сколько заработано за период, даже если деньги ещё не пришли.
   <b>Касса</b> — сколько денег реально пришло и ушло (предоплаты реклов, выплаты вебам, наложка, закупки).
 </p>

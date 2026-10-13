@@ -334,3 +334,14 @@ def test_statement_page(settings, repo):
     assert "Выписка" in page and "2026-10-08" in page and "$125.00" in page  # guarantee 5 approves
     assert client.get(f"/statement/web/{web}").status_code == 200
     assert f"/statement/web/{web}" in client.get("/webs").text
+
+
+def test_set_closed_date(settings, repo):
+    client = make_client(settings, repo)
+    login(client)
+    r = client.post("/closed", data={"date": "2026-10-07", "next": "/traffic"}, follow_redirects=False)
+    assert r.status_code == 302 and repo.meta("closed_through") == "2026-10-07"
+    assert "2026-10-07" in client.get("/traffic").text
+    assert "error" in client.post("/closed", data={"date": "2026-12-01"}, follow_redirects=False).headers["location"]
+    client.post("/closed", data={"auto": "1", "next": "/"}, follow_redirects=False)
+    assert repo.meta("closed_through") == ""

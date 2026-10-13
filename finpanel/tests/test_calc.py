@@ -420,3 +420,18 @@ def test_statement_ends_at_balance(repo):
     assert adv_lines[0].kind == "opening" and adv_lines[0].balance == 4192
     assert any(l.kind == "pending" and l.guarantee == pytest.approx(9 * 25) for l in adv_lines)
 
+
+
+def test_closed_through_set_by_hand(repo):
+    web, adv, link = _maks_link(repo)
+    repo.upsert_traffic_stat(link, "2026-10-08", 100, 100, 1)
+    assert calc.closed_through(repo, TODAY) == "2026-10-08"            # auto: day before yesterday
+    assert calc.traffic_report(repo, None, None, TODAY).total.guarantee_bonus == pytest.approx(9 * 25)
+    repo.set_meta("closed_through", "2026-10-07")                      # the network is slower
+    assert calc.closed_through(repo, TODAY) == "2026-10-07"
+    rep = calc.traffic_report(repo, None, None, TODAY)
+    assert rep.total.guarantee_bonus == 0 and rep.total.preliminary
+    calc.reconcile(repo, TODAY, "advertiser", adv, "traffic", 1000, "2026-10-10")
+    repo.set_meta("closed_through", "2026-10-08")                      # network closed the 8th
+    sanzh = next(b for b in calc.advertiser_balances(repo, TODAY) if b.party_id == adv)
+    assert sanzh.balance == pytest.approx(1000 - 9 * 25)

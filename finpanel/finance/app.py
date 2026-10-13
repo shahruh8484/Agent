@@ -157,6 +157,8 @@ def create_app(
                 "date_from": request.query_params.get("from", ""),
                 "date_to": request.query_params.get("to", ""),
                 "settings": repo.settings(),
+                "closed_through": calc.closed_through(repo, today),
+                "closed_manual": calc.closed_is_manual(repo),
                 **ctx,
             },
         )
@@ -272,6 +274,26 @@ def create_app(
             web_balances={b.party_id: b for b in calc.web_balances(repo, today, "traffic")},
             payments=[p for p in repo.payments(start, end) if p["direction"] == "traffic"],
         )
+
+    @app.post("/closed")
+    def set_closed(request: Request, date_: str = Form("", alias="date"), auto: str = Form(""),
+                   next_: str = Form("/traffic", alias="next")):
+        if not authed(request):
+            return login_redirect()
+        path = _safe_next(next_)
+
+        def do():
+            if auto:
+                repo.set_meta("closed_through", "")
+                return "Гарант снова применяется автоматически: по позавчерашний день."
+            if not _is_iso_date(date_):
+                raise ValueError("Укажите дату.")
+            if date_ > today_fn().isoformat():
+                raise ValueError("Сеть не может закрыть день из будущего.")
+            repo.set_meta("closed_through", date_)
+            return f"Гарант применяется по {date_} включительно — как в сети."
+
+        return run(path, do)
 
     @app.post("/traffic/advertiser")
     def traffic_add_advertiser(request: Request, name: str = Form(...), terms: str = Form(""), note: str = Form("")):

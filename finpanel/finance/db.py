@@ -318,10 +318,14 @@ class Repo:
 
     def meta(self, key: str) -> str:
         """Free-text values kept next to the settings (e.g. when the rate was last fetched)."""
-        row = self.db.one("SELECT value FROM settings WHERE key = ?", ("meta:" + key,))
-        return row["value"] if row else ""
+        cache = self.__dict__.setdefault("_meta_cache", {})
+        if key not in cache:
+            row = self.db.one("SELECT value FROM settings WHERE key = ?", ("meta:" + key,))
+            cache[key] = row["value"] if row else ""
+        return cache[key]
 
     def set_meta(self, key: str, value: str) -> None:
+        self.__dict__.setdefault("_meta_cache", {})[key] = value
         self.db.execute(
             "INSERT INTO settings(key, value) VALUES (?, ?) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",

@@ -15,6 +15,17 @@
     <div class="sub">валид {{ t.valid|num }} · апрувов {{ t.approves|num }} · {{ (t.approve_pct|num ~ '%') if t.approve_pct is not none else '—' }}</div></div>
 </div>
 
+{% set next_path = '/traffic' %}
+<div class="card closed-bar">
+  <form class="inline" method="post" action="/closed" style="align-items:flex-end">
+    <input type="hidden" name="next" value="{{ next_path }}">
+    <label>Сеть закрыла (провела гарант) по<input type="date" name="date" value="{{ closed_through }}" required></label>
+    <button>Сохранить</button>
+    {% if closed_manual %}<button name="auto" value="1" formnovalidate style="background:var(--panel2)">Авто</button>{% endif %}
+  </form>
+  <p class="hint">Гарант применяется к дням по эту дату включительно, дни после неё — «предв.».
+    {% if closed_manual %}Указано вручную: когда сеть закроет следующий день — поменяйте дату.{% else %}Сейчас авто: по позавчерашний день.{% endif %}</p>
+</div>
 <div class="card">
   <h2>Внести статистику за день</h2>
   {% if links %}
