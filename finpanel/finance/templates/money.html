@@ -24,6 +24,25 @@
   <p class="hint">Трафик: предоплаты реклов минус выплаты вебам и расходы по трафику. Товар: наложка от курьерки минус выплаты вебам, закупки и расходы по товару. Пришло по трафику включает чужие деньги — предоплаты реклов, ещё не отработанные.</p>
 </div>
 
+{% set months, exp_lines = expense_breakdown %}
+{% if exp_lines %}
+<div class="card">
+  <h2>Расходы по категориям</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Категория</th><th>Направление</th>{% for m in months %}<th class="num">{{ m }}</th>{% endfor %}<th class="num">Всего</th><th class="num">Записей</th></tr>
+    {% for l in exp_lines %}
+    <tr><td>{{ l.category }}</td><td class="muted">{{ {'general': 'общее', 'traffic': 'трафик', 'product': 'товар'}[l.direction] }}</td>
+      {% for m in months %}<td class="num">{{ l.by_month[m]|usd if m in l.by_month else '—' }}</td>{% endfor %}
+      <td class="num"><b>{{ l.total|usd }}</b></td><td class="num muted">{{ l.count }}</td></tr>
+    {% endfor %}
+    <tr class="total"><td>Итого</td><td></td>
+      {% for m in months %}<td class="num">{{ exp_lines|map(attribute='by_month')|map(attribute=m, default=0)|sum|usd }}</td>{% endfor %}
+      <td class="num">{{ exp_lines|sum(attribute='total')|usd }}</td><td></td></tr>
+  </table></div>
+  <p class="hint">Сверху — куда уходит больше всего. Период — как выбран вверху страницы.</p>
+</div>
+{% endif %}
+
 <div class="card">
   <h2>Прочий расход</h2>
   <form class="inline" method="post" action="/money/expense">

@@ -756,6 +756,31 @@ def summary(repo: Repo, start: str | None, end: str | None, today: date) -> Summ
     )
 
 
+@dataclass
+class ExpenseLine:
+    direction: str
+    category: str
+    by_month: dict[str, float]
+    total: float = 0.0
+    count: int = 0
+
+
+def expense_breakdown(repo: Repo, start: str | None, end: str | None) -> tuple[list[str], list[ExpenseLine]]:
+    """Expenses grouped by direction + category, split by month (YYYY-MM),
+    biggest first: where the money goes."""
+    months: set[str] = set()
+    lines: dict[tuple[str, str], ExpenseLine] = {}
+    for e in repo.expenses(start, end):
+        month = e["date"][:7]
+        months.add(month)
+        key = (e["direction"], e["category"].strip().casefold())
+        line = lines.setdefault(key, ExpenseLine(e["direction"], e["category"].strip(), {}))
+        line.by_month[month] = line.by_month.get(month, 0) + e["amount_usd"]
+        line.total += e["amount_usd"]
+        line.count += 1
+    return sorted(months), sorted(lines.values(), key=lambda l: -l.total)
+
+
 CASH_DIRECTIONS = [("traffic", "Трафик"), ("product", "Мой товар"), ("general", "Общие расходы")]
 
 

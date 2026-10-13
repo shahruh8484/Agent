@@ -360,3 +360,16 @@ def test_assistant_keeps_guarantee_base(repo):
     apply_action(repo, "set_link_rate", {**rate, "valid_from": "2026-10-20", "web_rate": 24})
     assert repo.rate_on(link, "2026-10-20").guarantee_base == "valid"
     assert repo.rate_on(link, "2026-10-13").guarantee_base == "leads"
+
+
+def test_expense_breakdown(settings, repo):
+    repo.add_expense("2026-08-05", "traffic", "Комиссия", 4.5)
+    repo.add_expense("2026-09-05", "traffic", "комиссия", 5.5)
+    repo.add_expense("2026-09-06", "general", "Сервер", 20)
+    months, lines = __import__("finance.calc", fromlist=["x"]).expense_breakdown(repo, None, None)
+    assert months == ["2026-08", "2026-09"]
+    assert lines[0].category == "Сервер" and lines[1].total == 10 and lines[1].count == 2
+    client = make_client(settings, repo)
+    login(client)
+    page = client.get("/money?period=all").text
+    assert "Расходы по категориям" in page and "$30.00" in page

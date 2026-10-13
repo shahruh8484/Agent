@@ -687,6 +687,7 @@ def create_app(
             period=period,
             payments=repo.payments(start, end),
             expenses=repo.expenses(start, end),
+            expense_breakdown=calc.expense_breakdown(repo, start, end),
             purchases=repo.stock_purchases(start, end),
             cash=calc.cash_flow(repo, start, end),
             cash_dirs=calc.cash_by_direction(repo, start, end),
