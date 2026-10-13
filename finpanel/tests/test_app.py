@@ -373,3 +373,28 @@ def test_expense_breakdown(settings, repo):
     login(client)
     page = client.get("/money?period=all").text
     assert "Расходы по категориям" in page and "$30.00" in page
+
+
+def test_view_only_user(settings, repo):
+    admin = make_client(settings, repo)
+    login(admin)
+    r = admin.post("/settings/viewer", data={"username": "boss", "password": "secret1"}, follow_redirects=False)
+    assert "error" not in r.headers["location"]
+    assert "boss" in admin.get("/settings").text
+
+    viewer = make_client(settings, repo)
+    assert viewer.post("/login", data={"username": "boss", "password": "wrong"}).status_code == 401
+    viewer.post("/login", data={"username": "boss", "password": "secret1"}, follow_redirects=False)
+    home = viewer.get("/")
+    assert home.status_code == 200 and "только просмотр" in home.text and 'class="readonly"' in home.text
+    assert viewer.get("/webs").status_code == 200
+    r = viewer.post("/webs/add", data={"name": "Hacker"}, follow_redirects=False)
+    assert r.status_code == 302 and "error" in r.headers["location"]
+    assert repo.find_web("Hacker") is None
+    assert viewer.post("/chat/send", data={"message": "hi"}).status_code == 403
+    assert "Доступ только для просмотра" not in viewer.get("/settings").text   # cannot manage viewers
+
+    # Revoking access ends the viewer's session.
+    vid = repo.viewers()[0]["id"]
+    admin.post("/settings/viewer/delete", data={"viewer_id": vid})
+    assert viewer.get("/", follow_redirects=False).headers["location"] == "/login"

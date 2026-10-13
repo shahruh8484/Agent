@@ -34,7 +34,7 @@ from finance.assistant import (
 )
 from finance.config import Settings, assistant_provider, get_settings
 from finance.db import DB, Repo
-from finance.security import verify_password
+from finance.security import hash_password, verify_password
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
@@ -87,6 +87,19 @@ def create_app(
     provider_label = {"openai": f"OpenAI ({settings.openai_model})", "anthropic": f"Claude ({settings.anthropic_model})"}
 
     app = FastAPI(title="Finance Panel")
+
+    # Registered before the session middleware so it runs inside it and can
+    # read the session: view-only users may look at anything but change nothing.
+    @app.middleware("http")
+    async def view_only_guard(request: Request, call_next):
+        if (request.method not in ("GET", "HEAD") and request.url.path not in ("/login", "/logout")
+                and request.session.get("role") == "viewer"):
+            if request.url.path.startswith("/chat"):
+                return JSONResponse({"error": "Доступ только для просмотра."}, status_code=403)
+            return RedirectResponse("/?" + urlencode({"error": "Доступ только для просмотра: изменять данные нельзя."}),
+                                    status_code=302)
+        return await call_next(request)
+
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.secret_key,
@@ -110,7 +123,12 @@ def create_app(
     templates.env.filters["num"] = fmt_num
 
     def authed(request: Request) -> bool:
-        return bool(request.session.get("authenticated"))
+        if not request.session.get("authenticated"):
+            return False
+        if request.session.get("role") == "viewer" and not repo.viewer(request.session.get("user", "")):
+            request.session.clear()   # access was revoked
+            return False
+        return True
 
     def login_redirect() -> RedirectResponse:
         return RedirectResponse("/login", status_code=302)
@@ -149,6 +167,7 @@ def create_app(
             {
                 "nav": nav,
                 "user": request.session.get("user"),
+                "viewer": request.session.get("role") == "viewer",
                 "today": today.isoformat(),
                 "error": request.query_params.get("error"),
                 "msg": request.query_params.get("msg"),
@@ -197,13 +216,21 @@ def create_app(
 
     @app.post("/login")
     def login_submit(request: Request, username: str = Form(...), password: str = Form(...)):
-        ok = username == settings.admin_username and verify_password(password, settings.admin_password_hash)
-        if not ok:
+        role = None
+        if username == settings.admin_username and verify_password(password, settings.admin_password_hash):
+            role = "admin"
+        else:
+            viewer = repo.viewer(username)
+            if viewer and username != settings.admin_username and verify_password(password, viewer["password_hash"]):
+                role = "viewer"
+        if role is None:
             return templates.TemplateResponse(
                 request, "login.html", {"error": "Неверный логин или пароль"}, status_code=401
             )
+        request.session.clear()
         request.session["authenticated"] = True
         request.session["user"] = username
+        request.session["role"] = role
         return RedirectResponse("/", status_code=302)
 
     @app.get("/logout")
@@ -985,6 +1012,7 @@ def create_app(
         return render(
             request, "settings.html", "settings",
             chat_provider=provider_label.get(assistant_provider(settings), ""),
+            viewers=repo.viewers(),
             rate_cb=repo.meta("rate_cb"),
             rate_cb_date=repo.meta("rate_cb_date"),
             rate_checked=repo.meta("rate_checked"),
@@ -1027,6 +1055,27 @@ def create_app(
             return "Настройки сохранены."
 
         return run("/settings", do)
+
+    @app.post("/settings/viewer")
+    def settings_add_viewer(request: Request, username: str = Form(...), password: str = Form(...)):
+        if not authed(request):
+            return login_redirect()
+
+        def do():
+            if username.strip() == settings.admin_username:
+                raise ValueError("Этот логин занят администратором.")
+            if len(password) < 6:
+                raise ValueError("Пароль — не короче 6 символов.")
+            repo.add_viewer(username, hash_password(password))
+            return f"Пользователь {username.strip()} может входить и смотреть, но не менять."
+
+        return run("/settings", do)
+
+    @app.post("/settings/viewer/delete")
+    def settings_delete_viewer(request: Request, viewer_id: int = Form(...)):
+        if not authed(request):
+            return login_redirect()
+        return run("/settings", lambda: repo.delete_viewer(viewer_id) or "Доступ удалён.")
 
     @app.post("/settings/rate/update")
     def settings_rate_update(request: Request):

@@ -21,6 +21,23 @@
   </p>
   <form method="post" action="/settings/rate/update"><button>Обновить курс с ЦБ сейчас</button></form>
 </div>
+{% if not viewer %}
+<div class="card">
+  <h2>Доступ только для просмотра</h2>
+  <p class="muted">Такой пользователь входит со своим логином и паролем, видит все страницы, но ничего не может внести, изменить или удалить, и не может писать Помощнику.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Логин</th><th>Добавлен</th><th></th></tr>
+    {% for v in viewers %}<tr><td>{{ v.username }}</td><td class="muted">{{ v.created_at }}</td>
+      <td><form method="post" action="/settings/viewer/delete" onsubmit="return confirm('Закрыть доступ {{ v.username }}?')"><input type="hidden" name="viewer_id" value="{{ v.id }}"><button class="ghost">✕ закрыть доступ</button></form></td></tr>
+    {% else %}<tr><td colspan="3" class="muted">Пока никого.</td></tr>{% endfor %}
+  </table></div>
+  <form class="inline" method="post" action="/settings/viewer" style="margin-top:10px">
+    <label>Логин<input name="username" required autocomplete="off"></label>
+    <label>Пароль (от 6 символов)<input type="password" name="password" required minlength="6" autocomplete="new-password"></label>
+    <button>Дать доступ</button>
+  </form>
+</div>
+{% endif %}
 <div class="card">
   <h2>Помощник</h2>
   {% if chat_provider %}<p class="pos">Подключён: {{ chat_provider }}.</p>

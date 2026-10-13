@@ -217,6 +217,14 @@ CREATE TABLE IF NOT EXISTS wallet_transfers (
 );
 
 -- Remembered "this name in my spreadsheet means X" choices from imports.
+-- Extra logins that can see everything but change nothing.
+CREATE TABLE IF NOT EXISTS viewers (
+    id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS import_aliases (
     name TEXT PRIMARY KEY COLLATE NOCASE,
     kind TEXT NOT NULL
@@ -988,6 +996,28 @@ class Repo:
             "DELETE FROM balance_checkpoints WHERE party_type = ? AND party_id = ? AND direction = ?",
             (party_type, party_id, direction),
         )
+
+    # --- view-only users ---
+
+    def add_viewer(self, username: str, password_hash: str) -> int:
+        username = username.strip()
+        if not username:
+            raise ValueError("Логин не может быть пустым.")
+        if self.viewer(username):
+            raise ValueError(f"Пользователь {username} уже есть.")
+        return self.db.execute(
+            "INSERT INTO viewers(username, password_hash, created_at) VALUES (?, ?, ?)",
+            (username, password_hash, now_str()),
+        )
+
+    def viewer(self, username: str) -> sqlite3.Row | None:
+        return self.db.one("SELECT * FROM viewers WHERE username = ?", (username.strip(),))
+
+    def viewers(self) -> list[sqlite3.Row]:
+        return self.db.query("SELECT id, username, created_at FROM viewers ORDER BY username")
+
+    def delete_viewer(self, viewer_id: int) -> None:
+        self.db.execute("DELETE FROM viewers WHERE id = ?", (viewer_id,))
 
     # --- import aliases ---
 
