@@ -30,6 +30,7 @@ from finance.assistant import (
     history_to_messages,
     make_backend,
     run_read_tool,
+    strip_notes,
     user_content,
 )
 from finance.config import Settings, assistant_provider, get_settings
@@ -1131,6 +1132,7 @@ def create_app(
             msgs.append({"role": "user", "content": user_content(message, img)})
             text, actions = backend.respond(
                 system, msgs, read_tool=lambda name, args: run_read_tool(repo, today, name, args))
+            text = strip_notes(text)
         except AssistantError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 

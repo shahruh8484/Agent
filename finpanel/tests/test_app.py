@@ -398,3 +398,14 @@ def test_view_only_user(settings, repo):
     vid = repo.viewers()[0]["id"]
     admin.post("/settings/viewer/delete", data={"viewer_id": vid})
     assert viewer.get("/", follow_redirects=False).headers["location"] == "/login"
+
+
+def test_chat_strips_copied_service_notes(settings, repo):
+    backend = FakeBackend("Вот что предлагаю внести — проверь и подтверди:\n[Предложенные действия: Новые ставки связки X. Статус: применено]",
+                          [{"name": "add_web", "input": {"name": "Vasya"}}])
+    client = make_client(settings, repo, backend)
+    login(client)
+    r = client.post("/chat/send", data={"message": "ставки"}).json()
+    assert "Предложенные действия" not in r["reply"] and r["reply"].startswith("Вот что")
+    history = __import__("finance.assistant", fromlist=["x"]).history_to_messages(repo.chat_messages(limit=40))
+    assert "⟦служебно" in history[-1]["content"]

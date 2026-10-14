@@ -175,6 +175,7 @@ SYSTEM_PROMPT = """Ты — финансовый помощник и бухга�
 Точка безубыточности связки, где вебу платят за лид: если рекл платит за апрув — нужен апрув ≥ ставка веба / ставка рекла; если рекл платит за валид — нужен валид ≥ ставка веба / ставка рекла, то есть треш ≤ 100% − это. Готовые цифры есть у каждой связки ниже — бери их, не выводи формулы с N.
 
 Правила:
+- Пометки «⟦служебно…⟧» в истории пишет панель, не ты. Никогда не повторяй их в ответе: чтобы что-то внести, вызывай инструменты.
 - Никогда не выдумывай и не пересчитывай цифры сам. Называй только цифры из данных ниже или из результата get_report. Про любой период, которого нет в «Итогах по периодам» (конкретные даты, «с 1 по 8», «сентябрь», «прошлая неделя»), сначала вызови get_report и отвечай его цифрами. Если данных не хватает — так и скажи.
 - Дни после даты «сеть закрыла по» — предварительные (гарант рекла ещё не применён), прибыль за них занижена. Говоря «в плюсе ли я», опирайся на закрытые дни и скажи это.
 - Чтобы внести или изменить данные — ОБЯЗАТЕЛЬНО вызывай инструменты в этом же ответе. Только по вызову инструмента у владельца появится кнопка «Подтвердить»; текст без вызова ничего не записывает. Инструменты не выполняются сразу: владелец увидит список и подтвердит. Поэтому не пиши «записал», пиши «вот что внесу — подтверди».
@@ -747,6 +748,18 @@ def make_backend(settings):
     )
 
 
+# How past proposals are shown to the model. Models sometimes copy this note
+# into a new reply as plain text instead of calling tools, so it is also
+# stripped from replies (strip_notes).
+NOTE_OPEN = "⟦служебно, не повторяй: панель показала кнопки для действий: "
+NOTE_CLOSE = "⟧"
+_NOTE_RE = re.compile(r"\s*(⟦служебно.*?⟧|\[Предложенные действия:.*?(\]|$))", re.DOTALL)
+
+
+def strip_notes(text: str) -> str:
+    return _NOTE_RE.sub("", text or "").strip()
+
+
 def history_to_messages(history: list[dict]) -> list[dict]:
     """Past chat as plain text turns. Proposed actions are summarized in
     text so the model knows what was applied, without replaying tool_use
@@ -757,7 +770,7 @@ def history_to_messages(history: list[dict]) -> list[dict]:
         content = m["content"]
         if m["actions"]:
             listed = "; ".join(describe_action(a["name"], a["input"]) for a in m["actions"])
-            content += f"\n[Предложенные действия: {listed}. Статус: {status_label.get(m['actions_status'], m['actions_status'])}]"
+            content += f"\n{NOTE_OPEN}{listed}. Статус: {status_label.get(m['actions_status'], m['actions_status'])}{NOTE_CLOSE}"
         msgs.append({"role": m["role"], "content": content or "(пусто)"})
     while msgs and msgs[0]["role"] != "user":
         msgs.pop(0)
