@@ -845,11 +845,16 @@ def create_app(
 
     # ---------------------------------------------------- stats file import
 
-    def _link_names() -> dict[int, str]:
-        return {
-            l["id"]: f"{l['web_name']} → {l['advertiser_name']}" + (f" ({l['offer']})" if l["offer"] else "")
-            for l in repo.links()
+    def _link_names() -> dict[str, str]:
+        """Import targets: each link, plus 'the whole web' for webs with a trash link."""
+        names = {
+            str(l["id"]): f"{l['web_name']} → {l['advertiser_name']}" + (f" ({l['offer']})" if l["offer"] else "")
+            for l in repo.links() if not repo.is_trash_name(l["advertiser_name"])
         }
+        for w in repo.webs():
+            if repo.trash_link(w["id"]):
+                names[f"web:{w['id']}"] = f"{w['name']} — весь веб, все реклы (для треша)"
+        return names
 
     @app.get("/import/stats")
     def stats_import_page(request: Request):
@@ -858,7 +863,7 @@ def create_app(
         return render(request, "import_stats.html", "import", stage="upload", link_names=_link_names())
 
     @app.post("/import/stats/preview")
-    async def stats_import_preview(request: Request, link_id: int = Form(...), file: UploadFile = File(...)):
+    async def stats_import_preview(request: Request, link_id: str = Form(...), file: UploadFile = File(...)):
         if not authed(request):
             return login_redirect()
         data = await file.read()
@@ -901,7 +906,7 @@ def create_app(
             mapping[field] = int(value) if value.isdigit() else None
         header_idx, _ = stats_import.guess_columns(rows)
         days, problems = stats_import.extract(rows, mapping)
-        link_id = int(str(form.get("link_id", "0")) or 0)
+        link_id = str(form.get("link_id", ""))
         return render(
             request, "import_stats.html", "import", stage="map", link_id=link_id, link_names=_link_names(),
             tsv=tsv, columns=stats_import.column_options(rows, header_idx), fields=stats_import.FIELDS,
@@ -923,9 +928,13 @@ def create_app(
         days, _ = stats_import.extract(rows, mapping)
         if not days:
             return back("/import/stats", error="Не нашёл ни одного дня с цифрами — проверьте выбор колонок.")
+        target = str(form.get("link_id", ""))
         try:
-            n = stats_import.apply(repo, int(str(form.get("link_id", "0"))), days,
-                                   replace=stats_import.covered_range(rows, mapping))
+            replace = stats_import.covered_range(rows, mapping)
+            if target.startswith("web:"):
+                n = stats_import.apply_web_totals(repo, int(target[4:]), days, replace=replace)
+            else:
+                n = stats_import.apply(repo, int(target or 0), days, replace=replace)
         except ValueError as exc:
             return back("/import/stats", error=str(exc))
         return back(

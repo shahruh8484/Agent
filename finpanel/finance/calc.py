@@ -835,6 +835,11 @@ def alerts(repo: Repo, today: date) -> list[Alert]:
         if not agg or not agg.leads:
             continue
         name = f"{link['web_name']} → {link['advertiser_name']}" + (f" ({link['offer']})" if link["offer"] else "")
+        if repo.is_trash_name(link["advertiser_name"]):
+            if agg.web_amount:
+                out.append(Alert("warn", f"Треш {link['web_name']}: {agg.leads} лидов ушли никому, а вы заплатили за них "
+                                         f"${agg.web_amount:,.2f} за неделю."))
+            continue
         rate = repo.rate_on(link["id"], final_end)
         if rate and rate.web_pay_type == "lead" and rate.adv_pay_type == "approve" and rate.adv_rate:
             breakeven = rate.web_rate / rate.adv_rate * 100

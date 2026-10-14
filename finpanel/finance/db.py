@@ -217,6 +217,18 @@ CREATE TABLE IF NOT EXISTS wallet_transfers (
 );
 
 -- Remembered "this name in my spreadsheet means X" choices from imports.
+-- What the network shows for a web with no advertiser filter, per day.
+-- Used for the "trash" link: leads the web is paid for that went to no
+-- advertiser (duplicates, blacklist) = this total minus the web's links.
+CREATE TABLE IF NOT EXISTS web_totals (
+    web_id INTEGER NOT NULL REFERENCES webs(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    leads INTEGER NOT NULL,
+    valid INTEGER NOT NULL,
+    approves INTEGER NOT NULL,
+    PRIMARY KEY (web_id, date)
+);
+
 -- Extra logins that can see everything but change nothing.
 CREATE TABLE IF NOT EXISTS viewers (
     id INTEGER PRIMARY KEY,
@@ -553,6 +565,10 @@ class Repo:
     ) -> None:
         if min(leads, valid, approves) < 0:
             raise ValueError("Числа не могут быть отрицательными.")
+        self._write_stat(link_id, date, leads, valid, approves, note)
+        self._recompute_trash_for_link(link_id, [date])
+
+    def _write_stat(self, link_id: int, date: str, leads: int, valid: int, approves: int, note: str = "") -> None:
         self.db.execute(
             "INSERT INTO traffic_stats(link_id, date, leads, valid, approves, note) "
             "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(link_id, date) DO UPDATE SET "
@@ -561,17 +577,94 @@ class Repo:
             (link_id, date, leads, valid, approves, note.strip()),
         )
 
+    # --- trash: leads of a web that went to no advertiser ---
+
+    @staticmethod
+    def is_trash_name(name: str) -> bool:
+        return name.strip().strip("()").strip().casefold() in ("треш", "trash", "не задано")
+
+    def trash_link(self, web_id: int) -> sqlite3.Row | None:
+        for l in self.db.query(
+            "SELECT l.*, a.name AS advertiser_name FROM links l JOIN advertisers a ON a.id = l.advertiser_id "
+            "WHERE l.web_id = ? ORDER BY l.id", (web_id,)
+        ):
+            if self.is_trash_name(l["advertiser_name"]) or self.is_trash_name(self._adv_note(l["advertiser_id"])):
+                return l
+        return None
+
+    def _adv_note(self, advertiser_id: int) -> str:
+        row = self.db.one("SELECT note FROM advertisers WHERE id = ?", (advertiser_id,))
+        return row["note"] if row else ""
+
+    def set_web_totals(self, web_id: int, days: list, replace: tuple[str, str] | None = None) -> None:
+        """Store the web's all-advertiser daily totals and refresh its trash link."""
+        if replace:
+            self.db.execute("DELETE FROM web_totals WHERE web_id = ? AND date >= ? AND date <= ?", (web_id, *replace))
+        for d in days:
+            self.db.execute(
+                "INSERT INTO web_totals(web_id, date, leads, valid, approves) VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(web_id, date) DO UPDATE SET leads = excluded.leads, valid = excluded.valid, "
+                "approves = excluded.approves",
+                (web_id, d.date, d.leads, d.valid, d.approves),
+            )
+        dates = [d.date for d in days]
+        if replace:
+            trash = self.trash_link(web_id)
+            if trash:
+                self.db.execute("DELETE FROM traffic_stats WHERE link_id = ? AND date >= ? AND date <= ?",
+                                (trash["id"], *replace))
+        self.recompute_trash(web_id, dates)
+
+    def web_totals(self, web_id: int) -> list[sqlite3.Row]:
+        return self.db.query("SELECT * FROM web_totals WHERE web_id = ? ORDER BY date", (web_id,))
+
+    def recompute_trash(self, web_id: int, dates: list[str] | None = None) -> None:
+        trash = self.trash_link(web_id)
+        if trash is None:
+            return
+        totals = {r["date"]: r for r in self.web_totals(web_id)}
+        for date in (dates if dates is not None else list(totals)):
+            total = totals.get(date)
+            if total is None:
+                continue
+            others = self.db.one(
+                "SELECT COALESCE(SUM(s.leads), 0) AS leads, COALESCE(SUM(s.valid), 0) AS valid, "
+                "COALESCE(SUM(s.approves), 0) AS approves FROM traffic_stats s JOIN links l ON l.id = s.link_id "
+                "WHERE l.web_id = ? AND l.id != ? AND s.date = ?", (web_id, trash["id"], date),
+            )
+            leads = max(total["leads"] - others["leads"], 0)
+            valid = max(total["valid"] - others["valid"], 0)
+            approves = max(total["approves"] - others["approves"], 0)
+            if leads or valid or approves:
+                self._write_stat(trash["id"], date, leads, valid, approves, "авто: всего по вебу − его связки")
+            else:
+                self.db.execute("DELETE FROM traffic_stats WHERE link_id = ? AND date = ?", (trash["id"], date))
+
+    def _recompute_trash_for_link(self, link_id: int, dates: list[str] | None) -> None:
+        link = self.db.one("SELECT * FROM links WHERE id = ?", (link_id,))
+        if link is None:
+            return
+        trash = self.trash_link(link["web_id"])
+        if trash is not None and trash["id"] != link_id:
+            self.recompute_trash(link["web_id"], dates)
+
     def traffic_stats(self, start: str | None = None, end: str | None = None) -> list[sqlite3.Row]:
         sql, params = _date_filter("SELECT * FROM traffic_stats", "date", start, end)
         return self.db.query(sql + " ORDER BY date DESC, link_id", params)
 
     def delete_traffic_stats_range(self, link_id: int, start: str, end: str) -> None:
+        dates = [r["date"] for r in self.db.query(
+            "SELECT date FROM traffic_stats WHERE link_id = ? AND date >= ? AND date <= ?", (link_id, start, end))]
         self.db.execute(
             "DELETE FROM traffic_stats WHERE link_id = ? AND date >= ? AND date <= ?", (link_id, start, end)
         )
+        self._recompute_trash_for_link(link_id, dates)
 
     def delete_traffic_stat(self, stat_id: int) -> None:
+        row = self.db.one("SELECT * FROM traffic_stats WHERE id = ?", (stat_id,))
         self.db.execute("DELETE FROM traffic_stats WHERE id = ?", (stat_id,))
+        if row:
+            self._recompute_trash_for_link(row["link_id"], [row["date"]])
 
     # --- payments & expenses ---
 

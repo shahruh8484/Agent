@@ -171,6 +171,15 @@ def apply(repo: Repo, link_id: int, days: list[DayStat], replace: tuple[str, str
     return len(days)
 
 
+def apply_web_totals(repo: Repo, web_id: int, days: list[DayStat], replace: tuple[str, str] | None = None) -> int:
+    """A file for the whole web (no advertiser filter): kept as the web's
+    daily totals; the web's trash link gets total minus its other links."""
+    if repo.trash_link(web_id) is None:
+        raise ValueError("У этого веба нет связки с реклом «Треш».")
+    repo.set_web_totals(web_id, days, replace)
+    return len(days)
+
+
 def to_tsv(rows: list[list[str]]) -> str:
     return "\n".join("\t".join(c.replace("\t", " ").replace("\n", " ") for c in r) for r in rows)
 

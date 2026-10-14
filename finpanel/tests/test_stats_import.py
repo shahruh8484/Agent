@@ -89,3 +89,28 @@ def test_upload_flow_overwrites_days(repo, tmp_path):
     total = calc.traffic_report(repo, None, None, TODAY).total
     assert (total.leads, total.valid, total.approves) == (425 + 100, 319 + 90, 30 + 9)
     assert "2026-10-09" not in rows
+
+
+def test_trash_is_total_minus_links(repo):
+    from finance import calc, stats_import
+    from finance.stats_import import DayStat
+    from tests.conftest import TODAY
+
+    web = repo.add_web("Доник")
+    sanzh = repo.add_advertiser("Санж")
+    trash_adv = repo.add_advertiser("Треш")
+    link = repo.add_link(web, sanzh, "", "2026-10-01", "approve", 25, 10, "lead", 2.2)
+    trash = repo.add_link(web, trash_adv, "", "2026-10-01", "valid", 0, 0, "lead", 2.2)
+    repo.upsert_traffic_stat(link, "2026-10-07", 100, 80, 9)
+    stats_import.apply_web_totals(repo, web, [DayStat("2026-10-07", 110, 85, 9), DayStat("2026-10-06", 5, 0, 0)],
+                                  replace=("2026-10-06", "2026-10-07"))
+    rows = {(s["link_id"], s["date"]): s for s in repo.traffic_stats()}
+    assert rows[(trash, "2026-10-07")]["leads"] == 10 and rows[(trash, "2026-10-07")]["valid"] == 5
+    assert rows[(trash, "2026-10-06")]["leads"] == 5
+    # The link's file is reloaded with late leads: trash shrinks by itself.
+    repo.upsert_traffic_stat(link, "2026-10-07", 106, 82, 9)
+    assert {(s["link_id"], s["date"]): s for s in repo.traffic_stats()}[(trash, "2026-10-07")]["leads"] == 4
+    # Web is paid for every lead, trash included; trash shows as its own cost.
+    rep = calc.traffic_report(repo, None, None, TODAY)
+    assert rep.by_link[trash].web_amount == pytest.approx(9 * 2.2) and rep.by_link[trash].adv_amount == 0
+    assert any("Треш Доник" in a.text for a in calc.alerts(repo, TODAY))
