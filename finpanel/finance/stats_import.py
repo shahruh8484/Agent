@@ -180,6 +180,17 @@ def apply_web_totals(repo: Repo, web_id: int, days: list[DayStat], replace: tupl
     return len(days)
 
 
+def apply_product(repo: Repo, web_id: int, product_id: int, days: list[DayStat],
+                  replace: tuple[str, str] | None = None) -> int:
+    """Leads a web sent to your own product (e.g. your own advertiser
+    account in the network): stored as product stats."""
+    if replace:
+        repo.delete_product_stats_range(web_id, product_id, *replace)
+    for s in days:
+        repo.upsert_product_stat(web_id, product_id, s.date, s.leads, s.approves, "импорт файла")
+    return len(days)
+
+
 def to_tsv(rows: list[list[str]]) -> str:
     return "\n".join("\t".join(c.replace("\t", " ").replace("\n", " ") for c in r) for r in rows)
 

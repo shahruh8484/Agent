@@ -114,3 +114,22 @@ def test_trash_is_total_minus_links(repo):
     rep = calc.traffic_report(repo, None, None, TODAY)
     assert rep.by_link[trash].web_amount == pytest.approx(9 * 2.2) and rep.by_link[trash].adv_amount == 0
     assert any("Треш Доник" in a.text for a in calc.alerts(repo, TODAY))
+
+
+def test_own_product_leads_are_not_trash(repo):
+    from finance import stats_import
+    from finance.stats_import import DayStat
+
+    web = repo.add_web("Доник")
+    sanzh = repo.add_advertiser("Санж")
+    trash_adv = repo.add_advertiser("Треш")
+    link = repo.add_link(web, sanzh, "", "2026-10-01", "approve", 25, 10, "lead", 1.9)
+    trash = repo.add_link(web, trash_adv, "", "2026-10-01", "valid", 0, 0, "lead", 1.9)
+    product = repo.add_product("Glycofort", 1.56)
+    repo.set_product_web_rate(web, product, "2026-10-17", "lead", 1.9)
+    repo.upsert_traffic_stat(link, "2026-10-17", 100, 80, 9)
+    stats_import.apply_web_totals(repo, web, [DayStat("2026-10-17", 130, 105, 12)])
+    stats_import.apply_product(repo, web, product, [DayStat("2026-10-17", 25, 25, 3)], replace=("2026-10-17", "2026-10-17"))
+    rows = {(s["link_id"], s["date"]): s for s in repo.traffic_stats()}
+    assert rows[(trash, "2026-10-17")]["leads"] == 5          # 130 − 100 Санж − 25 свой товар
+    assert repo.product_stats()[0]["leads"] == 25

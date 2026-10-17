@@ -632,9 +632,14 @@ class Repo:
                 "COALESCE(SUM(s.approves), 0) AS approves FROM traffic_stats s JOIN links l ON l.id = s.link_id "
                 "WHERE l.web_id = ? AND l.id != ? AND s.date = ?", (web_id, trash["id"], date),
             )
-            leads = max(total["leads"] - others["leads"], 0)
-            valid = max(total["valid"] - others["valid"], 0)
-            approves = max(total["approves"] - others["approves"], 0)
+            # Leads the web sent to your own product are not trash either.
+            own = self.db.one(
+                "SELECT COALESCE(SUM(leads), 0) AS leads, COALESCE(SUM(approves), 0) AS approves "
+                "FROM product_stats WHERE web_id = ? AND date = ?", (web_id, date),
+            )
+            leads = max(total["leads"] - others["leads"] - own["leads"], 0)
+            valid = max(total["valid"] - others["valid"] - own["leads"], 0)
+            approves = max(total["approves"] - others["approves"] - own["approves"], 0)
             if leads or valid or approves:
                 self._write_stat(trash["id"], date, leads, valid, approves, "авто: всего по вебу − его связки")
             else:
@@ -818,6 +823,7 @@ class Repo:
             "leads = excluded.leads, approves = excluded.approves, note = excluded.note",
             (web_id, product_id, date, leads, approves, note.strip()),
         )
+        self.recompute_trash(web_id, [date])
 
     def product_stats(self, start: str | None = None, end: str | None = None) -> list[sqlite3.Row]:
         sql, params = _date_filter(
@@ -830,7 +836,18 @@ class Repo:
         return self.db.query(sql + " ORDER BY s.date DESC", params)
 
     def delete_product_stat(self, stat_id: int) -> None:
+        row = self.db.one("SELECT * FROM product_stats WHERE id = ?", (stat_id,))
         self.db.execute("DELETE FROM product_stats WHERE id = ?", (stat_id,))
+        if row:
+            self.recompute_trash(row["web_id"], [row["date"]])
+
+    def delete_product_stats_range(self, web_id: int, product_id: int, start: str, end: str) -> None:
+        dates = [r["date"] for r in self.db.query(
+            "SELECT date FROM product_stats WHERE web_id = ? AND product_id = ? AND date >= ? AND date <= ?",
+            (web_id, product_id, start, end))]
+        self.db.execute("DELETE FROM product_stats WHERE web_id = ? AND product_id = ? AND date >= ? AND date <= ?",
+                        (web_id, product_id, start, end))
+        self.recompute_trash(web_id, dates)
 
     # --- orders & stock ---
 

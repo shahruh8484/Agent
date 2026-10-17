@@ -861,6 +861,12 @@ def create_app(
         for w in repo.webs():
             if repo.trash_link(w["id"]):
                 names[f"web:{w['id']}"] = f"{w['name']} — весь веб, все реклы (для треша)"
+        seen = set()
+        for r in repo.product_web_rates():
+            key = f"prod:{r['web_id']}:{r['product_id']}"
+            if key not in seen:
+                seen.add(key)
+                names[key] = f"{r['web_name']} → мой товар {r['product_name']}"
         return names
 
     @app.get("/import/stats")
@@ -938,14 +944,17 @@ def create_app(
         target = str(form.get("link_id", ""))
         try:
             replace = stats_import.covered_range(rows, mapping)
-            if target.startswith("web:"):
+            if target.startswith("prod:"):
+                _, web_id, product_id = target.split(":")
+                n = stats_import.apply_product(repo, int(web_id), int(product_id), days, replace=replace)
+            elif target.startswith("web:"):
                 n = stats_import.apply_web_totals(repo, int(target[4:]), days, replace=replace)
             else:
                 n = stats_import.apply(repo, int(target or 0), days, replace=replace)
         except ValueError as exc:
             return back("/import/stats", error=str(exc))
         return back(
-            "/traffic",
+            "/product" if target.startswith("prod:") else "/traffic",
             msg=f"Загружено дней: {n} ({days[0].date} — {days[-1].date}). Сверьте итог с сетью.",
             **{"from": days[0].date, "to": days[-1].date},
         )
