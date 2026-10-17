@@ -778,6 +778,13 @@ def create_app(
 
         return run("/money", do)
 
+    @app.post("/money/expense/direction")
+    def money_expense_direction(request: Request, expense_id: int = Form(...), direction: str = Form(...),
+                                next_: str = Form("/money", alias="next")):
+        if not authed(request):
+            return login_redirect()
+        return run(_safe_next(next_), lambda: repo.set_expense_direction(expense_id, direction) or "Направление расхода изменено.")
+
     @app.post("/money/expense/delete")
     def money_expense_delete(request: Request, expense_id: int = Form(...)):
         if not authed(request):

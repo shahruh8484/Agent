@@ -740,6 +740,11 @@ class Repo:
         )
         return self.db.query(sql + " ORDER BY e.date DESC, e.id DESC", params)
 
+    def set_expense_direction(self, expense_id: int, direction: str) -> None:
+        if direction not in ("general", "traffic", "product"):
+            raise ValueError("Направление: общее, трафик или товар.")
+        self.db.execute("UPDATE expenses SET direction = ? WHERE id = ?", (direction, expense_id))
+
     def delete_expense(self, expense_id: int) -> None:
         self.db.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
 

@@ -87,6 +87,7 @@
     .two { grid-template-columns: 1fr; }
   }
   /* View-only users: hide everything that changes data. */
+  .readonly-only { display: none; } .readonly .readonly-only { display: inline; }
   .readonly form[method="post"], .readonly details:has(form[method="post"]), .readonly .composer, .readonly .actions .btns { display: none !important; }
 </style>
 </head>

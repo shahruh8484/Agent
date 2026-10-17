@@ -409,3 +409,15 @@ def test_chat_strips_copied_service_notes(settings, repo):
     assert "Предложенные действия" not in r["reply"] and r["reply"].startswith("Вот что")
     history = __import__("finance.assistant", fromlist=["x"]).history_to_messages(repo.chat_messages(limit=40))
     assert "⟦служебно" in history[-1]["content"]
+
+
+def test_change_expense_direction(settings, repo):
+    repo.add_expense("2026-09-24", "traffic", "Программист", 1000)
+    eid = repo.expenses()[0]["id"]
+    client = make_client(settings, repo)
+    login(client)
+    assert 'action="/money/expense/direction"' in client.get("/money?period=all").text
+    r = client.post("/money/expense/direction", data={"expense_id": eid, "direction": "general", "next": "/money?period=all"},
+                    follow_redirects=False)
+    assert r.status_code == 302 and "period=all" in r.headers["location"]
+    assert repo.expenses()[0]["direction"] == "general"

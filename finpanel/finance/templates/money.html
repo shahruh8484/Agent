@@ -59,7 +59,9 @@
   <div class="table-wrap" style="margin-top:12px;"><table>
     <tr><th>Дата</th><th>Направление</th><th>Категория</th><th class="num">Сумма</th><th>Кошелёк</th><th>Заметка</th><th></th></tr>
     {% for e in expenses %}
-    <tr><td>{{ e.date }}</td><td>{{ {'general': 'общее', 'traffic': 'трафик', 'product': 'товар'}[e.direction] }}</td><td>{{ e.category }}</td>
+    <tr><td>{{ e.date }}</td><td><form method="post" action="/money/expense/direction" style="margin:0"><input type="hidden" name="expense_id" value="{{ e.id }}"><input type="hidden" name="next" value="{{ request.url.path }}?{{ request.url.query }}">
+        <select name="direction" onchange="this.form.submit()" title="Поменять направление" style="padding:2px 4px">{% for k, v in [('general','общее'),('traffic','трафик'),('product','товар')] %}<option value="{{ k }}" {{ 'selected' if e.direction == k }}>{{ v }}</option>{% endfor %}</select></form>
+        <span class="readonly-only">{{ {'general': 'общее', 'traffic': 'трафик', 'product': 'товар'}[e.direction] }}</span></td><td>{{ e.category }}</td>
       <td class="num neg">−{{ e.amount_usd|usd }}{% if e.amount_uzs %} <span class="muted">({{ e.amount_uzs|uzs }})</span>{% endif %}</td>
       <td class="muted">{{ e.wallet_name or '' }}</td>
       <td class="muted">{{ e.note }}</td>
