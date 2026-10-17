@@ -421,3 +421,16 @@ def test_change_expense_direction(settings, repo):
                     follow_redirects=False)
     assert r.status_code == 302 and "period=all" in r.headers["location"]
     assert repo.expenses()[0]["direction"] == "general"
+
+
+def test_traffic_hides_links_without_data(settings, repo):
+    web = repo.add_web("Макс")
+    adv = repo.add_advertiser("Санж")
+    nexus = repo.add_advertiser("Нексус")
+    a = repo.add_link(web, adv, "", "2026-10-01", "approve", 25, 0, "approve", 23)
+    repo.add_link(web, nexus, "", "2026-10-01", "approve", 24, 0, "approve", 22)
+    repo.upsert_traffic_stat(a, "2026-10-08", 10, 10, 2)
+    client = make_client(settings, repo)
+    login(client)
+    page = client.get("/traffic?period=this_month").text
+    assert "Без данных за период (1)" in page and "нет данных за период" not in page

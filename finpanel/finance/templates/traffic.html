@@ -47,7 +47,8 @@
   <div class="table-wrap"><table>
     <tr><th>Связка</th><th>Ставки сейчас</th><th class="num">Лиды</th><th class="num">Валид</th><th class="num">Апрув</th><th class="num">%</th>
         <th class="num">Рекл</th><th class="num">в т.ч. гарант</th><th class="num">Вебу</th><th class="num">Прибыль</th><th></th></tr>
-    {% for l in links %}
+    {% set idle = links|rejectattr('id', 'in', rep.by_link.keys()|list)|list %}
+    {% for l in links if l.id in rep.by_link %}
     {% set a = rep.by_link.get(l.id) %}{% set r = rates[l.id] %}
     <tr>
       <td>{{ link_names[l.id] }} {% if not l.active %}<span class="tag">выкл</span>{% endif %}</td>
@@ -61,8 +62,19 @@
       {% else %}<td colspan="8" class="muted">нет данных за период</td>{% endif %}
       <td><form method="post" action="/traffic/link/toggle"><input type="hidden" name="link_id" value="{{ l.id }}"><input type="hidden" name="active" value="{{ 0 if l.active else 1 }}"><button class="ghost">{{ 'выключить' if l.active else 'включить' }}</button></form></td>
     </tr>
-    {% else %}<tr><td colspan="11" class="muted">Связок пока нет.</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="11" class="muted">{{ 'Связок пока нет.' if not links else 'За период нет данных ни по одной связке.' }}</td></tr>{% endfor %}
   </table></div>
+  {% if idle %}
+  <details><summary>Без данных за период ({{ idle|length }})</summary>
+    <div class="table-wrap"><table>
+      {% for l in idle %}{% set r = rates[l.id] %}
+      <tr><td>{{ link_names[l.id] }} {% if not l.active %}<span class="tag">выкл</span>{% endif %}</td>
+        <td class="muted">{% if r %}${{ r.adv_rate|num(2) }}/{{ 'апрув' if r.adv_pay_type == 'approve' else 'валид' }}{% if r.guarantee_pct %} · гарант {{ r.guarantee_pct|num }}%{{ ' от валид' if r.guarantee_base == 'valid' }}{% endif %} → вебу ${{ r.web_rate|num(2) }}/{{ 'апрув' if r.web_pay_type == 'approve' else 'лид' }}{% else %}нет ставок{% endif %}</td>
+        <td><form method="post" action="/traffic/link/toggle"><input type="hidden" name="link_id" value="{{ l.id }}"><input type="hidden" name="active" value="{{ 0 if l.active else 1 }}"><button class="ghost">{{ 'выключить' if l.active else 'включить' }}</button></form></td></tr>
+      {% endfor %}
+    </table></div>
+  </details>
+  {% endif %}
 
   <details><summary>+ Новая связка</summary>
     <form class="inline" method="post" action="/traffic/link">
