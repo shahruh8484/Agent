@@ -49,11 +49,14 @@ function compute(v) {
   const profitPerLead = profitPerApproved * approve;
   const leads = num(v.leads_per_day);
   const unitsPerDay = leads * approve * buyout * qty;
+  const approvesPerDay = leads * approve, deliveredPerDay = leads * approve * buyout;
   return {
     revenue, cogs, operator, delivery, netDelivered, perApprovedGross, webPerApproved, profitPerApproved, profitPerLead,
     maxCPL: perApprovedGross * approve / fee, maxCPA: perApprovedGross / fee,
     day: profitPerLead * leads, month: profitPerLead * leads * 30,
     margin: revenue ? netDelivered / revenue * 100 : 0,
+    approvesPerDay, deliveredPerDay,
+    profitPerDelivered: buyout ? profitPerApproved / buyout : 0,
     stockDays: unitsPerDay ? STOCK / unitsPerDay : null, tier,
   };
 }
@@ -74,7 +77,9 @@ function results(i) {
         <tr><td>С апрува (с учётом выкупа)</td><td class="num">${fmt(r.perApprovedGross)}</td></tr>
         <tr><td>− трафик на 1 апрув</td><td class="num">${fmt(-r.webPerApproved)}</td></tr>
         <tr class="total"><td>Прибыль с апрува</td><td class="num ${cls(r.profitPerApproved)}">${fmt(r.profitPerApproved)}</td></tr>
+        <tr><td>Прибыль с выкупленного заказа</td><td class="num ${cls(r.profitPerDelivered)}">${fmt(r.profitPerDelivered)}</td></tr>
         <tr><td>Прибыль с лида</td><td class="num ${cls(r.profitPerLead)}">${fmt(r.profitPerLead)}</td></tr>
+        <tr><td class="muted">В день: апрувов / выкупов</td><td class="num muted">${r.approvesPerDay.toFixed(1)} / ${r.deliveredPerDay.toFixed(1)}</td></tr>
         <tr><td>В день</td><td class="num ${cls(r.day)}">${fmt(r.day, 0)}</td></tr>
         <tr><td><b>В месяц</b></td><td class="num ${cls(r.month)}"><span class="big">${fmt(r.month, 0)}</span></td></tr>
       </table>
