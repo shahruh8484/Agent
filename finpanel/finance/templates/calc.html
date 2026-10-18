@@ -61,7 +61,10 @@ function compute(v) {
   const perApprovedGross = buyout * netDelivered - (1 - buyout) * num(v.return_cost) / rate;
   const fee = 1 + num(v.fx_fee) / 100;
   const webUnit = num(v.web_rate) * fee;
-  const webPerApproved = v.web_pay === 'lead' ? (approve ? webUnit / approve : 0) : webUnit;
+  // Paid per approve with a guarantee: the web gets max(approves, leads × guarantee%).
+  const webGuarantee = v.web_pay === 'approve' ? num(v.web_guarantee) / 100 : 0;
+  const paidShare = Math.max(approve, webGuarantee);
+  const webPerApproved = v.web_pay === 'lead' ? (approve ? webUnit / approve : 0) : (approve ? webUnit * paidShare / approve : 0);
   const profitPerApproved = perApprovedGross - webPerApproved;
 
   // Re-sale to leads who refused as "too expensive": no ad cost, the web is not paid again.
@@ -81,12 +84,13 @@ function compute(v) {
   const approvesPerDay = leads * approve, deliveredPerDay = leads * approve * buyout;
   return {
     revenue, cogs, operator, delivery, tax, netDelivered, perApprovedGross, webPerApproved, profitPerApproved, profitPerLead,
-    maxCPL: perApprovedGross * approve / fee, maxCPA: perApprovedGross / fee,
+    maxCPL: perApprovedGross * approve / fee, maxCPA: paidShare ? perApprovedGross * approve / paidShare / fee : perApprovedGross / fee,
     day: profitPerLead * leads, month: profitPerLead * leads * 30,
     margin: revenue ? netDelivered / revenue * 100 : 0,
     approvesPerDay, deliveredPerDay,
     profitPerDelivered: buyout ? profitPerApproved / buyout : 0,
     stockDays: unitsPerDay ? STOCK / unitsPerDay : null, tier,
+    guaranteeHits: webGuarantee > approve,
     resaleOn, resaleNet: r2.net, resaleTier: r2.tier, resalePerLead,
     resaleOrdersPerDay: leads * refused * resale, resaleMonth: resalePerLead * leads * 30,
   };
@@ -107,7 +111,7 @@ function results(i) {
         ${num(v.tax) ? `<tr><td>− налог (${num(v.tax)}%)</td><td class="num">${fmt(-r.tax)}</td></tr>` : ''}
         <tr class="total"><td>Чистыми с выкупа</td><td class="num ${cls(r.netDelivered)}">${fmt(r.netDelivered)}</td></tr>
         <tr><td>С апрува (с учётом выкупа)</td><td class="num">${fmt(r.perApprovedGross)}</td></tr>
-        <tr><td>− трафик на 1 апрув</td><td class="num">${fmt(-r.webPerApproved)}</td></tr>
+        <tr><td>− трафик на 1 апрув${r.guaranteeHits ? ' <span class="tag yellow">по гаранту</span>' : ''}</td><td class="num">${fmt(-r.webPerApproved)}</td></tr>
         <tr class="total"><td>Прибыль с апрува</td><td class="num ${cls(r.profitPerApproved)}">${fmt(r.profitPerApproved)}</td></tr>
         <tr><td>Прибыль с выкупленного заказа</td><td class="num ${cls(r.profitPerDelivered)}">${fmt(r.profitPerDelivered)}</td></tr>
         <tr><td>Прибыль с лида</td><td class="num ${cls(r.profitPerLead)}">${fmt(r.profitPerLead)}</td></tr>
@@ -144,10 +148,11 @@ function render() {
       <table class="tiers"><tr><td class="muted">от, сум</td><td class="muted">до, сум</td><td class="muted">%</td><td class="muted">+ сум</td><td></td></tr>${tiers}</table>
       <button type="button" class="ghost" onclick="addTier(${i})">+ порог</button>
       <div class="sec">Трафик</div>
-      <label>Вебу платим за<select onchange="setV(${i}, 'web_pay', this.value)">
+      <label>Вебу платим за<select onchange="setV(${i}, 'web_pay', this.value); render()">
         <option value="lead" ${v.web_pay === 'lead' ? 'selected' : ''}>лид</option>
         <option value="approve" ${v.web_pay === 'approve' ? 'selected' : ''}>апрув</option></select></label>
       ${field(i, 'web_rate', 'Ставка вебу, $')}
+      ${v.web_pay === 'approve' ? field(i, 'web_guarantee', 'Гарант вебу, % от лидов') : ''}
       ${field(i, 'fx_fee', 'Комиссия на покупку $, %')}
       ${field(i, 'approve', 'Апрув колл-центра, %')}
       ${field(i, 'buyout', 'Выкуп, %')}
