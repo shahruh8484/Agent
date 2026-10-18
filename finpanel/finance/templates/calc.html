@@ -4,13 +4,18 @@
 {% block content %}
 <style>
   .variants { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 8px; align-items: flex-start; }
-  .variant { min-width: 300px; max-width: 320px; flex: 0 0 auto; }
+  .variant { min-width: 340px; max-width: 360px; flex: 0 0 auto; }
   .variant h2 input { font-size: 1rem; font-weight: 700; background: transparent; border: none; color: var(--text); width: 100%; padding: 0; }
   .variant label { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--muted); margin: 5px 0; }
   .variant label input, .variant label select { width: 110px; text-align: right; }
   .variant .sec { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 12px 0 4px; }
   .variant table td { padding: 4px 2px; font-size: 0.84rem; }
-  .tiers td input { width: 62px; }
+  .tiers { width: 100%; }
+  .tiers td { padding: 3px 2px; }
+  .tiers td input { width: 100%; padding-left: 6px; padding-right: 6px; }
+  .tiers td.w-sum { width: 34%; } .tiers td.w-pct { width: 14%; } .tiers td.w-fix { width: 18%; }
+  .tiers input::-webkit-outer-spin-button, .tiers input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .tiers input[type=number] { -moz-appearance: textfield; }
   .big { font-size: 1.25rem; font-weight: 700; }
 </style>
 <p class="hint" style="margin-top:-6px">Меняйте цифры — результат считается сразу. Суммы в сумах, ставки и себестоимость в $. Варианты можно сравнивать рядом и сохранить.</p>
@@ -93,10 +98,10 @@ function render() {
   const box = document.getElementById('variants');
   box.innerHTML = variants.map((v, i) => {
     const tiers = (v.tiers || []).map((t, j) => `<tr>
-        <td><input type="number" value="${t.from}" oninput="setTier(${i},${j},'from',this.value)"></td>
-        <td><input type="number" value="${t.to ?? ''}" placeholder="∞" oninput="setTier(${i},${j},'to',this.value)"></td>
-        <td><input type="number" step="any" value="${t.pct}" oninput="setTier(${i},${j},'pct',this.value)"></td>
-        <td><input type="number" value="${t.fixed}" oninput="setTier(${i},${j},'fixed',this.value)"></td>
+        <td class="w-sum"><input type="number" value="${t.from}" oninput="setTier(${i},${j},'from',this.value)"></td>
+        <td class="w-sum"><input type="number" value="${t.to ?? ''}" placeholder="∞" oninput="setTier(${i},${j},'to',this.value)"></td>
+        <td class="w-pct"><input type="number" step="any" value="${t.pct}" oninput="setTier(${i},${j},'pct',this.value)"></td>
+        <td class="w-fix"><input type="number" value="${t.fixed}" oninput="setTier(${i},${j},'fixed',this.value)"></td>
         <td><button type="button" class="ghost" onclick="delTier(${i},${j})">✕</button></td></tr>`).join('');
     return `<div class="card variant">
       <h2><input value="${(v.name || '').replace(/"/g, '&quot;')}" oninput="variants[${i}].name=this.value"></h2>
