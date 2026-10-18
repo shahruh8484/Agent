@@ -445,7 +445,7 @@ def create_app(
         default = {
             "name": "Вариант 1", "rate": s["usd_uzs_rate"], "web_rate": 1.9, "web_pay": "lead", "fx_fee": 0,
             "unit_cost": products[0]["unit_cost_usd"] if products else 0, "qty": 1, "price": 0, "delivery": 0,
-            "return_cost": 0, "approve": 15, "buyout": 60, "leads_per_day": 100,
+            "return_cost": 0, "tax": s["tax_pct"], "approve": 15, "buyout": 60, "leads_per_day": 100,
             "tiers": [{"from": 0, "pct": s["operator_pct"], "fixed": 0}],
         }
         stock = sum(st.on_hand for st in calc.stock_info(repo, today_fn()))

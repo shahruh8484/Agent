@@ -39,7 +39,8 @@ function compute(v) {
   for (const t of tiers) if (price >= num(t.from) && (!num(t.to) || price <= num(t.to))) tier = t;
   const operator = tier ? (price * num(tier.pct) / 100 + num(tier.fixed)) / rate : 0;
   const revenue = price / rate, cogs = qty * num(v.unit_cost), delivery = num(v.delivery) / rate;
-  const netDelivered = revenue - cogs - operator - delivery;
+  const tax = revenue * num(v.tax) / 100;
+  const netDelivered = revenue - cogs - operator - delivery - tax;
   const buyout = num(v.buyout) / 100, approve = num(v.approve) / 100;
   const perApprovedGross = buyout * netDelivered - (1 - buyout) * num(v.return_cost) / rate;
   const fee = 1 + num(v.fx_fee) / 100;
@@ -51,7 +52,7 @@ function compute(v) {
   const unitsPerDay = leads * approve * buyout * qty;
   const approvesPerDay = leads * approve, deliveredPerDay = leads * approve * buyout;
   return {
-    revenue, cogs, operator, delivery, netDelivered, perApprovedGross, webPerApproved, profitPerApproved, profitPerLead,
+    revenue, cogs, operator, delivery, tax, netDelivered, perApprovedGross, webPerApproved, profitPerApproved, profitPerLead,
     maxCPL: perApprovedGross * approve / fee, maxCPA: perApprovedGross / fee,
     day: profitPerLead * leads, month: profitPerLead * leads * 30,
     margin: revenue ? netDelivered / revenue * 100 : 0,
@@ -73,6 +74,7 @@ function results(i) {
         <tr><td>− товар</td><td class="num">${fmt(-r.cogs)}</td></tr>
         <tr><td>− оператор${r.tier ? ` (${r.tier.pct}%${num(r.tier.fixed) ? ' + ' + sum(r.tier.fixed) : ''})` : ''}</td><td class="num">${fmt(-r.operator)}</td></tr>
         <tr><td>− доставка</td><td class="num">${fmt(-r.delivery)}</td></tr>
+        ${num(v.tax) ? `<tr><td>− налог (${num(v.tax)}%)</td><td class="num">${fmt(-r.tax)}</td></tr>` : ''}
         <tr class="total"><td>Чистыми с выкупа</td><td class="num ${cls(r.netDelivered)}">${fmt(r.netDelivered)}</td></tr>
         <tr><td>С апрува (с учётом выкупа)</td><td class="num">${fmt(r.perApprovedGross)}</td></tr>
         <tr><td>− трафик на 1 апрув</td><td class="num">${fmt(-r.webPerApproved)}</td></tr>
@@ -104,6 +106,7 @@ function render() {
       ${field(i, 'unit_cost', 'Себестоимость 1 шт, $')}
       ${field(i, 'delivery', 'Доставка за выкуп, сум')}
       ${field(i, 'return_cost', 'Расход на невыкуп, сум')}
+      ${field(i, 'tax', 'Налог, % от продажи')}
       ${field(i, 'rate', 'Курс, сум за $1')}
       <div class="sec">Оператору (от суммы продажи)</div>
       <table class="tiers"><tr><td class="muted">от, сум</td><td class="muted">до, сум</td><td class="muted">%</td><td class="muted">+ сум</td><td></td></tr>${tiers}</table>
