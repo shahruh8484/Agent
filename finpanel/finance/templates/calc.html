@@ -18,10 +18,10 @@
   .tiers input[type=number] { -moz-appearance: textfield; }
   .big { font-size: 1.25rem; font-weight: 700; }
 </style>
-<p class="hint" style="margin-top:-6px">Меняйте цифры — результат считается сразу. Суммы в сумах, ставки и себестоимость в $. Варианты можно сравнивать рядом и сохранить.</p>
+<p class="hint" style="margin-top:-6px">Меняйте цифры прямо в сохранённых вариантах — результат считается сразу, изменения сохраняются сами. Суммы в сумах, ставки и себестоимость в $.</p>
 <div style="display:flex; gap:10px; margin-bottom:12px">
   <button type="button" onclick="addVariant()">+ Вариант</button>
-  {% if not viewer %}<button type="button" onclick="save()">Сохранить варианты</button>{% endif %}
+  {% if not viewer %}<button type="button" onclick="save()">Сохранить сейчас</button>{% endif %}
   <span id="saved" class="muted" style="align-self:center"></span>
 </div>
 <div class="variants" id="variants"></div>
@@ -104,7 +104,7 @@ function render() {
         <td class="w-fix"><input type="number" value="${t.fixed}" oninput="setTier(${i},${j},'fixed',this.value)"></td>
         <td><button type="button" class="ghost" onclick="delTier(${i},${j})">✕</button></td></tr>`).join('');
     return `<div class="card variant">
-      <h2><input value="${(v.name || '').replace(/"/g, '&quot;')}" oninput="variants[${i}].name=this.value"></h2>
+      <h2><input value="${(v.name || '').replace(/"/g, '&quot;')}" oninput="variants[${i}].name=this.value; changed()"></h2>
       <div class="sec">Заказ</div>
       ${field(i, 'qty', 'Товара в заказе, шт')}
       ${field(i, 'price', 'Цена продажи (весь заказ), сум')}
@@ -136,16 +136,34 @@ function render() {
 
 function setV(i, key, value) { variants[i][key] = value; refresh(i); }
 function setTier(i, j, key, value) { variants[i].tiers[j][key] = value; refresh(i); }
-function refresh(i) { document.getElementById('res-' + i).innerHTML = results(i); document.getElementById('saved').textContent = ''; }
-function addTier(i) { (variants[i].tiers = variants[i].tiers || []).push({from: 0, to: '', pct: 0, fixed: 0}); render(); }
-function delTier(i, j) { variants[i].tiers.splice(j, 1); render(); }
-function addVariant() { variants.push(JSON.parse(JSON.stringify(DEFAULT))); variants[variants.length - 1].name = 'Вариант ' + variants.length; render(); }
-function copyVariant(i) { const c = JSON.parse(JSON.stringify(variants[i])); c.name = (c.name || '') + ' (копия)'; variants.splice(i + 1, 0, c); render(); }
-function delVariant(i) { if (confirm('Удалить вариант?')) { variants.splice(i, 1); render(); } }
-async function save() {
-  const res = await fetch('/calc/save', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(variants)});
-  document.getElementById('saved').textContent = res.ok ? 'Сохранено.' : 'Не удалось сохранить.';
+function refresh(i) { document.getElementById('res-' + i).innerHTML = results(i); changed(); }
+function addTier(i) { (variants[i].tiers = variants[i].tiers || []).push({from: 0, to: '', pct: 0, fixed: 0}); render(); changed(); }
+function delTier(i, j) { variants[i].tiers.splice(j, 1); render(); changed(); }
+function addVariant() { variants.push(JSON.parse(JSON.stringify(DEFAULT))); variants[variants.length - 1].name = 'Вариант ' + variants.length; render(); changed(); }
+function copyVariant(i) { const c = JSON.parse(JSON.stringify(variants[i])); c.name = (c.name || '') + ' (копия)'; variants.splice(i + 1, 0, c); render(); changed(); }
+function delVariant(i) { if (confirm('Удалить вариант?')) { variants.splice(i, 1); render(); changed(); } }
+
+// Every change is saved automatically a second after the last keystroke.
+const CAN_SAVE = {{ 'false' if viewer else 'true' }};
+let saveTimer = null, dirty = false;
+function changed() {
+  if (!CAN_SAVE) return;
+  dirty = true;
+  document.getElementById('saved').textContent = 'Сохраняю…';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 1000);
 }
+async function save() {
+  clearTimeout(saveTimer);
+  try {
+    const res = await fetch('/calc/save', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(variants)});
+    if (res.ok) dirty = false;
+    document.getElementById('saved').textContent = res.ok ? 'Сохранено ✓' : 'Не удалось сохранить — нажмите «Сохранить сейчас».';
+  } catch (e) {
+    document.getElementById('saved').textContent = 'Нет связи — изменения не сохранены.';
+  }
+}
+window.addEventListener('beforeunload', e => { if (dirty) { save(); e.preventDefault(); e.returnValue = ''; } });
 render();
 </script>
 {% endblock %}
