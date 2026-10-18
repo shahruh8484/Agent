@@ -451,3 +451,16 @@ def test_home_shows_forecast(settings, repo):
     client = make_client(settings, repo)
     login(client)
     assert "Прогноз на 2026-10" in client.get("/").text
+
+
+def test_product_calculator_page_and_save(settings, repo):
+    repo.add_product("Glycofort", 1.56)
+    client = make_client(settings, repo)
+    login(client)
+    page = client.get("/calc").text
+    assert "Калькулятор товара" in page and "1.56" in page
+    variants = [{"name": "5 шт", "qty": 5, "price": 990000, "tiers": [{"from": 0, "pct": 15, "fixed": 0}]}]
+    assert client.post("/calc/save", json=variants).json() == {"ok": True}
+    assert repo.calc_scenarios() == variants
+    assert '"qty": 5' in client.get("/calc").text
+    assert client.post("/calc/save", json={"x": 1}).status_code == 400

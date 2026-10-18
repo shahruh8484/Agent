@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Калькулятор товара{% endblock %}
+{% block heading %}Калькулятор товара{% endblock %}
+{% block content %}
+<style>
+  .variants { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 8px; align-items: flex-start; }
+  .variant { min-width: 300px; max-width: 320px; flex: 0 0 auto; }
+  .variant h2 input { font-size: 1rem; font-weight: 700; background: transparent; border: none; color: var(--text); width: 100%; padding: 0; }
+  .variant label { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--muted); margin: 5px 0; }
+  .variant label input, .variant label select { width: 110px; text-align: right; }
+  .variant .sec { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 12px 0 4px; }
+  .variant table td { padding: 4px 2px; font-size: 0.84rem; }
+  .tiers td input { width: 80px; }
+  .big { font-size: 1.25rem; font-weight: 700; }
+</style>
+<p class="hint" style="margin-top:-6px">Меняйте цифры — результат считается сразу. Суммы в сумах, ставки и себестоимость в $. Варианты можно сравнивать рядом и сохранить.</p>
+<div style="display:flex; gap:10px; margin-bottom:12px">
+  <button type="button" onclick="addVariant()">+ Вариант</button>
+  {% if not viewer %}<button type="button" onclick="save()">Сохранить варианты</button>{% endif %}
+  <span id="saved" class="muted" style="align-self:center"></span>
+</div>
+<div class="variants" id="variants"></div>
+
+<script>
+const STOCK = {{ stock|tojson }};
+const DEFAULT = {{ default|tojson }};
+let variants = {{ scenarios|tojson }};
+
+const fmt = (x, d = 2) => (x < 0 ? '−' : '') + '$' + Math.abs(x).toLocaleString('ru-RU', {minimumFractionDigits: d, maximumFractionDigits: d});
+const sum = x => Math.round(x).toLocaleString('ru-RU') + ' сум';
+const cls = x => x > 0 ? 'pos' : x < 0 ? 'neg' : '';
+const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
+
+function compute(v) {
+  const rate = num(v.rate) || 1, price = num(v.price), qty = num(v.qty);
+  const tiers = (v.tiers || []).slice().sort((a, b) => num(a.from) - num(b.from));
+  let tier = null;
+  for (const t of tiers) if (price >= num(t.from)) tier = t;
+  const operator = tier ? (price * num(tier.pct) / 100 + num(tier.fixed)) / rate : 0;
+  const revenue = price / rate, cogs = qty * num(v.unit_cost), delivery = num(v.delivery) / rate;
+  const netDelivered = revenue - cogs - operator - delivery;
+  const buyout = num(v.buyout) / 100, approve = num(v.approve) / 100;
+  const perApprovedGross = buyout * netDelivered - (1 - buyout) * num(v.return_cost) / rate;
+  const fee = 1 + num(v.fx_fee) / 100;
+  const webUnit = num(v.web_rate) * fee;
+  const webPerApproved = v.web_pay === 'lead' ? (approve ? webUnit / approve : 0) : webUnit;
+  const profitPerApproved = perApprovedGross - webPerApproved;
+  const profitPerLead = profitPerApproved * approve;
+  const leads = num(v.leads_per_day);
+  const unitsPerDay = leads * approve * buyout * qty;
+  return {
+    revenue, cogs, operator, delivery, netDelivered, perApprovedGross, webPerApproved, profitPerApproved, profitPerLead,
+    maxCPL: perApprovedGross * approve / fee, maxCPA: perApprovedGross / fee,
+    day: profitPerLead * leads, month: profitPerLead * leads * 30,
+    margin: revenue ? netDelivered / revenue * 100 : 0,
+    stockDays: unitsPerDay ? STOCK / unitsPerDay : null, tier,
+  };
+}
+
+function field(i, key, label, type = 'number', step = 'any') {
+  return `<label>${label}<input type="${type}" step="${step}" value="${variants[i][key] ?? ''}" oninput="setV(${i}, '${key}', this.value)"></label>`;
+}
+
+function render() {
+  const box = document.getElementById('variants');
+  box.innerHTML = variants.map((v, i) => {
+    const r = compute(v);
+    const tiers = (v.tiers || []).map((t, j) => `<tr>
+        <td><input type="number" value="${t.from}" oninput="setTier(${i},${j},'from',this.value)"></td>
+        <td><input type="number" step="any" value="${t.pct}" oninput="setTier(${i},${j},'pct',this.value)"></td>
+        <td><input type="number" value="${t.fixed}" oninput="setTier(${i},${j},'fixed',this.value)"></td>
+        <td><button type="button" class="ghost" onclick="delTier(${i},${j})">✕</button></td></tr>`).join('');
+    return `<div class="card variant">
+      <h2><input value="${(v.name || '').replace(/"/g, '&quot;')}" oninput="variants[${i}].name=this.value"></h2>
+      <div class="sec">Заказ</div>
+      ${field(i, 'qty', 'Товара в заказе, шт')}
+      ${field(i, 'price', 'Цена продажи (весь заказ), сум')}
+      ${field(i, 'unit_cost', 'Себестоимость 1 шт, $')}
+      ${field(i, 'delivery', 'Доставка за выкуп, сум')}
+      ${field(i, 'return_cost', 'Расход на невыкуп, сум')}
+      ${field(i, 'rate', 'Курс, сум за $1')}
+      <div class="sec">Оператору (от суммы продажи)</div>
+      <table class="tiers"><tr><td class="muted">от, сум</td><td class="muted">%</td><td class="muted">+ сум</td><td></td></tr>${tiers}</table>
+      <button type="button" class="ghost" onclick="addTier(${i})">+ порог</button>
+      <div class="sec">Трафик</div>
+      <label>Вебу платим за<select onchange="setV(${i}, 'web_pay', this.value)">
+        <option value="lead" ${v.web_pay === 'lead' ? 'selected' : ''}>лид</option>
+        <option value="approve" ${v.web_pay === 'approve' ? 'selected' : ''}>апрув</option></select></label>
+      ${field(i, 'web_rate', 'Ставка вебу, $')}
+      ${field(i, 'fx_fee', 'Комиссия на покупку $, %')}
+      ${field(i, 'approve', 'Апрув колл-центра, %')}
+      ${field(i, 'buyout', 'Выкуп, %')}
+      ${field(i, 'leads_per_day', 'Лидов в день')}
+      <div class="sec">Результат</div>
+      <table>
+        <tr><td>Выручка с заказа</td><td class="num">${fmt(r.revenue)}</td></tr>
+        <tr><td>− товар</td><td class="num">${fmt(-r.cogs)}</td></tr>
+        <tr><td>− оператор${r.tier ? ` (${r.tier.pct}%${num(r.tier.fixed) ? ' + ' + sum(r.tier.fixed) : ''})` : ''}</td><td class="num">${fmt(-r.operator)}</td></tr>
+        <tr><td>− доставка</td><td class="num">${fmt(-r.delivery)}</td></tr>
+        <tr class="total"><td>Чистыми с выкупа</td><td class="num ${cls(r.netDelivered)}">${fmt(r.netDelivered)}</td></tr>
+        <tr><td>С апрува (с учётом выкупа)</td><td class="num">${fmt(r.perApprovedGross)}</td></tr>
+        <tr><td>− трафик на 1 апрув</td><td class="num">${fmt(-r.webPerApproved)}</td></tr>
+        <tr class="total"><td>Прибыль с апрува</td><td class="num ${cls(r.profitPerApproved)}">${fmt(r.profitPerApproved)}</td></tr>
+        <tr><td>Прибыль с лида</td><td class="num ${cls(r.profitPerLead)}">${fmt(r.profitPerLead)}</td></tr>
+        <tr><td>В день</td><td class="num ${cls(r.day)}">${fmt(r.day, 0)}</td></tr>
+        <tr><td><b>В месяц</b></td><td class="num ${cls(r.month)}"><span class="big">${fmt(r.month, 0)}</span></td></tr>
+      </table>
+      <p class="hint">Ноль при ставке до <b>${fmt(r.maxCPL)}</b> за лид или <b>${fmt(r.maxCPA)}</b> за апрув (с комиссией).
+        Маржа выкупа ${r.margin.toFixed(0)}%.${r.stockDays !== null && STOCK ? ` Склада (${STOCK} шт) хватит на ~${Math.floor(r.stockDays)} дн.` : ''}</p>
+      <div style="display:flex; gap:6px">
+        <button type="button" class="ghost" onclick="copyVariant(${i})">копия</button>
+        ${variants.length > 1 ? `<button type="button" class="ghost" onclick="delVariant(${i})">удалить</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+let timer = null;
+function setV(i, key, value) { variants[i][key] = value; rerender(); }
+function setTier(i, j, key, value) { variants[i].tiers[j][key] = value; rerender(); }
+function rerender() { clearTimeout(timer); timer = setTimeout(() => { const a = document.activeElement, sel = a && a.selectionStart; const idx = [...document.querySelectorAll('#variants input, #variants select')].indexOf(a); render(); if (idx >= 0) { const el = document.querySelectorAll('#variants input, #variants select')[idx]; el.focus(); try { if (sel !== null) el.setSelectionRange(sel, sel); } catch (e) {} } }, 250); document.getElementById('saved').textContent = ''; }
+function addTier(i) { (variants[i].tiers = variants[i].tiers || []).push({from: 0, pct: 0, fixed: 0}); render(); }
+function delTier(i, j) { variants[i].tiers.splice(j, 1); render(); }
+function addVariant() { variants.push(JSON.parse(JSON.stringify(DEFAULT))); variants[variants.length - 1].name = 'Вариант ' + variants.length; render(); }
+function copyVariant(i) { const c = JSON.parse(JSON.stringify(variants[i])); c.name = (c.name || '') + ' (копия)'; variants.splice(i + 1, 0, c); render(); }
+function delVariant(i) { if (confirm('Удалить вариант?')) { variants.splice(i, 1); render(); } }
+async function save() {
+  const res = await fetch('/calc/save', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(variants)});
+  document.getElementById('saved').textContent = res.ok ? 'Сохранено.' : 'Не удалось сохранить.';
+}
+render();
+</script>
+{% endblock %}

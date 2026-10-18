@@ -436,6 +436,35 @@ def create_app(
 
     # --------------------------------------------------------------- product
 
+    @app.get("/calc")
+    def calc_page(request: Request):
+        if not authed(request):
+            return login_redirect()
+        s = repo.settings()
+        products = repo.products()
+        default = {
+            "name": "Вариант 1", "rate": s["usd_uzs_rate"], "web_rate": 1.9, "web_pay": "lead", "fx_fee": 0,
+            "unit_cost": products[0]["unit_cost_usd"] if products else 0, "qty": 1, "price": 0, "delivery": 0,
+            "return_cost": 0, "approve": 15, "buyout": 60, "leads_per_day": 100,
+            "tiers": [{"from": 0, "pct": s["operator_pct"], "fixed": 0}],
+        }
+        stock = sum(st.on_hand for st in calc.stock_info(repo, today_fn()))
+        return render(request, "calc.html", "calc", scenarios=repo.calc_scenarios() or [default], default=default,
+                      stock=stock)
+
+    @app.post("/calc/save")
+    async def calc_save(request: Request):
+        if not authed(request):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        try:
+            data = await request.json()
+            if not isinstance(data, list) or len(data) > 20 or not all(isinstance(x, dict) for x in data):
+                raise ValueError
+        except Exception:
+            return JSONResponse({"error": "Неверные данные."}, status_code=400)
+        repo.save_calc_scenarios(data)
+        return JSONResponse({"ok": True})
+
     @app.get("/product")
     def product_page(request: Request):
         if not authed(request):

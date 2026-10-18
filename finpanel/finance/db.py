@@ -229,6 +229,14 @@ CREATE TABLE IF NOT EXISTS web_totals (
     PRIMARY KEY (web_id, date)
 );
 
+-- Product calculator: what-if variants of unit economics, stored as JSON.
+CREATE TABLE IF NOT EXISTS calc_scenarios (
+    id INTEGER PRIMARY KEY,
+    position INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 -- Extra logins that can see everything but change nothing.
 CREATE TABLE IF NOT EXISTS viewers (
     id INTEGER PRIMARY KEY,
@@ -1112,6 +1120,17 @@ class Repo:
             "DELETE FROM balance_checkpoints WHERE party_type = ? AND party_id = ? AND direction = ?",
             (party_type, party_id, direction),
         )
+
+    # --- product calculator ---
+
+    def calc_scenarios(self) -> list[dict]:
+        return [json.loads(r["data"]) for r in self.db.query("SELECT * FROM calc_scenarios ORDER BY position")]
+
+    def save_calc_scenarios(self, scenarios: list[dict]) -> None:
+        self.db.execute("DELETE FROM calc_scenarios")
+        for i, sc in enumerate(scenarios):
+            self.db.execute("INSERT INTO calc_scenarios(position, data, updated_at) VALUES (?, ?, ?)",
+                            (i, json.dumps(sc, ensure_ascii=False), now_str()))
 
     # --- view-only users ---
 
