@@ -18,7 +18,7 @@
   .tiers input[type=number] { -moz-appearance: textfield; }
   .big { font-size: 1.25rem; font-weight: 700; }
 </style>
-<p class="hint" style="margin-top:-6px">Меняйте цифры прямо в сохранённых вариантах — результат считается сразу, изменения сохраняются сами. Суммы в сумах, ставки и себестоимость в $.</p>
+<p class="hint" style="margin-top:-6px">Дожим — клиентам, отказавшимся «дорого», позже продают дешевле: рекламы на них уже потрачено. Пустой «Выкуп при дожиме» = как обычный выкуп; «Товара при дожиме» пусто = как в обычном заказе. Меняйте цифры прямо в сохранённых вариантах — результат считается сразу, изменения сохраняются сами. Суммы в сумах, ставки и себестоимость в $.</p>
 <div style="display:flex; gap:10px; margin-bottom:12px">
   <button type="button" onclick="addVariant()">+ Вариант</button>
   {% if not viewer %}<button type="button" onclick="save()">Сохранить сейчас</button>{% endif %}
@@ -36,25 +36,48 @@ const sum = x => Math.round(x).toLocaleString('ru-RU') + ' сум';
 const cls = x => x > 0 ? 'pos' : x < 0 ? 'neg' : '';
 const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
 
-function compute(v) {
-  const rate = num(v.rate) || 1, price = num(v.price), qty = num(v.qty);
+function tierFor(v, price) {
   const tiers = (v.tiers || []).slice().sort((a, b) => num(a.from) - num(b.from));
   let tier = null;
   // "до" empty or 0 = no upper limit; when ranges overlap, the higher "от" wins.
   for (const t of tiers) if (price >= num(t.from) && (!num(t.to) || price <= num(t.to))) tier = t;
+  return tier;
+}
+
+// Money left from one bought-out order of `qty` items sold for `price` sum.
+function orderNet(v, price, qty) {
+  const rate = num(v.rate) || 1, tier = tierFor(v, price);
   const operator = tier ? (price * num(tier.pct) / 100 + num(tier.fixed)) / rate : 0;
   const revenue = price / rate, cogs = qty * num(v.unit_cost), delivery = num(v.delivery) / rate;
   const tax = revenue * num(v.tax) / 100;
-  const netDelivered = revenue - cogs - operator - delivery - tax;
+  return {revenue, cogs, operator, delivery, tax, tier, net: revenue - cogs - operator - delivery - tax};
+}
+
+function compute(v) {
+  const rate = num(v.rate) || 1, price = num(v.price), qty = num(v.qty);
+  const o = orderNet(v, price, qty);
+  const {revenue, cogs, operator, delivery, tax, tier} = o, netDelivered = o.net;
   const buyout = num(v.buyout) / 100, approve = num(v.approve) / 100;
   const perApprovedGross = buyout * netDelivered - (1 - buyout) * num(v.return_cost) / rate;
   const fee = 1 + num(v.fx_fee) / 100;
   const webUnit = num(v.web_rate) * fee;
   const webPerApproved = v.web_pay === 'lead' ? (approve ? webUnit / approve : 0) : webUnit;
   const profitPerApproved = perApprovedGross - webPerApproved;
-  const profitPerLead = profitPerApproved * approve;
+
+  // Re-sale to leads who refused as "too expensive": no ad cost, the web is not paid again.
+  const refused = num(v.refused) / 100, resale = num(v.resale) / 100;
+  const r2price = num(v.resale_price), r2qty = num(v.resale_qty) || qty;
+  const r2buyout = (v.resale_buyout === '' || v.resale_buyout === undefined ? num(v.buyout) : num(v.resale_buyout)) / 100;
+  const r2 = orderNet(v, r2price, r2qty);
+  const resaleOn = refused > 0 && resale > 0 && r2price > 0;
+  // If the re-sold lead turns into an approve in the network, a web paid per approve gets paid for it too.
+  const resaleWeb = resaleOn && v.resale_pays_web === 'yes' && v.web_pay === 'approve' ? webUnit : 0;
+  const resalePerOrder = resaleOn ? r2buyout * r2.net - (1 - r2buyout) * num(v.return_cost) / rate - resaleWeb : 0;
+  const resalePerLead = resaleOn ? refused * resale * resalePerOrder : 0;
+
+  const profitPerLead = profitPerApproved * approve + resalePerLead;
   const leads = num(v.leads_per_day);
-  const unitsPerDay = leads * approve * buyout * qty;
+  const unitsPerDay = leads * (approve * buyout * qty + (resaleOn ? refused * resale * r2buyout * r2qty : 0));
   const approvesPerDay = leads * approve, deliveredPerDay = leads * approve * buyout;
   return {
     revenue, cogs, operator, delivery, tax, netDelivered, perApprovedGross, webPerApproved, profitPerApproved, profitPerLead,
@@ -64,6 +87,8 @@ function compute(v) {
     approvesPerDay, deliveredPerDay,
     profitPerDelivered: buyout ? profitPerApproved / buyout : 0,
     stockDays: unitsPerDay ? STOCK / unitsPerDay : null, tier,
+    resaleOn, resaleNet: r2.net, resaleTier: r2.tier, resalePerLead,
+    resaleOrdersPerDay: leads * refused * resale, resaleMonth: resalePerLead * leads * 30,
   };
 }
 
@@ -86,9 +111,11 @@ function results(i) {
         <tr class="total"><td>Прибыль с апрува</td><td class="num ${cls(r.profitPerApproved)}">${fmt(r.profitPerApproved)}</td></tr>
         <tr><td>Прибыль с выкупленного заказа</td><td class="num ${cls(r.profitPerDelivered)}">${fmt(r.profitPerDelivered)}</td></tr>
         <tr><td>Прибыль с лида</td><td class="num ${cls(r.profitPerLead)}">${fmt(r.profitPerLead)}</td></tr>
+        ${r.resaleOn ? `<tr><td>в т.ч. дожим с лида <span class="muted">(${r.resaleOrdersPerDay.toFixed(1)} зак./день, чистыми с выкупа ${fmt(r.resaleNet)})</span></td><td class="num ${cls(r.resalePerLead)}">${fmt(r.resalePerLead)}</td></tr>` : ''}
         <tr><td class="muted">В день: апрувов / выкупов</td><td class="num muted">${r.approvesPerDay.toFixed(1)} / ${r.deliveredPerDay.toFixed(1)}</td></tr>
         <tr><td>В день</td><td class="num ${cls(r.day)}">${fmt(r.day, 0)}</td></tr>
         <tr><td><b>В месяц</b></td><td class="num ${cls(r.month)}"><span class="big">${fmt(r.month, 0)}</span></td></tr>
+        ${r.resaleOn ? `<tr><td class="muted">из них дожим</td><td class="num muted">${fmt(r.resaleMonth, 0)}</td></tr>` : ''}
       </table>
       <p class="hint">Ноль при ставке до <b>${fmt(r.maxCPL)}</b> за лид или <b>${fmt(r.maxCPA)}</b> за апрув (с комиссией).
         Маржа выкупа ${r.margin.toFixed(0)}%.${r.stockDays !== null && STOCK ? ` Склада (${STOCK} шт) хватит на ~${Math.floor(r.stockDays)} дн.` : ''}</p>`;
@@ -125,6 +152,15 @@ function render() {
       ${field(i, 'approve', 'Апрув колл-центра, %')}
       ${field(i, 'buyout', 'Выкуп, %')}
       ${field(i, 'leads_per_day', 'Лидов в день')}
+      <div class="sec">Дожим отказов «дорого»</div>
+      ${field(i, 'refused', 'Отказов «дорого», % от лидов')}
+      ${field(i, 'resale', 'Удаётся дожать, % от них')}
+      ${field(i, 'resale_price', 'Цена при дожиме (заказ), сум')}
+      ${field(i, 'resale_qty', 'Товара при дожиме, шт')}
+      ${field(i, 'resale_buyout', 'Выкуп при дожиме, %')}
+      <label>Вебу платим за дожим<select onchange="setV(${i}, 'resale_pays_web', this.value)">
+        <option value="no" ${v.resale_pays_web !== 'yes' ? 'selected' : ''}>нет</option>
+        <option value="yes" ${v.resale_pays_web === 'yes' ? 'selected' : ''}>да (апрув в сети)</option></select></label>
       <div id="res-${i}">${results(i)}</div>
       <div style="display:flex; gap:6px">
         <button type="button" class="ghost" onclick="copyVariant(${i})">копия</button>
