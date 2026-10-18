@@ -457,3 +457,18 @@ def test_trash_alert_for_valid_paid_link(repo):
     assert any("треш 50.0% выше допустимого 45.0%" in t for t in texts)
     from finance.assistant import build_context
     assert "треш не выше 45.0%" in build_context(repo, TODAY)
+
+
+def test_month_forecast(repo):
+    web, adv, link = _maks_link(repo)            # $25 / $23 per approve
+    repo.upsert_traffic_stat(link, "2026-10-02", 10, 10, 7)     # +$14
+    repo.upsert_traffic_stat(link, "2026-10-08", 10, 10, 35)    # +$70
+    repo.add_expense("2026-10-05", "general", "Сервер", 100)
+    fc = calc.month_forecast(repo, TODAY)        # closed through 10-08 → 8 of 31 days
+    assert fc.closed_days == 8 and fc.days_in_month == 31
+    assert fc.margin_so_far == pytest.approx(84)
+    assert fc.avg_daily == pytest.approx(84 / 7)                # last 7 closed days: 10-02..10-08
+    assert fc.margin_forecast == pytest.approx(84 + 12 * 23)
+    assert fc.profit_forecast == pytest.approx(84 + 276 - 100)
+    repo.set_setting("monthly_fixed", 1100)
+    assert calc.month_forecast(repo, TODAY).profit_forecast == pytest.approx(84 + 276 - 1100)

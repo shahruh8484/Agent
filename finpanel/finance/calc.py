@@ -1000,3 +1000,63 @@ def stock_value(repo: Repo, today: date) -> float:
     cost = {p["id"]: p["unit_cost_usd"] for p in repo.products()}
     return sum(max(s.on_hand, 0) * cost.get(s.product_id, 0) + s.in_transit * cost.get(s.product_id, 0)
                for s in stock_info(repo, today))
+
+
+# --------------------------------------------------------------------------
+# Month forecast
+# --------------------------------------------------------------------------
+
+
+@dataclass
+class Forecast:
+    month: str                 # YYYY-MM
+    days_in_month: int
+    closed_days: int           # days of this month already closed by the network
+    margin_so_far: float       # traffic margin (rekls − webs) on closed days
+    avg_daily: float           # average daily margin over the last 7 closed days
+    margin_forecast: float
+    product_so_far: float      # own-product profit so far (before expenses)
+    expenses_so_far: float     # all expenses this month
+    planned_fixed: float       # owner's plan of fixed monthly costs
+    expenses_forecast: float
+
+    @property
+    def profit_forecast(self) -> float:
+        return self.margin_forecast + self.product_so_far - self.expenses_forecast
+
+    @property
+    def remaining_days(self) -> int:
+        return self.days_in_month - self.closed_days
+
+
+def month_forecast(repo: Repo, today: date) -> Forecast:
+    """Closed days of this month as they are, the rest at the average daily
+    margin of the last 7 closed days; expenses as spent so far, but not
+    less than the planned fixed costs."""
+    import calendar
+
+    first = today.replace(day=1)
+    days_in_month = calendar.monthrange(today.year, today.month)[1]
+    last = first.replace(day=days_in_month)
+    closed = date.fromisoformat(closed_through(repo, today))
+    closed_in_month = min(closed, last)
+    closed_days = (closed_in_month - first).days + 1 if closed_in_month >= first else 0
+
+    margin_so_far = 0.0
+    if closed_days:
+        margin_so_far = traffic_report(repo, first.isoformat(), closed_in_month.isoformat(), today).total.profit
+    week = traffic_report(repo, (closed - timedelta(days=6)).isoformat(), closed.isoformat(), today)
+    avg_daily = week.total.profit / 7
+
+    month_end = last.isoformat()
+    expenses = sum(e["amount_usd"] for e in repo.expenses(first.isoformat(), month_end))
+    product = product_report(repo, first.isoformat(), month_end)
+    product_so_far = product.profit + product.expenses   # expenses are counted once, below
+    planned = repo.settings().get("monthly_fixed", 0.0)
+    margin_forecast = margin_so_far + avg_daily * (days_in_month - closed_days)
+    return Forecast(
+        month=first.isoformat()[:7], days_in_month=days_in_month, closed_days=closed_days,
+        margin_so_far=margin_so_far, avg_daily=avg_daily, margin_forecast=margin_forecast,
+        product_so_far=product_so_far, expenses_so_far=expenses, planned_fixed=planned,
+        expenses_forecast=max(expenses, planned),
+    )

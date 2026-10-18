@@ -261,6 +261,7 @@ def create_app(
             stock=calc.stock_info(repo, today),
             cash_directions=calc.CASH_DIRECTIONS,
             pos=calc.position(repo, today) if repo.wallets() else None,
+            fc=calc.month_forecast(repo, today),
         )
 
     # --------------------------------------------------------------- traffic
@@ -1052,6 +1053,7 @@ def create_app(
         tax_pct: float = Form(...),
         restock_days: float = Form(...),
         advertiser_low_days: float = Form(...),
+        monthly_fixed: float = Form(0),
         rate_auto: str = Form(""),
         rate_adjust_pct: float = Form(0),
     ):
@@ -1070,6 +1072,7 @@ def create_app(
                 ("tax_pct", tax_pct),
                 ("restock_days", restock_days),
                 ("advertiser_low_days", advertiser_low_days),
+                ("monthly_fixed", monthly_fixed),
             ):
                 repo.set_setting(key, value)
             if rate_auto and not was_auto:

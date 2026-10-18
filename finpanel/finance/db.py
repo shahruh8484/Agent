@@ -259,6 +259,7 @@ DEFAULT_SETTINGS = {
     "tax_pct": "0",
     "restock_days": "10",
     "advertiser_low_days": "2",
+    "monthly_fixed": "0",      # planned fixed costs per month (programmer, server...) for the forecast
     "rate_auto": "0",          # 1 = take the USD rate from the Central Bank daily
     "rate_adjust_pct": "0",    # correction to the CB rate, e.g. -2 = 2% below it
 }

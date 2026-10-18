@@ -36,6 +36,20 @@
   <b>Касса</b> — сколько денег реально пришло и ушло (предоплаты реклов, выплаты вебам, наложка, закупки).
 </p>
 
+{% if fc %}
+<div class="card">
+  <h2>Прогноз на {{ fc.month }}</h2>
+  <div class="table-wrap"><table>
+    <tr><td>Маржа трафика за закрытые дни ({{ fc.closed_days }} из {{ fc.days_in_month }})</td><td class="num">{{ fc.margin_so_far|usd(true) }}</td></tr>
+    <tr><td>+ Остальные {{ fc.remaining_days }} дн. × средний день за последнюю неделю ({{ fc.avg_daily|usd(true) }})</td><td class="num">{{ (fc.avg_daily * fc.remaining_days)|usd(true) }}</td></tr>
+    {% if fc.product_so_far %}<tr><td>+ Мой товар (пока по факту)</td><td class="num">{{ fc.product_so_far|usd(true) }}</td></tr>{% endif %}
+    <tr><td>− Расходы месяца {% if fc.planned_fixed > fc.expenses_so_far %}<span class="muted">(по плану {{ fc.planned_fixed|usd }}; потрачено пока {{ fc.expenses_so_far|usd }})</span>{% else %}<span class="muted">(потрачено{% if fc.planned_fixed %}, план {{ fc.planned_fixed|usd }}{% endif %})</span>{% endif %}</td><td class="num neg">−{{ fc.expenses_forecast|usd }}</td></tr>
+    <tr class="total"><td>Ожидаемая прибыль за месяц</td><td class="num {{ 'pos' if fc.profit_forecast > 0 else 'neg' if fc.profit_forecast < 0 }}">{{ fc.profit_forecast|usd(true) }}</td></tr>
+  </table></div>
+  <p class="hint">Прогноз, а не факт: если объём или апрув изменятся, цифра поменяется. Плановые расходы (программист, сервер) задаются в <a href="/settings">Настройках</a> — пока они не оплачены, прогноз всё равно их учитывает.</p>
+</div>
+{% endif %}
+
 {% if pos %}
 <div class="card">
   <h2>Деньги сейчас <a href="/wallets" style="font-size:0.8rem; font-weight:400; margin-left:8px">кошельки →</a></h2>

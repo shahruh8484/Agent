@@ -445,3 +445,9 @@ def test_traffic_shows_valid_percentages(settings, repo):
     login(client)
     page = client.get("/traffic?period=this_month").text
     assert "% от валида" in page and "74.4" in page and "14.3" in page
+
+
+def test_home_shows_forecast(settings, repo):
+    client = make_client(settings, repo)
+    login(client)
+    assert "Прогноз на 2026-10" in client.get("/").text
