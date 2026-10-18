@@ -45,7 +45,7 @@
 <div class="card">
   <h2>Связки</h2>
   <div class="table-wrap"><table>
-    <tr><th>Связка</th><th>Ставки сейчас</th><th class="num">Лиды</th><th class="num">Валид</th><th class="num">Апрув</th><th class="num">%</th>
+    <tr><th>Связка</th><th>Ставки сейчас</th><th class="num">Лиды</th><th class="num">Валид</th><th class="num" title="Валидные от всех лидов">% валид</th><th class="num">Апрув</th><th class="num" title="Апрувы от всех лидов">% апрув</th><th class="num" title="Апрувы от валидных — так считает гарант «от валида»">% от валида</th>
         <th class="num">Рекл</th><th class="num">в т.ч. гарант</th><th class="num">Вебу</th><th class="num">Прибыль</th><th></th></tr>
     {% set idle = links|rejectattr('id', 'in', rep.by_link.keys()|list)|list %}
     {% for l in links if l.id in rep.by_link %}
@@ -54,15 +54,18 @@
       <td>{{ link_names[l.id] }} {% if not l.active %}<span class="tag">выкл</span>{% endif %}</td>
       <td class="muted">{% if r %}${{ r.adv_rate|num(2) }}/{{ 'апрув' if r.adv_pay_type == 'approve' else 'валид' }}{% if r.guarantee_pct %} · гарант {{ r.guarantee_pct|num }}%{{ ' от валид' if r.guarantee_base == 'valid' }}{% endif %} → вебу ${{ r.web_rate|num(2) }}/{{ 'апрув' if r.web_pay_type == 'approve' else 'лид' }}{% if r.web_guarantee_pct and r.web_pay_type == 'approve' %} · гарант {{ r.web_guarantee_pct|num }}%{% endif %}{% else %}нет ставок{% endif %}</td>
       {% if a %}
-      <td class="num">{{ a.leads|num }}</td><td class="num">{{ a.valid|num }}</td><td class="num">{{ a.approves|num }}</td>
+      <td class="num">{{ a.leads|num }}</td><td class="num">{{ a.valid|num }}</td>
+      <td class="num">{{ (a.valid / a.leads * 100)|round(1)|num if a.leads else '—' }}</td>
+      <td class="num">{{ a.approves|num }}</td>
       <td class="num">{{ a.approve_pct|num if a.approve_pct is not none else '—' }}</td>
+      <td class="num">{{ (a.approves / a.valid * 100)|round(1)|num if a.valid else '—' }}</td>
       <td class="num">{{ a.adv_amount|usd }}</td><td class="num">{{ a.guarantee_bonus|usd }}</td><td class="num">{{ a.web_amount|usd }}{% if a.web_guarantee_cost > 0 %} <span class="muted">(гарант {{ a.web_guarantee_cost|usd }})</span>{% endif %}</td>
       <td class="num {{ 'pos' if a.profit > 0 else 'neg' if a.profit < 0 }}">{{ a.profit|usd(true) }}
         {% if a.only_by_guarantee %}<span class="tag yellow">только гарант</span>{% endif %}</td>
-      {% else %}<td colspan="8" class="muted">нет данных за период</td>{% endif %}
+      {% else %}<td colspan="10" class="muted">нет данных за период</td>{% endif %}
       <td><form method="post" action="/traffic/link/toggle"><input type="hidden" name="link_id" value="{{ l.id }}"><input type="hidden" name="active" value="{{ 0 if l.active else 1 }}"><button class="ghost">{{ 'выключить' if l.active else 'включить' }}</button></form></td>
     </tr>
-    {% else %}<tr><td colspan="11" class="muted">{{ 'Связок пока нет.' if not links else 'За период нет данных ни по одной связке.' }}</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="13" class="muted">{{ 'Связок пока нет.' if not links else 'За период нет данных ни по одной связке.' }}</td></tr>{% endfor %}
   </table></div>
   {% if idle %}
   <details><summary>Без данных за период ({{ idle|length }})</summary>

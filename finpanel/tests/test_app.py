@@ -434,3 +434,14 @@ def test_traffic_hides_links_without_data(settings, repo):
     login(client)
     page = client.get("/traffic?period=this_month").text
     assert "Без данных за период (1)" in page and "нет данных за период" not in page
+
+
+def test_traffic_shows_valid_percentages(settings, repo):
+    web = repo.add_web("Доник")
+    adv = repo.add_advertiser("Санж")
+    link = repo.add_link(web, adv, "", "2026-10-01", "approve", 25, 10, "lead", 1.9, 0, "valid")
+    repo.upsert_traffic_stat(link, "2026-10-08", 320, 238, 34)
+    client = make_client(settings, repo)
+    login(client)
+    page = client.get("/traffic?period=this_month").text
+    assert "% от валида" in page and "74.4" in page and "14.3" in page
