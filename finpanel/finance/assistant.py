@@ -284,7 +284,7 @@ def build_context(repo: Repo, today: date) -> str:
     lines += ["", f"Прогноз на {fc.month}: маржа трафика за закрытые дни {fc.closed_days}/{fc.days_in_month} — {_money(fc.margin_so_far)}, "
                   f"средний день за неделю {_money(fc.avg_daily)}, маржа к концу месяца ≈ {_money(fc.margin_forecast)}; "
                   f"расходы {_money(fc.expenses_forecast)} (потрачено {_money(fc.expenses_so_far)}, план {_money(fc.planned_fixed)}); "
-                  f"ожидаемая прибыль ≈ {_money(fc.profit_forecast)}. Это прогноз, не факт."]
+                  f"ожидаемая прибыль ≈ {_money(fc.profit_forecast)}; только трафик (без общих расходов) ≈ {_money(fc.traffic_forecast)}. Это прогноз, не факт."]
 
     warn = calc.alerts(repo, today)
     if warn:

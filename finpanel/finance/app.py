@@ -302,6 +302,7 @@ def create_app(
             adv_balances={b.party_id: b for b in calc.advertiser_balances(repo, today)},
             web_balances={b.party_id: b for b in calc.web_balances(repo, today, "traffic")},
             payments=[p for p in repo.payments(start, end) if p["direction"] == "traffic"],
+            fc=calc.month_forecast(repo, today),
         )
 
     @app.post("/closed")

@@ -472,3 +472,5 @@ def test_month_forecast(repo):
     assert fc.profit_forecast == pytest.approx(84 + 276 - 100)
     repo.set_setting("monthly_fixed", 1100)
     assert calc.month_forecast(repo, TODAY).profit_forecast == pytest.approx(84 + 276 - 1100)
+    repo.add_expense("2026-10-06", "traffic", "Комиссия", 5)
+    assert calc.month_forecast(repo, TODAY).traffic_forecast == pytest.approx(84 + 276 - 5)

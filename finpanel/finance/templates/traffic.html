@@ -15,6 +15,8 @@
     <div class="sub">валид {{ t.valid|num }} · апрувов {{ t.approves|num }} · {{ (t.approve_pct|num ~ '%') if t.approve_pct is not none else '—' }}</div></div>
 </div>
 
+<p class="hint" style="margin-top:-6px; margin-bottom:14px;">Прогноз на {{ fc.month }} только по трафику: <b class="{{ 'pos' if fc.traffic_forecast > 0 else 'neg' }}">{{ fc.traffic_forecast|usd(true) }}</b>
+  — закрыто {{ fc.closed_days }} из {{ fc.days_in_month }} дн. ({{ fc.margin_so_far|usd(true) }}), средний день {{ fc.avg_daily|usd(true) }}, расходы трафика {{ fc.traffic_expenses|usd }}. Без программиста, сервера и прочих общих расходов.</p>
 {% set next_path = '/traffic' %}
 <div class="card closed-bar">
   <form class="inline" method="post" action="/closed" style="align-items:flex-end">

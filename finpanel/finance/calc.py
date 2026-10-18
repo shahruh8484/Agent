@@ -1019,6 +1019,12 @@ class Forecast:
     expenses_so_far: float     # all expenses this month
     planned_fixed: float       # owner's plan of fixed monthly costs
     expenses_forecast: float
+    traffic_expenses: float = 0.0   # traffic-direction expenses this month (commissions etc.)
+
+    @property
+    def traffic_forecast(self) -> float:
+        """Traffic alone: margin to month end minus traffic expenses, no overheads."""
+        return self.margin_forecast - self.traffic_expenses
 
     @property
     def profit_forecast(self) -> float:
@@ -1059,4 +1065,6 @@ def month_forecast(repo: Repo, today: date) -> Forecast:
         margin_so_far=margin_so_far, avg_daily=avg_daily, margin_forecast=margin_forecast,
         product_so_far=product_so_far, expenses_so_far=expenses, planned_fixed=planned,
         expenses_forecast=max(expenses, planned),
+        traffic_expenses=sum(e["amount_usd"] for e in repo.expenses(first.isoformat(), month_end)
+                             if e["direction"] == "traffic"),
     )
