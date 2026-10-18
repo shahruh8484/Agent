@@ -10,7 +10,7 @@
   .variant label input, .variant label select { width: 110px; text-align: right; }
   .variant .sec { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 12px 0 4px; }
   .variant table td { padding: 4px 2px; font-size: 0.84rem; }
-  .tiers td input { width: 80px; }
+  .tiers td input { width: 62px; }
   .big { font-size: 1.25rem; font-weight: 700; }
 </style>
 <p class="hint" style="margin-top:-6px">Меняйте цифры — результат считается сразу. Суммы в сумах, ставки и себестоимость в $. Варианты можно сравнивать рядом и сохранить.</p>
@@ -35,7 +35,8 @@ function compute(v) {
   const rate = num(v.rate) || 1, price = num(v.price), qty = num(v.qty);
   const tiers = (v.tiers || []).slice().sort((a, b) => num(a.from) - num(b.from));
   let tier = null;
-  for (const t of tiers) if (price >= num(t.from)) tier = t;
+  // "до" empty or 0 = no upper limit; when ranges overlap, the higher "от" wins.
+  for (const t of tiers) if (price >= num(t.from) && (!num(t.to) || price <= num(t.to))) tier = t;
   const operator = tier ? (price * num(tier.pct) / 100 + num(tier.fixed)) / rate : 0;
   const revenue = price / rate, cogs = qty * num(v.unit_cost), delivery = num(v.delivery) / rate;
   const netDelivered = revenue - cogs - operator - delivery;
@@ -86,6 +87,7 @@ function render() {
   box.innerHTML = variants.map((v, i) => {
     const tiers = (v.tiers || []).map((t, j) => `<tr>
         <td><input type="number" value="${t.from}" oninput="setTier(${i},${j},'from',this.value)"></td>
+        <td><input type="number" value="${t.to ?? ''}" placeholder="∞" oninput="setTier(${i},${j},'to',this.value)"></td>
         <td><input type="number" step="any" value="${t.pct}" oninput="setTier(${i},${j},'pct',this.value)"></td>
         <td><input type="number" value="${t.fixed}" oninput="setTier(${i},${j},'fixed',this.value)"></td>
         <td><button type="button" class="ghost" onclick="delTier(${i},${j})">✕</button></td></tr>`).join('');
@@ -99,7 +101,7 @@ function render() {
       ${field(i, 'return_cost', 'Расход на невыкуп, сум')}
       ${field(i, 'rate', 'Курс, сум за $1')}
       <div class="sec">Оператору (от суммы продажи)</div>
-      <table class="tiers"><tr><td class="muted">от, сум</td><td class="muted">%</td><td class="muted">+ сум</td><td></td></tr>${tiers}</table>
+      <table class="tiers"><tr><td class="muted">от, сум</td><td class="muted">до, сум</td><td class="muted">%</td><td class="muted">+ сум</td><td></td></tr>${tiers}</table>
       <button type="button" class="ghost" onclick="addTier(${i})">+ порог</button>
       <div class="sec">Трафик</div>
       <label>Вебу платим за<select onchange="setV(${i}, 'web_pay', this.value)">
@@ -122,7 +124,7 @@ function render() {
 function setV(i, key, value) { variants[i][key] = value; refresh(i); }
 function setTier(i, j, key, value) { variants[i].tiers[j][key] = value; refresh(i); }
 function refresh(i) { document.getElementById('res-' + i).innerHTML = results(i); document.getElementById('saved').textContent = ''; }
-function addTier(i) { (variants[i].tiers = variants[i].tiers || []).push({from: 0, pct: 0, fixed: 0}); render(); }
+function addTier(i) { (variants[i].tiers = variants[i].tiers || []).push({from: 0, to: '', pct: 0, fixed: 0}); render(); }
 function delTier(i, j) { variants[i].tiers.splice(j, 1); render(); }
 function addVariant() { variants.push(JSON.parse(JSON.stringify(DEFAULT))); variants[variants.length - 1].name = 'Вариант ' + variants.length; render(); }
 function copyVariant(i) { const c = JSON.parse(JSON.stringify(variants[i])); c.name = (c.name || '') + ' (копия)'; variants.splice(i + 1, 0, c); render(); }
