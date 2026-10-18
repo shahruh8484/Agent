@@ -61,10 +61,29 @@ function field(i, key, label, type = 'number', step = 'any') {
   return `<label>${label}<input type="${type}" step="${step}" value="${variants[i][key] ?? ''}" oninput="setV(${i}, '${key}', this.value)"></label>`;
 }
 
+function results(i) {
+  const v = variants[i], r = compute(v);
+  return `<div class="sec">Результат</div>
+      <table>
+        <tr><td>Выручка с заказа</td><td class="num">${fmt(r.revenue)}</td></tr>
+        <tr><td>− товар</td><td class="num">${fmt(-r.cogs)}</td></tr>
+        <tr><td>− оператор${r.tier ? ` (${r.tier.pct}%${num(r.tier.fixed) ? ' + ' + sum(r.tier.fixed) : ''})` : ''}</td><td class="num">${fmt(-r.operator)}</td></tr>
+        <tr><td>− доставка</td><td class="num">${fmt(-r.delivery)}</td></tr>
+        <tr class="total"><td>Чистыми с выкупа</td><td class="num ${cls(r.netDelivered)}">${fmt(r.netDelivered)}</td></tr>
+        <tr><td>С апрува (с учётом выкупа)</td><td class="num">${fmt(r.perApprovedGross)}</td></tr>
+        <tr><td>− трафик на 1 апрув</td><td class="num">${fmt(-r.webPerApproved)}</td></tr>
+        <tr class="total"><td>Прибыль с апрува</td><td class="num ${cls(r.profitPerApproved)}">${fmt(r.profitPerApproved)}</td></tr>
+        <tr><td>Прибыль с лида</td><td class="num ${cls(r.profitPerLead)}">${fmt(r.profitPerLead)}</td></tr>
+        <tr><td>В день</td><td class="num ${cls(r.day)}">${fmt(r.day, 0)}</td></tr>
+        <tr><td><b>В месяц</b></td><td class="num ${cls(r.month)}"><span class="big">${fmt(r.month, 0)}</span></td></tr>
+      </table>
+      <p class="hint">Ноль при ставке до <b>${fmt(r.maxCPL)}</b> за лид или <b>${fmt(r.maxCPA)}</b> за апрув (с комиссией).
+        Маржа выкупа ${r.margin.toFixed(0)}%.${r.stockDays !== null && STOCK ? ` Склада (${STOCK} шт) хватит на ~${Math.floor(r.stockDays)} дн.` : ''}</p>`;
+}
+
 function render() {
   const box = document.getElementById('variants');
   box.innerHTML = variants.map((v, i) => {
-    const r = compute(v);
     const tiers = (v.tiers || []).map((t, j) => `<tr>
         <td><input type="number" value="${t.from}" oninput="setTier(${i},${j},'from',this.value)"></td>
         <td><input type="number" step="any" value="${t.pct}" oninput="setTier(${i},${j},'pct',this.value)"></td>
@@ -91,22 +110,7 @@ function render() {
       ${field(i, 'approve', 'Апрув колл-центра, %')}
       ${field(i, 'buyout', 'Выкуп, %')}
       ${field(i, 'leads_per_day', 'Лидов в день')}
-      <div class="sec">Результат</div>
-      <table>
-        <tr><td>Выручка с заказа</td><td class="num">${fmt(r.revenue)}</td></tr>
-        <tr><td>− товар</td><td class="num">${fmt(-r.cogs)}</td></tr>
-        <tr><td>− оператор${r.tier ? ` (${r.tier.pct}%${num(r.tier.fixed) ? ' + ' + sum(r.tier.fixed) : ''})` : ''}</td><td class="num">${fmt(-r.operator)}</td></tr>
-        <tr><td>− доставка</td><td class="num">${fmt(-r.delivery)}</td></tr>
-        <tr class="total"><td>Чистыми с выкупа</td><td class="num ${cls(r.netDelivered)}">${fmt(r.netDelivered)}</td></tr>
-        <tr><td>С апрува (с учётом выкупа)</td><td class="num">${fmt(r.perApprovedGross)}</td></tr>
-        <tr><td>− трафик на 1 апрув</td><td class="num">${fmt(-r.webPerApproved)}</td></tr>
-        <tr class="total"><td>Прибыль с апрува</td><td class="num ${cls(r.profitPerApproved)}">${fmt(r.profitPerApproved)}</td></tr>
-        <tr><td>Прибыль с лида</td><td class="num ${cls(r.profitPerLead)}">${fmt(r.profitPerLead)}</td></tr>
-        <tr><td>В день</td><td class="num ${cls(r.day)}">${fmt(r.day, 0)}</td></tr>
-        <tr><td><b>В месяц</b></td><td class="num ${cls(r.month)}"><span class="big">${fmt(r.month, 0)}</span></td></tr>
-      </table>
-      <p class="hint">Ноль при ставке до <b>${fmt(r.maxCPL)}</b> за лид или <b>${fmt(r.maxCPA)}</b> за апрув (с комиссией).
-        Маржа выкупа ${r.margin.toFixed(0)}%.${r.stockDays !== null && STOCK ? ` Склада (${STOCK} шт) хватит на ~${Math.floor(r.stockDays)} дн.` : ''}</p>
+      <div id="res-${i}">${results(i)}</div>
       <div style="display:flex; gap:6px">
         <button type="button" class="ghost" onclick="copyVariant(${i})">копия</button>
         ${variants.length > 1 ? `<button type="button" class="ghost" onclick="delVariant(${i})">удалить</button>` : ''}
@@ -115,10 +119,9 @@ function render() {
   }).join('');
 }
 
-let timer = null;
-function setV(i, key, value) { variants[i][key] = value; rerender(); }
-function setTier(i, j, key, value) { variants[i].tiers[j][key] = value; rerender(); }
-function rerender() { clearTimeout(timer); timer = setTimeout(() => { const a = document.activeElement, sel = a && a.selectionStart; const idx = [...document.querySelectorAll('#variants input, #variants select')].indexOf(a); render(); if (idx >= 0) { const el = document.querySelectorAll('#variants input, #variants select')[idx]; el.focus(); try { if (sel !== null) el.setSelectionRange(sel, sel); } catch (e) {} } }, 250); document.getElementById('saved').textContent = ''; }
+function setV(i, key, value) { variants[i][key] = value; refresh(i); }
+function setTier(i, j, key, value) { variants[i].tiers[j][key] = value; refresh(i); }
+function refresh(i) { document.getElementById('res-' + i).innerHTML = results(i); document.getElementById('saved').textContent = ''; }
 function addTier(i) { (variants[i].tiers = variants[i].tiers || []).push({from: 0, pct: 0, fixed: 0}); render(); }
 function delTier(i, j) { variants[i].tiers.splice(j, 1); render(); }
 function addVariant() { variants.push(JSON.parse(JSON.stringify(DEFAULT))); variants[variants.length - 1].name = 'Вариант ' + variants.length; render(); }
