@@ -464,3 +464,20 @@ def test_product_calculator_page_and_save(settings, repo):
     assert repo.calc_scenarios() == variants
     assert '"qty": 5' in client.get("/calc").text
     assert client.post("/calc/save", json={"x": 1}).status_code == 400
+
+
+def test_traffic_days_for_one_link(settings, repo):
+    web = repo.add_web("Доник")
+    adv = repo.add_advertiser("Санж")
+    max_ = repo.add_web("Макс")
+    a = repo.add_link(web, adv, "", "2026-10-01", "approve", 25, 0, "lead", 1.9)
+    b = repo.add_link(max_, adv, "", "2026-10-01", "approve", 25, 0, "approve", 23)
+    repo.upsert_traffic_stat(a, "2026-10-07", 100, 80, 9)
+    repo.upsert_traffic_stat(a, "2026-10-08", 100, 70, 11)
+    repo.upsert_traffic_stat(b, "2026-10-08", 50, 40, 5)
+    client = make_client(settings, repo)
+    login(client)
+    page = client.get(f"/traffic?period=this_month&link={a}").text
+    days = page.split('id="days"')[1]
+    assert "2026-10-07" in days and "Итого" in days and ">200<" in days and "$500.00" in days
+    assert f"period=this_month&amp;link={a}#days" in page      # link names lead to the day view

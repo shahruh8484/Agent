@@ -282,6 +282,8 @@ def create_app(
             for row in repo.db.query("SELECT link_id, COUNT(*) AS n FROM traffic_stats GROUP BY link_id")
         }
         rep = calc.traffic_report(repo, start, end, today)
+        day_link = request.query_params.get("link", "")
+        day_link = int(day_link) if day_link.isdigit() else None
         link_names = {
             l["id"]: f"{l['web_name']} → {l['advertiser_name']}" + (f" ({l['offer']})" if l["offer"] else "")
             for l in links
@@ -303,6 +305,9 @@ def create_app(
             web_balances={b.party_id: b for b in calc.web_balances(repo, today, "traffic")},
             payments=[p for p in repo.payments(start, end) if p["direction"] == "traffic"],
             fc=calc.month_forecast(repo, today),
+            day_link=day_link,
+            day_rows=[r for r in rep.rows if day_link is None or r.link_id == day_link],
+            period_qs=urlencode([(k, v) for k, v in request.query_params.items() if k != "link"]),
         )
 
     @app.post("/closed")
