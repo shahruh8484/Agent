@@ -79,3 +79,20 @@ rules:
 higgsfield:
   character_sheet_job_id: a2ad58d1-01a0-4d3b-9558-aec757b82329
   character_sheet_url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_095737_a2ad58d1-01a0-4d3b-9558-aec757b82329.png
+  locations:
+    - id: cafe
+      description: Café terrace on Boulevard Saint-Germain
+      job_id: 55ccb5c1-80ba-4f56-870e-318738c2f6a7
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100321_55ccb5c1-80ba-4f56-870e-318738c2f6a7.png
+    - id: attic
+      description: Attic apartment under the roof
+      job_id: 05603fbc-e9d5-4e95-8250-0553a21a9988
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100321_05603fbc-e9d5-4e95-8250-0553a21a9988.png
+    - id: seine
+      description: Seine embankment at sunset
+      job_id: 4603098f-b339-417e-b726-d88372d8541f
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100321_4603098f-b339-417e-b726-d88372d8541f.png
+    - id: wine_bar
+      description: Evening wine bar for date stories
+      job_id: beffda23-7569-4d53-addc-fa5123484aa6
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100322_beffda23-7569-4d53-addc-fa5123484aa6.png

@@ -80,3 +80,20 @@ rules:
 higgsfield:
   character_sheet_job_id: 11d34f96-89e5-4e28-8aef-9ea56f56ffb9
   character_sheet_url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_095735_11d34f96-89e5-4e28-8aef-9ea56f56ffb9.png
+  locations:
+    - id: budget_desk
+      description: Kitchen table with laptop and budget notebook
+      job_id: e82373c7-29fd-4dfd-9cfd-bc091c1c5005
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100320_e82373c7-29fd-4dfd-9cfd-bc091c1c5005.png
+    - id: living_room
+      description: Cozy rented-flat living room
+      job_id: a37b63d7-793b-447a-a28c-7ba3d430d08f
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100322_a37b63d7-793b-447a-a28c-7ba3d430d08f.png
+    - id: supermarket
+      description: Budget supermarket aisle
+      job_id: 8a10b0bd-53b2-4f9b-98b6-b1d0839a6491
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100320_8a10b0bd-53b2-4f9b-98b6-b1d0839a6491.png
+    - id: street
+      description: Red-brick terraced street after rain
+      job_id: bafd2680-01fe-4343-9f0f-da4944e9b1ba
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100320_bafd2680-01fe-4343-9f0f-da4944e9b1ba.png

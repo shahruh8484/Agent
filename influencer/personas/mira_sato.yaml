@@ -77,3 +77,20 @@ rules:
 higgsfield:
   character_sheet_job_id: f095619e-d75c-4f49-be26-5ea905930c2b
   character_sheet_url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_095734_f095619e-d75c-4f49-be26-5ea905930c2b.png
+  locations:
+    - id: kitchen
+      description: Kitchen with azulejo tiles
+      job_id: 3d259eb6-510a-48aa-9333-5e77522664f2
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100322_3d259eb6-510a-48aa-9333-5e77522664f2.png
+    - id: balcony
+      description: Sunny balcony with herbs
+      job_id: a54e7590-11c2-4062-9712-2b5122d8d164
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100323_a54e7590-11c2-4062-9712-2b5122d8d164.png
+    - id: market
+      description: Mercado da Ribeira produce stall
+      job_id: a3b05caa-7a5c-4dce-af09-f9ecdc5f0d05
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100319_a3b05caa-7a5c-4dce-af09-f9ecdc5f0d05.png
+    - id: dining_nook
+      description: Dining nook by the window
+      job_id: e390cb88-a89e-47ef-9c38-8f684a590bc1
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100319_e390cb88-a89e-47ef-9c38-8f684a590bc1.png
