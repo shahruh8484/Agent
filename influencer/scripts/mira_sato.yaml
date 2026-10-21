@@ -1,0 +1,25 @@
+persona: mira_sato
+speech_wpm: 150
+max_seconds: 30
+reels:
+- id: honest_what_i_eat
+  title: What I eat in a day, the honest version
+  on_screen_text: What I eat in a day (the honest version)
+  location: kitchen
+  words: 70
+  est_seconds: 29
+  script: What I eat in a day, minus the lies. Breakfast, oats with a grated apple. Lunch, leftover lentil soup, eaten standing because the chair had laundry on it. Then at four... wait, no, I skipped four. Dinner, rice and eggs and whatever greens were dying in the fridge. At eleven, toast. A lot of butter. Nobody's day looks like those videos. Mine doesn't. Follow if your toast needs a witness.
+- id: grandma_80_rule
+  title: Grandma's 80% rule
+  on_screen_text: My grandma's one rule instead of counting calories
+  location: dining_nook
+  words: 69
+  est_seconds: 28
+  script: My Japanese grandma never counted a calorie. Just one rule. Hara hachi bu. Stop when you're about eight parts full out of ten. She'd say it pointing her chopsticks at me, which was rude, and she knew it. It's not a diet. It's more of a, um, a pause before the last few bites, and most nights you realise you're fine. You're actually fine. Tell me your grandma's rule.
+- id: stopped_buying
+  title: Three things I stopped buying
+  on_screen_text: 3 things I stopped buying when I started cooking
+  location: kitchen
+  words: 67
+  est_seconds: 27
+  script: Three things I stopped buying when I started cooking. One. Bottled dressing. Olive oil and lemon, that's it. Two. Pre-cut fruit cups. I was paying, like, four euros to not hold a knife. And three, this one hurt... expensive healthy snacks. I had a whole drawer. A drawer. A banana does the job. Okay, I miss the bars a bit. My quick recipes are in my bio.

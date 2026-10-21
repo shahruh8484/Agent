@@ -1,0 +1,25 @@
+persona: sarah_bennett
+speech_wpm: 170
+max_seconds: 30
+reels:
+- id: twenty_eight_grand
+  title: Twenty-eight grand at twenty-six
+  on_screen_text: £28,000 of debt at 26
+  location: budget_desk
+  words: 71
+  est_seconds: 26
+  script: Twenty-eight thousand pounds. That's what I owed at twenty-six, on a receptionist's wage. I didn't open my post for, like, four months. There was a pile on the microwave. An actual pile. Then one Sunday I ran out of... well, teabags, and I sat down and wrote every debt on one page. The number was awful. But it was a number. Stick around, I'll show you how I paid it off.
+- id: hen_do
+  title: I said "not in my budget" to a hen do
+  on_screen_text: I said no to my best friend's hen do
+  location: living_room
+  words: 78
+  est_seconds: 28
+  script: I told my best mate her hen do wasn't in my budget. Here's what she said. Ibiza. Three nights and about eight hundred quid with the matching T-shirts. I didn't make up a work thing. I just said, Jen, I love you, it's not in my budget. And there was this pause. Long pause. Then she goes... oh thank God, can you tell Becky? We did a cottage in the Lakes. Tell me what you said no to.
+- id: bnpl_signs
+  title: Three signs buy now pay later is running your life
+  on_screen_text: 3 signs BNPL is running your life
+  location: street
+  words: 73
+  est_seconds: 26
+  script: Three signs buy now pay later is running your life. Number three was me. One. You're still paying for something you've already... wait, no, already sent back. Two. You check the app before your bank, because it feels smaller. And three. You're splitting the food shop into four payments. That was me, Christmas twenty twenty-one. StepChange and National Debtline give free debt advice. Actually free. Follow, I'll show you how I got out.

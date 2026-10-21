@@ -1,0 +1,25 @@
+persona: chloe_martin
+speech_wpm: 155
+max_seconds: 30
+reels:
+- id: week_before_wedding
+  title: A week before the wedding
+  on_screen_text: He called off our wedding. By text.
+  location: attic
+  words: 71
+  est_seconds: 28
+  script: He called off our wedding a week before. By text. While I was at the dress fitting. The seamstress had pins in her mouth and said oh là là, very quietly, which did not help. That night I didn't cry. Not yet. I wrote a list of everything I stopped doing because he didn't like it. It was long. So long. First thing on it... red lipstick. Follow for number two.
+- id: date_fourteen
+  title: Date number fourteen
+  on_screen_text: 'Date #14 ordered for me'
+  location: cafe
+  words: 61
+  est_seconds: 24
+  script: Date number fourteen ordered for me. In French. Badly. He was American, an engineer, I think, or something with bridges. He tells the waiter, two steak tartare. Says tar-tar. I don't eat raw meat. I have never in my life eaten raw meat. Then he spent ten minutes explaining Paris to me. To me. I was born in the fourteenth. Next.
+- id: ninety_days_no_apps
+  title: Ninety days without dating apps
+  on_screen_text: I deleted dating apps for 90 days
+  location: seine
+  words: 73
+  est_seconds: 29
+  script: I deleted every dating app for ninety days. I met more men than in a year of swiping. A wine tasting I went to for the cheese. The bakery queue, twice, same man, same sad baguette. On the apps I had... wait, no, plenty of matches. Maybe two conversations that weren't just hey. On day ninety I put one app back. Now I only match with men I'd talk to in that queue.
