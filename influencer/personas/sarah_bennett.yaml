@@ -97,3 +97,24 @@ higgsfield:
       description: Red-brick terraced street after rain
       job_id: bafd2680-01fe-4343-9f0f-da4944e9b1ba
       url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100320_bafd2680-01fe-4343-9f0f-da4944e9b1ba.png
+  instagram_photos:
+    - id: avatar
+      aspect_ratio: "1:1"
+      description: Profile picture, cozy flat background
+      job_id: 0bab8bb2-3f25-471d-82f5-78d6fd19d9dc
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_110543_0bab8bb2-3f25-471d-82f5-78d6fd19d9dc.png
+    - id: budget_desk
+      aspect_ratio: "4:5"
+      description: Laughing at the kitchen table with the budget notebook
+      job_id: 43a173fa-fb28-4f62-b6d9-6d58a07e7aa4
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_110543_43a173fa-fb28-4f62-b6d9-6d58a07e7aa4.png
+    - id: sofa_tea
+      aspect_ratio: "4:5"
+      description: Under the mustard throw on the sofa with tea
+      job_id: bde4eab3-1365-476f-a1c2-a89385ba62f8
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_110543_bde4eab3-1365-476f-a1c2-a89385ba62f8.png
+    - id: street_walk
+      aspect_ratio: "4:5"
+      description: Walking down the red-brick street
+      job_id: a0f8e71e-4c7b-4117-8306-6d9afe2bec41
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_110543_a0f8e71e-4c7b-4117-8306-6d9afe2bec41.png

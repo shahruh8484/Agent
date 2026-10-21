@@ -96,3 +96,24 @@ higgsfield:
       description: Evening wine bar for date stories
       job_id: beffda23-7569-4d53-addc-fa5123484aa6
       url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100322_beffda23-7569-4d53-addc-fa5123484aa6.png
+  instagram_photos:
+    - id: avatar
+      aspect_ratio: "1:1"
+      description: Profile picture, café terrace background
+      job_id: 4dfe6368-9c35-4ec6-a365-6854218bb8af
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_110543_4dfe6368-9c35-4ec6-a365-6854218bb8af.png
+    - id: cafe_wine
+      aspect_ratio: "4:5"
+      description: Café terrace with red wine and notebook
+      job_id: 51f0a10f-c486-442c-afc2-5704002bb697
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_110543_51f0a10f-c486-442c-afc2-5704002bb697.png
+    - id: mirror_lipstick
+      aspect_ratio: "4:5"
+      description: Red lipstick at the attic mirror
+      job_id: 4c3cb4dd-c941-4da2-8029-4f46c42afb0f
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_110543_4c3cb4dd-c941-4da2-8029-4f46c42afb0f.png
+    - id: seine_baguette
+      aspect_ratio: "4:5"
+      description: Seine at sunset with a baguette
+      job_id: 8096b5f6-8b1c-4d67-8cfd-9c840c539551
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_110543_8096b5f6-8b1c-4d67-8cfd-9c840c539551.png

@@ -94,3 +94,24 @@ higgsfield:
       description: Dining nook by the window
       job_id: e390cb88-a89e-47ef-9c38-8f684a590bc1
       url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_100319_e390cb88-a89e-47ef-9c38-8f684a590bc1.png
+  instagram_photos:
+    - id: avatar
+      aspect_ratio: "1:1"
+      description: Profile picture, azulejo kitchen background
+      job_id: 27042377-b73b-4519-9536-3de9071446cb
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_110542_27042377-b73b-4519-9536-3de9071446cb.png
+    - id: kitchen_bowl
+      aspect_ratio: "4:5"
+      description: Laughing at the counter with the green bowl of oats
+      job_id: 53e2bd97-2c31-4022-9f2e-421d03ebdee0
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_110543_53e2bd97-2c31-4022-9f2e-421d03ebdee0.png
+    - id: market_basket
+      aspect_ratio: "4:5"
+      description: Market stall with a basket of vegetables
+      job_id: e02ae6e9-c59d-43e1-91d9-cfdd13344495
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_110543_e02ae6e9-c59d-43e1-91d9-cfdd13344495.png
+    - id: balcony_tea
+      aspect_ratio: "4:5"
+      description: Morning tea on the balcony
+      job_id: cacf5167-93d6-43ca-be9f-904199e7d643
+      url: https://d8j0ntlcm91z4.cloudfront.net/user_3GgkjuuThjnNGIaUV2p0IZTxryg/hf_20261021_110544_cacf5167-93d6-43ca-be9f-904199e7d643.png
