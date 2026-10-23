@@ -165,5 +165,23 @@ def evedex(
     )
 
 
+@app.command()
+def panel(
+    host: str = typer.Option("127.0.0.1", help="0.0.0.0 to open from other devices (needs PANEL_PASSWORD)"),
+    port: int = 8050,
+    state_dir: str = "paper_state",
+):
+    """Web panel to watch and control running EVEDEX bots."""
+    import uvicorn
+
+    from cryptobot.panel import create_app
+
+    if host not in ("127.0.0.1", "localhost") and not os.getenv("PANEL_PASSWORD"):
+        typer.echo("Set PANEL_PASSWORD before exposing the panel beyond localhost.")
+        raise typer.Exit(1)
+    typer.echo(f"Panel: http://{'localhost' if host == '0.0.0.0' else host}:{port}")
+    uvicorn.run(create_app(state_dir), host=host, port=port, log_level="warning")
+
+
 if __name__ == "__main__":
     app()
