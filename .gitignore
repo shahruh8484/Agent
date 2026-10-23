@@ -9,3 +9,5 @@ build/
 dist/
 output/
 .DS_Store
+data_cache/
+paper_state/
