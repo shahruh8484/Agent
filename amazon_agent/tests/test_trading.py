@@ -153,3 +153,75 @@ def test_chart_starts_when_the_account_is_funded():
     chart = equity_chart(rows)
     assert chart["first"] == "c" and round(chart["change_pct"], 2) == 1.92 and chart["min"] == 3.65
     assert equity_chart(rows[:3]) is None  # only one funded point so far
+
+
+SCHEMA = {
+    "max_usd": {"label": "Максимум на позицию, $", "type": "float", "min": 1, "max": 1000, "step": 1},
+    "leverage": {"label": "Плечо, x", "type": "int", "min": 1, "max": 5, "step": 1},
+    "fast_ema": {"label": "Быстрая EMA", "type": "int", "min": 2, "max": 100, "step": 1},
+    "slow_ema": {"label": "Медленная EMA", "type": "int", "min": 5, "max": 400, "step": 1},
+    "news_mode": {"label": "Новостной фильтр", "type": "choice",
+                  "options": {"off": "выключен", "shadow": "наблюдение", "on": "включён"}},
+}
+DEFAULTS = {"max_usd": 10.0, "leverage": 1, "fast_ema": 20, "slow_ema": 50, "news_mode": "shadow"}
+
+
+def _bot_with_schema(settings, env="prod", **config):
+    folder = _bot(settings, env=env)
+    status = json.loads((folder / "status.json").read_text())
+    status["config"].update({
+        "settings_schema": SCHEMA, "settings_defaults": DEFAULTS, "settings_overrides": [], "settings_error": "",
+        "settings_rules": [["fast_ema", "<", "slow_ema", "EMA: быстрая < медленной"]], **DEFAULTS, **config})
+    (folder / "status.json").write_text(json.dumps(status))
+    return folder
+
+
+def test_settings_form_renders_from_the_bots_schema(settings, store):
+    _bot_with_schema(settings)
+    page = _client(settings, store).get("/admin/trading").text
+    assert 'name="max_usd"' in page and 'max="1000"' in page and 'name="news_mode"' in page
+    assert "Сохранить настройки" in page and "РЕАЛЬНЫЙ СЧЁТ. Применить" in page and "в .env: 10.0" in page
+
+
+def test_settings_saved_only_where_they_differ_from_env(settings, store):
+    folder = _bot_with_schema(settings)
+    client = _client(settings, store)
+    page = client.post(f"/admin/trading/{folder.name}/settings", data={
+        "max_usd": "25", "leverage": "1", "fast_ema": "20", "slow_ema": "50", "news_mode": "on"}).text
+    saved = json.loads((folder / "settings.json").read_text())
+    assert {k: v for k, v in saved.items() if k != "updated_at"} == {"max_usd": 25, "news_mode": "on"}
+    assert "Настройки сохранены" in page
+    # back to .env values -> no overrides file at all
+    client.post(f"/admin/trading/{folder.name}/settings", data={**{k: str(v) for k, v in DEFAULTS.items()}})
+    assert not (folder / "settings.json").exists()
+    assert len((folder / "settings_history.csv").read_text().splitlines()) == 2
+
+
+def test_bad_settings_are_rejected_with_reasons(settings, store):
+    folder = _bot_with_schema(settings)
+    client = _client(settings, store)
+    page = client.post(f"/admin/trading/{folder.name}/settings",
+                       data={"max_usd": "5000", "leverage": "1.5", "fast_ema": "60", "slow_ema": "50",
+                             "news_mode": "yolo"}).text
+    assert not (folder / "settings.json").exists()
+    assert "Настройки не сохранены" in page and "Максимум на позицию" in page and "Плечо" in page
+    assert "Новостной фильтр" in page and "EMA: быстрая &lt; медленной" in page
+
+
+def test_reset_and_bot_side_errors(settings, store):
+    folder = _bot_with_schema(settings, settings_error="Плечо, x: должно быть от 1 до 5")
+    (folder / "settings.json").write_text('{"leverage": 9}')
+    client = _client(settings, store)
+    assert "Бот не принял настройки" in client.get("/admin/trading").text
+    client.post(f"/admin/trading/{folder.name}/settings/reset")
+    assert not (folder / "settings.json").exists()
+
+
+def test_old_bot_without_schema(settings, store):
+    folder = _bot(settings)
+    client = _client(settings, store)
+    assert "Меняются в <code>.env</code>" in client.get("/admin/trading").text
+    page = client.post(f"/admin/trading/{folder.name}/settings", data={"max_usd": "5"}).text
+    assert "не умеет менять настройки" in page and not (folder / "settings.json").exists()
+    anon = TestClient(create_app(settings, store, start_loop=False))
+    assert anon.post(f"/admin/trading/{folder.name}/settings", follow_redirects=False).status_code == 303

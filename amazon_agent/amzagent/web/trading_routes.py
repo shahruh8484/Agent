@@ -103,6 +103,42 @@ def equity_chart(rows: list[dict], width: int = 1000, height: int = 160) -> dict
     }
 
 
+def parse_settings(form, schema: dict, rules: list, defaults: dict) -> tuple[dict, list[str]]:
+    """Form -> overrides (only values that differ from the bot's .env defaults), checked against the
+    schema the bot published. The bot checks again before applying; this is for a clear message now."""
+    values, errors = {}, []
+    for key, spec in schema.items():
+        raw = form.get(key)
+        if raw is None:
+            continue
+        raw = str(raw).strip()
+        if spec.get("type") == "choice":
+            if raw not in spec.get("options", {}):
+                errors.append(f"{spec['label']}: недопустимое значение")
+                continue
+            values[key] = raw
+            continue
+        try:
+            number = float(raw.replace(",", "."))
+        except ValueError:
+            errors.append(f"{spec['label']}: не число")
+            continue
+        if number != number or not spec["min"] <= number <= spec["max"]:
+            errors.append(f"{spec['label']}: от {spec['min']} до {spec['max']}")
+            continue
+        if spec.get("type") == "int":
+            if number != int(number):
+                errors.append(f"{spec['label']}: целое число")
+                continue
+            number = int(number)
+        values[key] = number
+    merged = {**defaults, **values}
+    for a, op, b, message in rules:
+        if a in merged and b in merged and not (merged[a] < merged[b] if op == "<" else merged[a] <= merged[b]):
+            errors.append(message)
+    return {k: v for k, v in values.items() if defaults.get(k) != v}, errors
+
+
 def load_bot(folder: Path) -> dict:
     status = _read_json(folder / "status.json")
     control = _read_json(folder / "control.json")
@@ -147,8 +183,9 @@ def register_trading_routes(app: FastAPI, templates, settings, logged_in, to_log
         tmp.write_text(json.dumps({**_read_json(path), **fields}))
         tmp.replace(path)
 
-    def back(request: Request, message: str, name: str = "") -> RedirectResponse:
+    def back(request: Request, message: str, name: str = "", bad: bool = False) -> RedirectResponse:
         request.session["flash"] = message
+        request.session["flash_bad"] = bad
         return RedirectResponse(f"/admin/trading{'#' + name if name else ''}", status_code=303)
 
     @app.get("/admin/trading", response_class=HTMLResponse)
@@ -159,6 +196,7 @@ def register_trading_routes(app: FastAPI, templates, settings, logged_in, to_log
             bots = [load_bot(d) for d in folders().values()]
             page = templates.get_template("trading.html").render({
                 "request": request, "bots": bots, "flash": request.session.pop("flash", None),
+                "flash_bad": request.session.pop("flash_bad", False),
                 "reasons": REASONS, "news_modes": NEWS_MODES, "news_effects": NEWS_EFFECTS,
             })
         except Exception as exc:
@@ -188,6 +226,40 @@ def register_trading_routes(app: FastAPI, templates, settings, logged_in, to_log
             return to_login()
         update_control(folder(name), paused=False)
         return back(request, "Бот снова торгует.", name)
+
+    @app.post("/admin/trading/{name}/settings")
+    async def trading_settings(request: Request, name: str):
+        if not logged_in(request):
+            return to_login()
+        d = folder(name)
+        config = _read_json(d / "status.json").get("config") or {}
+        schema = config.get("settings_schema")
+        if not schema:
+            return back(request, "Эта версия бота не умеет менять настройки из панели — обновите сервер.", name, bad=True)
+        overrides, errors = parse_settings(await request.form(), schema, config.get("settings_rules") or [],
+                                           config.get("settings_defaults") or {})
+        if errors:
+            return back(request, "Настройки не сохранены: " + "; ".join(errors), name, bad=True)
+        path = d / "settings.json"
+        if overrides:
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps({**overrides, "updated_at": time.time()}))
+            tmp.replace(path)
+        else:
+            path.unlink(missing_ok=True)
+        with (d / "settings_history.csv").open("a", newline="") as f:
+            csv.writer(f).writerow([time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), json.dumps(overrides)])
+        return back(request, "Настройки сохранены. Бот применит их в течение минуты, сделки — с ближайшей свечи.", name)
+
+    @app.post("/admin/trading/{name}/settings/reset")
+    def trading_settings_reset(request: Request, name: str):
+        if not logged_in(request):
+            return to_login()
+        d = folder(name)
+        (d / "settings.json").unlink(missing_ok=True)
+        with (d / "settings_history.csv").open("a", newline="") as f:
+            csv.writer(f).writerow([time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "{}"])
+        return back(request, "Вернул настройки из .env. Бот применит их в течение минуты.", name)
 
     @app.post("/admin/trading/{name}/close")
     def trading_close(request: Request, name: str):

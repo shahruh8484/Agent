@@ -20,7 +20,7 @@
   <div class="row"><a href="/logout">Выйти</a></div>
 </div>
 {% include "_tabs.html" %}
-{% if flash %}<div class="banner" style="border-color:var(--ok);color:var(--ok)">{{ flash }}</div>{% endif %}
+{% if flash %}<div class="banner{% if flash_bad %} bad{% endif %}"{% if not flash_bad %} style="border-color:var(--ok);color:var(--ok)"{% endif %}>{{ flash }}</div>{% endif %}
 
 <div class="banner">Бот торгует бессрочными фьючерсами на EVEDEX: вход по пересечению EMA, стоп-лосс и тейк-профит ставятся на самой бирже и сработают, даже если бот выключен. Только лонг, риск 1% баланса на сделку, размер позиции и число позиций ограничены. ИИ читает новости и может только запретить вход или закрыть позицию раньше — сам сделки не открывает. Страница обновляется каждые 30 секунд.</div>
 
@@ -99,8 +99,30 @@
     {% else %}<tr><td colspan="6" class="muted">Сделок пока нет</td></tr>{% endfor %}</tbody>
   </table></div>
 
-  <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Настройки бота</summary>
+  <details style="margin-top:10px"{% if c.settings_error %} open{% endif %}><summary class="muted" style="cursor:pointer">Настройки бота{% if c.settings_overrides %} · изменены в панели{% endif %}</summary>
+    {% if c.settings_schema %}
+    {% if c.settings_error %}<div class="banner bad">Бот не принял настройки из панели и работает по .env: {{ c.settings_error }}</div>{% endif %}
+    <form method="post" action="/admin/trading/{{ b.name }}/settings" class="set-grid" style="margin-top:12px"
+          {% if c.env == "prod" %}onsubmit="return confirm('РЕАЛЬНЫЙ СЧЁТ. Применить новые настройки к {{ c.instrument }}?')"{% endif %}>
+      {% for key, spec in c.settings_schema.items() %}
+      {% set changed = key in (c.settings_overrides or []) %}
+      <label><span>{{ spec.label }}{% if changed %} <span style="color:var(--warn)" title="изменено в панели">●</span>{% endif %}</span>
+        {% if spec.type == "choice" %}
+        <select name="{{ key }}">{% for v, title in spec.options.items() %}<option value="{{ v }}"{% if c[key] == v %} selected{% endif %}>{{ title }}</option>{% endfor %}</select>
+        {% else %}
+        <input name="{{ key }}" type="number" inputmode="decimal" min="{{ spec.min }}" max="{{ spec.max }}" step="{{ spec.step }}" value="{{ c[key] }}" required>
+        {% endif %}
+        <span class="muted">{% if spec.type != "choice" %}от {{ spec.min }} до {{ spec.max }} · {% endif %}в .env: {{ spec.options[c.settings_defaults[key]] if spec.type == "choice" else c.settings_defaults[key] }}</span>
+      </label>
+      {% endfor %}
+      <div class="row" style="grid-column:1/-1;gap:8px"><button class="primary">Сохранить настройки</button>
+        {% if c.settings_overrides %}<button formaction="/admin/trading/{{ b.name }}/settings/reset" formnovalidate>Сбросить к .env</button>{% endif %}
+        <span class="muted"><span style="color:var(--warn)">●</span> — изменено в панели. Бот применяет в течение минуты; сделки — с ближайшей свечи.</span></div>
+    </form>
+    <p class="muted">{% if c.coins and c.coins|length > 1 %}Монеты: {{ c.coins|join(", ") }} · не больше {{ c.max_positions }} позиций одновременно. {% endif %}Ключи, реальный/демо счёт, список монет и таймфрейм меняются только в <code>.env</code> на сервере.</p>
+    {% else %}
     <p class="muted">{% if c.coins and c.coins|length > 1 %}Монеты: {{ c.coins|join(", ") }} · не больше {{ c.max_positions }} позиций одновременно · {% endif %}Плечо {{ c.leverage }}x · максимум ${{ c.max_usd }} на позицию · риск {{ "%.1f"|format((c.risk_per_trade or 0) * 100) }}% на сделку · стоп {{ c.stop_atr }}×ATR · тейк {{ c.take_profit_atr }}×ATR. {% if c.news_mode %}Новости: {{ news_modes.get(c.news_mode, c.news_mode) }}, вход пропускается при оценке ≤ {{ c.news_block_below }}, позиция закрывается при ≤ {{ c.news_exit_below }}. {% endif %}Меняются в <code>.env</code> на сервере (переменные <code>TRADER_*</code>).</p>
+    {% endif %}
   </details>
 </div>
 {% else %}
