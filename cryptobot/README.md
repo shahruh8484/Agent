@@ -55,6 +55,51 @@ python -m cryptobot.main backtest --synthetic
 **Главное правило:** смотрите на результат `optimize` на тестовом отрезке, а не на обучающем. Параметры,
 подогнанные под историю, почти всегда выглядят прекрасно и почти всегда разочаровывают в будущем.
 
+## EVEDEX
+
+Бот торгует бессрочными фьючерсами на [EVEDEX](https://exchange.evedex.com) через официальный SDK
+(`@evedex/exchange-bot-sdk`). Подпись ордеров делает код самой биржи, мост — `evedex_bridge/bridge.js`.
+
+- Сигналы считаются по свечам той же пары с Binance (у EVEDEX нет API свечей). Если Binance недоступен — `--signal-exchange bybit` или `okx`.
+- Только лонг. Стоп-лосс и тейк-профит ставятся **на бирже** сразу после входа — они сработают, даже если бот упал.
+- Шорты, открытые вручную, бот не трогает. Лонг по тому же инструменту бот закроет по сигналу — не держите на нём ручных позиций.
+- Ограничители: плечо по умолчанию 1x (максимум 5x), позиция не больше `--max-usd` (по умолчанию $100), риск 1% баланса на сделку.
+
+### Установка
+
+```bash
+# Node.js 18+
+cd cryptobot/evedex_bridge && npm ci && cd ../..
+```
+
+### Ключи
+
+Безопасный вариант — one-click-trading кошелёк + API-ключ (основной ключ кошелька не нужен):
+профиль → Settings → API → создать ключ; ключ one-click-trading кошелька — в настройках торговли.
+
+```bash
+export EVEDEX_API_KEY=...            # API-ключ EVEDEX
+export EVEDEX_OCT_PRIVATE_KEY=0x...  # ключ one-click-trading кошелька
+# или, менее безопасно: export EVEDEX_PRIVATE_KEY=0x...  (ключ основного кошелька)
+```
+
+Ключи храните только в переменных окружения или `.env`, никогда не коммитьте.
+
+### Запуск
+
+```bash
+# Список инструментов
+python -m cryptobot.main evedex-instruments --env demo
+
+# ДЕМО (тестовые USDT — кнопка «Request Demo Funds» на бирже)
+python -m cryptobot.main evedex --instrument BTCUSDT:DEMO --timeframe 1h
+
+# РЕАЛЬНЫЙ СЧЁТ — нужны оба флага и подтверждение в консоли
+python -m cryptobot.main evedex --env prod --real-money --instrument <имя из evedex-instruments> --max-usd 50
+```
+
+Журнал действий пишется в `paper_state/evedex_*.trades.csv`.
+
 ## Путь к реальным деньгам
 
 1. Бэктест на 2+ годах и нескольких монетах — стабильно лучше buy & hold по риску.

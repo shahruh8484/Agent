@@ -5,6 +5,7 @@ Examples:
     python -m cryptobot.main backtest --synthetic          # offline demo
     python -m cryptobot.main optimize --symbol ETH/USDT --timeframe 1h
     python -m cryptobot.main paper --symbol BTC/USDT --timeframe 1h
+    python -m cryptobot.main evedex --instrument BTCUSDT:DEMO      # EVEDEX demo
 """
 from __future__ import annotations
 
@@ -113,6 +114,54 @@ def paper(
         exchange_id=exchange, testnet=testnet,
         api_key=os.getenv("EXCHANGE_API_KEY", ""), api_secret=os.getenv("EXCHANGE_API_SECRET", ""),
         poll_seconds=poll,
+    )
+
+
+@app.command("evedex-instruments")
+def evedex_instruments(env: str = typer.Option("demo", help="demo or prod")):
+    """List EVEDEX instruments (names to pass as --instrument)."""
+    from cryptobot.evedex import EvedexClient
+
+    for i in EvedexClient(env).instruments():
+        typer.echo(f"{i['name']:<20} mark={i['markPrice']:<12} maxLev={i['maxLeverage']:<4} minQty={i['minQuantity']}")
+
+
+@app.command()
+def evedex(
+    instrument: str = typer.Option("BTCUSDT:DEMO", help="EVEDEX instrument, see evedex-instruments"),
+    signal_symbol: str = typer.Option("BTC/USDT", help="Pair whose candles drive the signals"),
+    signal_exchange: str = typer.Option("binance", help="ccxt exchange for candles (binance, bybit, okx...)"),
+    timeframe: str = "1h",
+    env: str = typer.Option("demo", help="demo (test USDT) or prod (real money, needs --real-money)"),
+    real_money: bool = typer.Option(False, "--real-money", help="Required together with --env prod"),
+    leverage: int = typer.Option(1, min=1, max=5),
+    max_usd: float = typer.Option(100.0, help="Hard cap on position size in USD"),
+    risk: float = typer.Option(0.01, help="Fraction of balance lost if the stop is hit"),
+    fast: int = 20,
+    slow: int = 50,
+    stop_atr: float = 2.0,
+    tp_atr: float = 4.0,
+    poll: int = 60,
+):
+    """Trade the strategy on EVEDEX (demo by default)."""
+    from cryptobot.evedex import EvedexClient, LiveConfig, run_live
+
+    if env == "prod" and not real_money:
+        typer.echo("--env prod trades REAL money; add --real-money to confirm.")
+        raise typer.Exit(1)
+    if env == "prod":
+        typer.confirm(
+            f"REAL MONEY on {instrument}: up to ${max_usd} per position, {leverage}x leverage. Continue?",
+            abort=True,
+        )
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+    run_live(
+        EvedexClient(env),
+        LiveConfig(instrument=instrument, leverage=leverage, max_usd=max_usd),
+        StrategyParams(fast_ema=fast, slow_ema=slow, stop_atr=stop_atr, take_profit_atr=tp_atr),
+        BacktestConfig(risk_per_trade=risk),
+        signal_symbol=signal_symbol, signal_exchange=signal_exchange, timeframe=timeframe, poll_seconds=poll,
     )
 
 
