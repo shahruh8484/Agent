@@ -7,12 +7,17 @@ which the bot reads on its next poll. The panel never holds exchange keys."""
 from __future__ import annotations
 
 import csv
+import html
 import json
+import logging
 import time
+import traceback
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+
+logger = logging.getLogger(__name__)
 
 REASONS = {
     "EMA cross up": "EMA пересекла вверх",
@@ -141,11 +146,25 @@ def register_trading_routes(app: FastAPI, templates, settings, logged_in, to_log
     def trading_page(request: Request):
         if not logged_in(request):
             return to_login()
-        return templates.TemplateResponse(request, "trading.html", {
-            "bots": [load_bot(d) for d in folders().values()],
-            "reasons": REASONS, "news_modes": NEWS_MODES, "news_effects": NEWS_EFFECTS,
-            "flash": request.session.pop("flash", None),
-        })
+        try:
+            bots = [load_bot(d) for d in folders().values()]
+            page = templates.get_template("trading.html").render({
+                "request": request, "bots": bots, "flash": request.session.pop("flash", None),
+                "reasons": REASONS, "news_modes": NEWS_MODES, "news_effects": NEWS_EFFECTS,
+            })
+        except Exception as exc:
+            # Bot files come from another process and version: show what broke instead of a bare 500.
+            logger.exception("trading tab failed to render")
+            where = traceback.extract_tb(exc.__traceback__)[-1]
+            return HTMLResponse(
+                "<!doctype html><meta charset=utf-8><title>Трейдинг — ошибка</title>"
+                "<body style='font:15px system-ui;max-width:760px;margin:40px auto;padding:0 16px'>"
+                "<h1 style='font-size:1.2rem'>Вкладка «Трейдинг» не смогла открыться</h1>"
+                f"<p><code>{html.escape(type(exc).__name__)}: {html.escape(str(exc))[:500]}</code></p>"
+                f"<p style='color:#666'>{html.escape(Path(where.filename).name)}, строка {where.lineno}</p>"
+                "<p>Пришлите этот текст разработчику. Остальные вкладки: <a href='/admin'>Amazon</a> · "
+                "<a href='/admin/fb'>Facebook</a> · <a href='/admin/ig'>iGaming</a></p>", status_code=500)
+        return HTMLResponse(page)
 
     @app.post("/admin/trading/{name}/pause")
     def trading_pause(request: Request, name: str):

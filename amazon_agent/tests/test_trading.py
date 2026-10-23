@@ -121,3 +121,14 @@ def test_price_format():
     from amzagent.web.trading_routes import price
     assert price(81710.2) == "81710.20" and price(1.3195) == "1.3195" and price(1.30) == "1.3"
     assert price(0.080221) == "0.080221" and price(None) == "—" and price("") == "—"
+
+
+def test_broken_bot_files_show_a_readable_error(settings, store, monkeypatch):
+    from amzagent.web import trading_routes
+
+    _bot(settings)
+    client = _client(settings, store)
+    monkeypatch.setattr(trading_routes, "load_bot", lambda d: (_ for _ in ()).throw(KeyError("availableBalance")))
+    res = client.get("/admin/trading")
+    assert res.status_code == 500 and "не смогла открыться" in res.text
+    assert "KeyError" in res.text and "availableBalance" in res.text and 'href="/admin/ig"' in res.text
