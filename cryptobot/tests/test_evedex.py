@@ -102,3 +102,15 @@ def test_control_file_merges_fields(tmp_path):
     assert files.paused() and files.close_requested()
     update_control(files.control, close_requested=False)
     assert files.paused() and not files.close_requested()
+
+
+def test_bridge_errors_never_leak_tokens_and_get_hints(monkeypatch):
+    leaked = '{"error": "{\'request\': {\'Authorization\': \'Bearer eyJhbGci.eyJ1c2Vy.sig-_x\'}} user_not_found_error"}\n'
+    monkeypatch.setattr(
+        evedex.subprocess, "run",
+        lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, stdout=leaked, stderr=""),
+    )
+    with pytest.raises(EvedexError) as err:
+        EvedexClient("demo").state("BTCUSDT:DEMO")
+    assert "eyJ" not in str(err.value) and "Bearer ***" in str(err.value)
+    assert "MetaMask" in str(err.value)

@@ -60,6 +60,14 @@ async function liveTpSl(account, name) {
 }
 
 const commands = {
+  // Public addresses of the configured keys, to check which wallet the bot signs with.
+  async address() {
+    const out = {};
+    for (const name of Object.keys(wallets)) out[name] = await container.wallet(name).getAddress();
+    if (!Object.keys(out).length) throw new Error("no EVEDEX_PRIVATE_KEY or EVEDEX_OCT_PRIVATE_KEY set");
+    return out;
+  },
+
   async instruments() {
     const list = await container.gateway().fetchInstrumentsWithMetrics();
     return {
@@ -128,6 +136,20 @@ const commands = {
   },
 };
 
+// Errors carry the whole HTTP exchange, including the session token in the
+// Authorization header; keep only what the exchange said.
+function describe(e) {
+  // The SDK's RequestError wraps it as response.data = {request, response: {data}}.
+  const raw = e?.response?.data;
+  const data = raw?.response ? raw.response.data : raw;
+  const status = e?.response?.status ?? e?.response?.statusCode;
+  let text;
+  if (data && typeof data === "object") text = [data.label, data.error, data.message].filter(Boolean).join(": ") || JSON.stringify(data);
+  else text = data || e?.message || String(e);
+  text = String(text).replace(/Bearer\s+[\w.-]+/g, "Bearer ***").slice(0, 500);
+  return status ? `HTTP ${status} ${text}` : text;
+}
+
 async function main() {
   const [command, rawParams = "{}"] = process.argv.slice(2);
   try {
@@ -136,7 +158,7 @@ async function main() {
     container.closeWsConnection();
     process.exit(0);
   } catch (e) {
-    reply({ error: e?.response?.data ?? e.message ?? String(e) });
+    reply({ error: describe(e) });
     process.exit(1);
   }
 }
