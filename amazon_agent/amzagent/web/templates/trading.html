@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Трейдинг — агент</title>{% include "_style.html" %}
+<link rel="icon" href="/admin-favicon.svg" type="image/svg+xml">
+{% if bots %}<meta http-equiv="refresh" content="30">{% endif %}
+<style>
+.tr-head { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
+.tr-title { display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-weight:600; font-size:1rem; }
+.tr-real { color:var(--bad); font-weight:700; } .tr-demo { color:var(--accent); font-weight:700; }
+.tr-chart svg { width:100%; height:160px; display:block; }
+.tr-chart polyline { fill:none; stroke:var(--accent); stroke-width:2; vector-effect:non-scaling-stroke; }
+.tr-chart polygon { fill:color-mix(in srgb, var(--accent) 12%, transparent); }
+.tr-chart line { stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke; }
+.tr-axis { display:flex; justify-content:space-between; gap:8px; font-size:.75rem; }
+</style></head>
+<body><div class="wrap">
+{% set tab = "trading" %}
+<div class="row" style="justify-content:space-between">
+  <h1>Трейдинг <span class="muted" style="font-size:.72rem;font-weight:400">версия {{ app_version }}</span></h1>
+  <div class="row"><a href="/logout">Выйти</a></div>
+</div>
+{% include "_tabs.html" %}
+{% if flash %}<div class="banner" style="border-color:var(--ok);color:var(--ok)">{{ flash }}</div>{% endif %}
+
+<div class="banner">Бот торгует бессрочными фьючерсами на EVEDEX: вход по пересечению EMA, стоп-лосс и тейк-профит ставятся на самой бирже и сработают, даже если бот выключен. Только лонг, риск 1% баланса на сделку, размер позиции ограничен. Страница обновляется каждые 30 секунд.</div>
+
+{% for b in bots %}
+{% set c = b.config %}{% set s = b.status %}{% set st = b.state %}{% set pos = b.position %}
+<div class="card" id="{{ b.name }}" style="margin-top:14px">
+  <div class="tr-head">
+    <div class="tr-title">
+      <span><span class="dot {{ 'd-active' if b.alive else 'd-error' }}"></span>{{ c.instrument }}</span>
+      {% if c.env == "prod" %}<span class="pill tr-real">РЕАЛЬНЫЙ СЧЁТ</span>{% else %}<span class="pill tr-demo">ДЕМО</span>{% endif %}
+      <span class="pill muted">{{ c.timeframe }} · {{ c.signal }}</span>
+      {% if b.paused %}<span class="pill" style="color:var(--warn)">ПАУЗА</span>{% endif %}
+      {% if b.close_requested %}<span class="pill" style="color:var(--warn)">закрываем позицию…</span>{% endif %}
+      {% if not b.alive %}<span class="pill bad" style="color:var(--bad)">бот не отвечает</span>{% endif %}
+    </div>
+    <div class="row" style="gap:8px">
+      {% if b.paused %}
+      <form class="inline" method="post" action="/admin/trading/{{ b.name }}/resume"><button>▶ Продолжить</button></form>
+      {% else %}
+      <form class="inline" method="post" action="/admin/trading/{{ b.name }}/pause"><button>⏸ Пауза</button></form>
+      {% endif %}
+      <form class="inline" method="post" action="/admin/trading/{{ b.name }}/close"
+            onsubmit="return confirm('{% if c.env == "prod" %}РЕАЛЬНЫЙ СЧЁТ. {% endif %}Закрыть позицию {{ c.instrument }} по рынку и поставить бота на паузу?')">
+        <button class="danger"{% if not pos or b.close_requested %} disabled{% endif %}>Закрыть позицию</button></form>
+    </div>
+  </div>
+  {% if s.error %}<div class="banner bad">Ошибка: {{ s.error }}</div>{% endif %}
+
+  <div class="kpis">
+    <div class="card kpi"><b>${{ "%.2f"|format(st.availableBalance or 0) }}</b><span>доступный баланс</span></div>
+    <div class="card kpi"><b>{% if pos %}{{ "Лонг" if pos.side == "BUY" else "Шорт" }} {{ pos.quantity }}{% else %}нет{% endif %}</b><span>позиция{% if pos %} · вход {{ "%.2f"|format(pos.avgPrice or 0) }}{% endif %}</span></div>
+    {% set pnl = (pos.unRealizedPnL or 0) if pos else none %}
+    <div class="card kpi"><b class="{{ 'pos' if pnl and pnl > 0 else 'neg' if pnl and pnl < 0 else '' }}">{% if pos %}${{ "%.2f"|format(pnl) }}{% else %}—{% endif %}</b><span>нереализованный PnL</span></div>
+    <div class="card kpi"><b>{{ b.stop.price if b.stop else "—" }} / {{ b.take_profit.price if b.take_profit else "—" }}</b><span>стоп / тейк на бирже</span></div>
+    <div class="card kpi"><b>{{ "%.2f"|format(st.markPrice or 0) }}</b><span>цена (mark)</span></div>
+    <div class="card kpi"><b class="{{ 'pos' if (s.ema_fast or 0) > (s.ema_slow or 0) else 'neg' }}">{{ "↑ тренд" if (s.ema_fast or 0) > (s.ema_slow or 0) else "↓ тренд" }}</b><span>EMA {{ c.fast_ema }}/{{ c.slow_ema }} · RSI {{ "%.1f"|format(s.rsi or 0) }}</span></div>
+  </div>
+
+  <p class="muted" style="margin:12px 0 0">Последняя свеча {{ s.candle|localtime or "—" }}: <b style="color:var(--fg)">{{ {"open": "Вход", "close": "Выход", "hold": "Ждём"}.get(s.action, "—") }}</b> — {{ reasons.get(s.reason, s.reason) or "свечей ещё не было" }}</p>
+
+  {% set ch = b.chart %}
+  <div class="tr-chart" style="margin-top:14px">
+    <div class="tr-axis muted"><span>Баланс + нереализованный PnL</span>{% if ch %}<span class="{{ 'pos' if ch.change_pct >= 0 else 'neg' }}">{{ "%+.2f"|format(ch.change_pct) }}%</span>{% endif %}</div>
+    {% if ch %}
+    <svg viewBox="0 0 {{ ch.width }} {{ ch.height }}" preserveAspectRatio="none" role="img" aria-label="График баланса">
+      {% for f in [0.25, 0.5, 0.75] %}<line x1="0" x2="{{ ch.width }}" y1="{{ ch.height * f }}" y2="{{ ch.height * f }}"/>{% endfor %}
+      <polygon points="0,{{ ch.height }} {{ ch.points }} {{ ch.width }},{{ ch.height }}"/><polyline points="{{ ch.points }}"/>
+    </svg>
+    <div class="tr-axis muted"><span>{{ ch.first|localtime }}</span><span>мин ${{ "%.2f"|format(ch.min) }} · макс ${{ "%.2f"|format(ch.max) }}</span><span>{{ ch.last|localtime }}</span></div>
+    {% else %}<p class="muted">График появится после второй свечи.</p>{% endif %}
+  </div>
+
+  <h4 style="margin:16px 0 6px">Сделки</h4>
+  <div class="scroll"><table class="camp">
+    <thead><tr><th>Время</th><th>Действие</th><th>Причина</th><th class="num">Цена</th><th class="num">Сумма</th><th class="num">Стоп</th></tr></thead>
+    <tbody>{% for t in b.trades %}
+      <tr><td>{{ t.time|localtime }}</td><td>{{ {"open": "Вход", "close": "Выход"}.get(t.action, t.action) }}</td><td>{{ reasons.get(t.reason, t.reason) }}</td>
+        <td class="num">{{ "%.2f"|format(t.mark|float) }}</td><td class="num">{% if t.action == "open" %}${{ "%.2f"|format(t.cash|float) }}{% endif %}</td>
+        <td class="num">{% if t.action == "open" %}{{ "%.2f"|format(t.stop|float) }}{% endif %}</td></tr>
+    {% else %}<tr><td colspan="6" class="muted">Сделок пока нет</td></tr>{% endfor %}</tbody>
+  </table></div>
+
+  <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Настройки бота</summary>
+    <p class="muted">Плечо {{ c.leverage }}x · максимум ${{ c.max_usd }} на позицию · риск {{ "%.1f"|format((c.risk_per_trade or 0) * 100) }}% на сделку · стоп {{ c.stop_atr }}×ATR · тейк {{ c.take_profit_atr }}×ATR. Меняются в <code>.env</code> на сервере (переменные <code>TRADER_*</code>).</p>
+  </details>
+</div>
+{% else %}
+<h2>Бот ещё не подключён</h2>
+<div class="card">
+  <p style="margin-top:0">Бот работает отдельным контейнером рядом с панелью. Чтобы включить его, добавьте в <code>amazon_agent/.env</code> на сервере:</p>
+  <pre>COMPOSE_PROFILES=trading
+TRADER_ENV=demo
+TRADER_INSTRUMENT=BTCUSDT:DEMO
+EVEDEX_API_KEY=…          # EVEDEX → профиль → Settings → API
+EVEDEX_OCT_PRIVATE_KEY=0x… # ключ one-click-trading кошелька</pre>
+  <p class="muted">Затем выполните <code>deploy/autoupdate.sh --force</code> (или дождитесь следующего обновления). Через минуту-две бот появится на этой странице. Начните с демо: тестовые USDT выдаёт кнопка «Request Demo Funds» на бирже. Реальный счёт включается только двумя строками: <code>TRADER_ENV=prod</code> и <code>TRADER_REAL_MONEY=yes</code>.</p>
+</div>
+{% endfor %}
+
+</div></body></html>

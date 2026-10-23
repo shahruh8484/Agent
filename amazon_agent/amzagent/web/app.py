@@ -85,6 +85,7 @@ from amzagent.models import SiteSection
 from amzagent.web.chat import ChatAgent
 from amzagent.web.fb_routes import register_fb_routes
 from amzagent.web.ig_routes import register_ig_routes, norm_domain
+from amzagent.web.trading_routes import register_trading_routes
 from amzagent.web.period import PRESETS, Period, parse_period
 
 logger = logging.getLogger(__name__)
@@ -1031,6 +1032,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None,
                        network_stats=lambda period: _network_stats(
                            effective(settings, store), store, period, network_cache),
                        forget_network_stats=network_cache.clear)
+    register_trading_routes(app, TEMPLATES, settings, logged_in, to_login)
 
     @app.get("/login", response_class=HTMLResponse)
     def login_form(request: Request):

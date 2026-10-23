@@ -279,6 +279,32 @@ Amazon. Зона, где задержано не меньше `BOT_ZONE_MIN` (3)
 Следующий этап — создание кампаний в Facebook (выключенными), запуск,
 статистика и автоправила по цене лида.
 
+## Трейдинг (вкладка «Трейдинг», бот EVEDEX)
+
+Бот из `../cryptobot` торгует бессрочными фьючерсами на EVEDEX: вход по пересечению EMA,
+стоп-лосс и тейк-профит ставятся на самой бирже. Он работает отдельным контейнером `trader`
+и запускается **только** если в `.env` есть `COMPOSE_PROFILES=trading` — без этого на сервере
+ничего нового не стартует.
+
+Включение (начните с демо — тестовые USDT даёт кнопка «Request Demo Funds» на бирже):
+
+```bash
+# в amazon_agent/.env
+COMPOSE_PROFILES=trading
+TRADER_ENV=demo
+TRADER_INSTRUMENT=BTCUSDT:DEMO
+EVEDEX_API_KEY=...            # EVEDEX → профиль → Settings → API
+EVEDEX_OCT_PRIVATE_KEY=0x...  # ключ one-click-trading кошелька
+```
+
+и `deploy/autoupdate.sh --force`. Остальные настройки — `TRADER_*` в `.env.example`.
+Реальный счёт: `TRADER_ENV=prod` **и** `TRADER_REAL_MONEY=yes`, иначе бот не запустится.
+
+Бот и панель общаются через том `trading_data`: бот пишет `status.json`, `trades.csv`,
+`equity.csv`, панель — только `control.json` (пауза, закрыть позицию), который бот читает
+при следующей проверке (раз в минуту). Ключи биржи есть только у контейнера бота.
+Логи: `docker compose logs -f trader`.
+
 ## Режим: авто или ручной
 
 Переключатель «Режим: Авто | Ручной» вверху панели.

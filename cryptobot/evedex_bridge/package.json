@@ -1,0 +1,10 @@
+{
+  "name": "cryptobot-evedex-bridge",
+  "private": true,
+  "type": "commonjs",
+  "description": "Thin CLI over the official EVEDEX SDK, called by the Python bot",
+  "dependencies": {
+    "@evedex/exchange-bot-sdk": "1.2.11",
+    "ws": "^8.18.1"
+  }
+}

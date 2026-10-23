@@ -9,3 +9,6 @@ build/
 dist/
 output/
 .DS_Store
+node_modules/
+data_cache/
+paper_state/

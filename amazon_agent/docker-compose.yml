@@ -8,8 +8,21 @@ services:
     env_file: .env
     volumes:
       - app_data:/app/data
+      - trading_data:/app/data/trading
     expose:
       - "8000"
+
+  # EVEDEX trading bot (../cryptobot). Starts only with COMPOSE_PROFILES=trading
+  # in .env; the panel's "Трейдинг" tab reads what it writes to trading_data.
+  trader:
+    profiles: ["trading"]
+    build:
+      context: ..
+      dockerfile: cryptobot/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - trading_data:/data/trading
 
   caddy:
     image: caddy:2-alpine
@@ -30,3 +43,4 @@ volumes:
   caddy_data:
   caddy_config:
   app_data:
+  trading_data:
