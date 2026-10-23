@@ -145,3 +145,11 @@ def test_bot_that_never_reached_the_exchange_still_renders(settings, store):
     res = _client(settings, store).get("/admin/trading")
     assert res.status_code == 200 and "BTCUSDT:DEMO" in res.text and "user_not_found_error" in res.text
     assert "бот не отвечает" in res.text
+
+
+def test_chart_starts_when_the_account_is_funded():
+    rows = [{"time": "a", "balance": "0.00004"}, {"time": "b", "balance": "0.00004"},
+            {"time": "c", "balance": "3.65"}, {"time": "d", "balance": "3.72"}]
+    chart = equity_chart(rows)
+    assert chart["first"] == "c" and round(chart["change_pct"], 2) == 1.92 and chart["min"] == 3.65
+    assert equity_chart(rows[:3]) is None  # only one funded point so far

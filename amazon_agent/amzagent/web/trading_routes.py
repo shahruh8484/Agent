@@ -73,6 +73,9 @@ def price(value) -> str:
     return text.rstrip("0").rstrip(".") if digits > 2 and "." in text else text
 
 
+MIN_FUNDED = 1.0  # $; below this the account counts as empty
+
+
 def equity_chart(rows: list[dict], width: int = 1000, height: int = 160) -> dict | None:
     """SVG polyline of the account value; None until there are two points.
 
@@ -80,6 +83,9 @@ def equity_chart(rows: list[dict], width: int = 1000, height: int = 160) -> dict
     older rows only have the free balance plus this coin's unrealized PnL."""
     values = [_float(r.get("account")) if r.get("account") not in (None, "")
               else _float(r.get("balance")) + _float(r.get("unrealized_pnl")) for r in rows]
+    # Start once the account is funded: growth from ~$0 to the first deposit isn't performance.
+    start = next((i for i, v in enumerate(values) if v >= MIN_FUNDED), len(values))
+    rows, values = rows[start:], values[start:]
     if len(values) < 2:
         return None
     lo, hi = min(values), max(values)
