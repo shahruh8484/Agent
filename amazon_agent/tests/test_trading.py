@@ -131,4 +131,4 @@ def test_broken_bot_files_show_a_readable_error(settings, store, monkeypatch):
     monkeypatch.setattr(trading_routes, "load_bot", lambda d: (_ for _ in ()).throw(KeyError("availableBalance")))
     res = client.get("/admin/trading")
     assert res.status_code == 500 and "не смогла открыться" in res.text
-    assert "KeyError" in res.text and "availableBalance" in res.text and 'href="/admin/ig"' in res.text
+    assert "KeyError" in res.text and "availableBalance" in res.text and "href='/admin/ig'" in res.text
