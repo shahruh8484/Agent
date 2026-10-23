@@ -144,9 +144,21 @@ def evedex(
     tp_atr: float = 4.0,
     poll: int = 60,
     state_dir: str = typer.Option("paper_state", help="Where status/trades are written for the panels"),
+    instruments: str = typer.Option("", help="Several coins: 'XRPUSD,LINKUSD=LINK/USDT' (overrides --instrument)"),
+    max_positions: int = typer.Option(2, min=1, help="Open longs at once across all coins"),
+    news: str = typer.Option("off", help="News filter: off, shadow (only record) or on (veto entries, exit early)"),
+    news_block: float = typer.Option(-0.3, help="Skip entries when the news score is at or below this"),
+    news_exit: float = typer.Option(-0.7, help="Close a position when the news score is at or below this"),
 ):
     """Trade the strategy on EVEDEX (demo by default)."""
-    from cryptobot.evedex import EvedexClient, LiveConfig, run_live
+    from cryptobot.evedex import EvedexClient, LiveConfig, Market, parse_markets, run_live
+    from cryptobot.news import NewsConfig
+
+    if news not in ("off", "shadow", "on"):
+        typer.echo("--news must be off, shadow or on")
+        raise typer.Exit(1)
+    markets = parse_markets(instruments) if instruments.strip() else [Market(instrument, signal_symbol)]
+    instrument = ", ".join(m.instrument for m in markets)
 
     if env == "prod" and not real_money:
         typer.echo("--env prod trades REAL money; add --real-money to confirm.")
@@ -160,11 +172,11 @@ def evedex(
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     run_live(
         EvedexClient(env),
-        LiveConfig(instrument=instrument, leverage=leverage, max_usd=max_usd),
+        LiveConfig(leverage=leverage, max_usd=max_usd, max_positions=max_positions),
         StrategyParams(fast_ema=fast, slow_ema=slow, stop_atr=stop_atr, take_profit_atr=tp_atr),
         BacktestConfig(risk_per_trade=risk),
-        signal_symbol=signal_symbol, signal_exchange=signal_exchange, timeframe=timeframe, poll_seconds=poll,
-        state_dir=state_dir,
+        markets, signal_exchange=signal_exchange, timeframe=timeframe, poll_seconds=poll,
+        state_dir=state_dir, news_cfg=NewsConfig(mode=news, block_below=news_block, exit_below=news_exit),
     )
 
 

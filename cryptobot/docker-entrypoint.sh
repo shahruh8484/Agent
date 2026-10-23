@@ -14,9 +14,15 @@ else
   set -- --env demo
 fi
 
+# TRADER_INSTRUMENTS (several coins) wins over TRADER_INSTRUMENT + TRADER_SIGNAL_SYMBOL.
 exec python -m cryptobot.main evedex "$@" \
   --instrument "${TRADER_INSTRUMENT:-BTCUSDT:DEMO}" \
   --signal-symbol "${TRADER_SIGNAL_SYMBOL:-BTC/USDT}" \
+  --instruments "${TRADER_INSTRUMENTS:-}" \
+  --max-positions "${TRADER_MAX_POSITIONS:-2}" \
+  --news "${TRADER_NEWS:-shadow}" \
+  --news-block "${TRADER_NEWS_BLOCK:--0.3}" \
+  --news-exit "${TRADER_NEWS_EXIT:--0.7}" \
   --signal-exchange "${TRADER_SIGNAL_EXCHANGE:-binance}" \
   --timeframe "${TRADER_TIMEFRAME:-1h}" \
   --leverage "${TRADER_LEVERAGE:-1}" \

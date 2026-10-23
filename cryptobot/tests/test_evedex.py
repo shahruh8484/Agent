@@ -114,3 +114,15 @@ def test_bridge_errors_never_leak_tokens_and_get_hints(monkeypatch):
         EvedexClient("demo").state("BTCUSDT:DEMO")
     assert "eyJ" not in str(err.value) and "Bearer ***" in str(err.value)
     assert "MetaMask" in str(err.value)
+
+
+def test_append_realigns_csv_when_columns_change(tmp_path):
+    from cryptobot.evedex import BotFiles
+
+    files = BotFiles(tmp_path, "prod", "XRPUSD", "1h")
+    files.append(files.equity, {"time": "a", "balance": 1, "unrealized_pnl": 0, "mark": 1.3})
+    files.append(files.equity, {"time": "b", "balance": 2, "unrealized_pnl": 0, "mark": 1.3, "account": 25})
+    files.append(files.equity, {"time": "c", "balance": 3, "unrealized_pnl": 0, "mark": 1.3, "account": 26})
+    df = pd.read_csv(files.equity)
+    assert list(df.columns) == ["time", "balance", "unrealized_pnl", "mark", "account"]
+    assert df["account"].isna().tolist() == [True, False, False] and df["balance"].tolist() == [1, 2, 3]

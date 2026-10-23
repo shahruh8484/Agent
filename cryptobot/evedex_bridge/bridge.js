@@ -84,7 +84,33 @@ const commands = {
     const [inst, position, balance, tpsl] = await Promise.all([
       instrument(name), openPosition(account, name), account.fetchAvailableBalance(), liveTpSl(account, name),
     ]);
-    return { markPrice: inst.markPrice, availableBalance: Number(balance.availableBalance), position, tpsl };
+    return {
+      markPrice: inst.markPrice, availableBalance: Number(balance.availableBalance),
+      fundingBalance: Number(balance.funding?.balance ?? balance.availableBalance), position, tpsl,
+    };
+  },
+
+  // Same as `state` for several instruments with one sign-in, for multi-coin bots.
+  async states({ instruments: names }) {
+    const account = await walletAccount();
+    const [all, positions, balance, tpslList] = await Promise.all([
+      container.gateway().fetchInstrumentsWithMetrics(), account.fetchPositions(),
+      account.fetchAvailableBalance(), account.fetchTpSlList({ instrument: names }),
+    ]);
+    const byName = Object.fromEntries(all.map((i) => [i.name, i]));
+    const unknown = names.filter((n) => !byName[n]);
+    if (unknown.length) throw new Error(`unknown instrument(s) ${unknown}; run the 'instruments' command`);
+    const result = {};
+    for (const name of names) {
+      result[name] = {
+        markPrice: byName[name].markPrice,
+        availableBalance: Number(balance.availableBalance),
+        fundingBalance: Number(balance.funding?.balance ?? balance.availableBalance),
+        position: positions.find((p) => p.instrument === name && Number(p.quantity) > 0) || null,
+        tpsl: tpslList.list.filter((t) => t.instrument === name && isLive(t)),
+      };
+    }
+    return { states: result };
   },
 
   async open_long({ instrument: name, cash, leverage = 1, stop, takeProfit }) {
