@@ -148,13 +148,18 @@ function newsBlock(n) {
   </div>`;
 }
 
+// Start once the account is funded: growth from ~$0 to the first deposit isn't performance.
+const funded = (equity) => { const i = equity.findIndex((e) => equityOf(e) >= 1); return i < 0 ? [] : equity.slice(i); };
+
 function chartRange(equity) {
+  equity = funded(equity);
   if (equity.length < 2) return "";
   const first = equityOf(equity[0]), last = equityOf(equity.at(-1)), pct = (last / first - 1) * 100;
   return `<span class="${pct >= 0 ? "good" : "bad"}">${pct >= 0 ? "+" : ""}${num(pct)}%</span> с ${esc(time(equity[0].time))}`;
 }
 
 function chart(equity) {
+  equity = funded(equity);
   if (equity.length < 2) return '<div class="muted" style="padding-top:80px;text-align:center">График появится после второй свечи</div>';
   const ys = equity.map(equityOf), min = Math.min(...ys), max = Math.max(...ys), pad = (max - min) * 0.1 || 1;
   const lo = min - pad, hi = max + pad, W = 1000, H = 200;
