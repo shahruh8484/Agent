@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import subprocess
 import time
 from dataclasses import dataclass
@@ -29,6 +30,21 @@ class EvedexError(RuntimeError):
     pass
 
 
+HINTS = {
+    "user_not_found_error": "биржа не знает пользователя с этим ключом: этот кошелёк ни разу не входил на EVEDEX "
+                            "(аккаунт создан через email). Войдите на сайт биржи этим кошельком через MetaMask.",
+}
+
+
+def _clean(text) -> str:
+    """Bridge output is shown on panels: never let a session token through, and explain known errors."""
+    text = re.sub(r"Bearer\s+[\w.-]+", "Bearer ***", str(text))[:500]
+    for label, hint in HINTS.items():
+        if label in text:
+            return f"{text} — {hint}"
+    return text
+
+
 class EvedexClient:
     def __init__(self, env: str = "demo", timeout: int = 60):
         if env not in ("demo", "prod"):
@@ -44,10 +60,10 @@ class EvedexClient:
         )
         lines = proc.stdout.strip().splitlines()
         if not lines:
-            raise EvedexError(f"bridge returned nothing: {proc.stderr.strip()[-500:]}")
+            raise EvedexError(_clean(f"bridge returned nothing: {proc.stderr.strip()[-500:]}"))
         result = json.loads(lines[-1])
         if proc.returncode != 0 or "error" in result:
-            raise EvedexError(result.get("error", proc.stderr.strip()[-500:]))
+            raise EvedexError(_clean(result.get("error", proc.stderr.strip()[-500:])))
         return result
 
     def instruments(self) -> list[dict]:
