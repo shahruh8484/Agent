@@ -132,3 +132,16 @@ def test_broken_bot_files_show_a_readable_error(settings, store, monkeypatch):
     res = client.get("/admin/trading")
     assert res.status_code == 500 and "не смогла открыться" in res.text
     assert "KeyError" in res.text and "availableBalance" in res.text and "href='/admin/ig'" in res.text
+
+
+def test_bot_that_never_reached_the_exchange_still_renders(settings, store):
+    # e.g. a demo run that failed to sign in: status has config and an error, but no state yet
+    folder = settings_dir(settings) / "evedex_demo_BTCUSDT_DEMO_1h"
+    folder.mkdir(parents=True)
+    (folder / "status.json").write_text(json.dumps({
+        "updated_at": time.time() - 86400, "poll_seconds": 60, "error": "HTTP 404 user_not_found_error",
+        "config": {"env": "demo", "instrument": "BTCUSDT:DEMO", "timeframe": "1h"}}))
+    (folder / "equity.csv").write_text("time,balance,unrealized_pnl,mark\n")
+    res = _client(settings, store).get("/admin/trading")
+    assert res.status_code == 200 and "BTCUSDT:DEMO" in res.text and "user_not_found_error" in res.text
+    assert "бот не отвечает" in res.text

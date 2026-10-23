@@ -15,6 +15,7 @@ import traceback
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
+from jinja2 import Undefined
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,8 @@ def _read_csv(path: Path, tail: int) -> list[dict]:
 
 
 def _float(value, default: float = 0.0) -> float:
+    if isinstance(value, Undefined):  # a field the bot hasn't written yet (float() on it raises)
+        return default
     try:
         return float(value)
     except (TypeError, ValueError):
