@@ -419,6 +419,7 @@ def test_statement_ends_at_balance(repo):
     adv_lines = calc.statement(repo, later, "advertiser", adv)
     assert adv_lines[0].kind == "opening" and adv_lines[0].balance == 4192
     assert any(l.kind == "pending" and l.guarantee == pytest.approx(9 * 25) for l in adv_lines)
+    assert next(l for l in adv_lines if l.date == "2026-10-11" and l.kind == "traffic").valid == 40
 
 
 

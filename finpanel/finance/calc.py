@@ -594,6 +594,7 @@ class StatementLine:
     kind: str            # 'opening' | 'traffic' | 'pending' | 'payment' | 'accrual'
     text: str
     leads: int = 0
+    valid: int = 0
     approves: int = 0
     guarantee: float = 0.0   # part of `accrued` that comes from the guarantee
     accrued: float = 0.0
@@ -636,6 +637,7 @@ def statement(repo: Repo, today: date, party_type: str, party_id: int) -> list[S
             continue
         line = days.setdefault(day, StatementLine(day, "traffic", "Трафик"))
         line.leads += stat["leads"]
+        line.valid += stat["valid"] or 0
         line.approves += stat["approves"]
         line.guarantee += guarantee
         line.accrued += amount
