@@ -22,7 +22,7 @@
 {% include "_tabs.html" %}
 {% if flash %}<div class="banner" style="border-color:var(--ok);color:var(--ok)">{{ flash }}</div>{% endif %}
 
-<div class="banner">Бот торгует бессрочными фьючерсами на EVEDEX: вход по пересечению EMA, стоп-лосс и тейк-профит ставятся на самой бирже и сработают, даже если бот выключен. Только лонг, риск 1% баланса на сделку, размер позиции ограничен. Страница обновляется каждые 30 секунд.</div>
+<div class="banner">Бот торгует бессрочными фьючерсами на EVEDEX: вход по пересечению EMA, стоп-лосс и тейк-профит ставятся на самой бирже и сработают, даже если бот выключен. Только лонг, риск 1% баланса на сделку, размер позиции и число позиций ограничены. ИИ читает новости и может только запретить вход или закрыть позицию раньше — сам сделки не открывает. Страница обновляется каждые 30 секунд.</div>
 
 {% for b in bots %}
 {% set c = b.config %}{% set s = b.status %}{% set st = b.state %}{% set pos = b.position %}
@@ -51,19 +51,35 @@
 
   <div class="kpis">
     <div class="card kpi"><b>${{ "%.2f"|format(st.availableBalance or 0) }}</b><span>доступный баланс</span></div>
-    <div class="card kpi"><b>{% if pos %}{{ "Лонг" if pos.side == "BUY" else "Шорт" }} {{ pos.quantity }}{% else %}нет{% endif %}</b><span>позиция{% if pos %} · вход {{ "%.2f"|format(pos.avgPrice or 0) }}{% endif %}</span></div>
+    <div class="card kpi"><b>{% if pos %}{{ "Лонг" if pos.side == "BUY" else "Шорт" }} {{ pos.quantity }}{% else %}нет{% endif %}</b><span>позиция{% if pos %} · вход {{ pos.avgPrice|price }}{% endif %}</span></div>
     {% set pnl = (pos.unRealizedPnL or 0) if pos else none %}
     <div class="card kpi"><b class="{{ 'pos' if pnl and pnl > 0 else 'neg' if pnl and pnl < 0 else '' }}">{% if pos %}${{ "%.2f"|format(pnl) }}{% else %}—{% endif %}</b><span>нереализованный PnL</span></div>
-    <div class="card kpi"><b>{{ b.stop.price if b.stop else "—" }} / {{ b.take_profit.price if b.take_profit else "—" }}</b><span>стоп / тейк на бирже</span></div>
-    <div class="card kpi"><b>{{ "%.2f"|format(st.markPrice or 0) }}</b><span>цена (mark)</span></div>
+    <div class="card kpi"><b>{{ b.stop.price|price if b.stop else "—" }} / {{ b.take_profit.price|price if b.take_profit else "—" }}</b><span>стоп / тейк на бирже</span></div>
+    <div class="card kpi"><b>{{ st.markPrice|price }}</b><span>цена (mark)</span></div>
     <div class="card kpi"><b class="{{ 'pos' if (s.ema_fast or 0) > (s.ema_slow or 0) else 'neg' }}">{{ "↑ тренд" if (s.ema_fast or 0) > (s.ema_slow or 0) else "↓ тренд" }}</b><span>EMA {{ c.fast_ema }}/{{ c.slow_ema }} · RSI {{ "%.1f"|format(s.rsi or 0) }}</span></div>
   </div>
 
   <p class="muted" style="margin:12px 0 0">Последняя свеча {{ s.candle|localtime or "—" }}: <b style="color:var(--fg)">{{ {"open": "Вход", "close": "Выход", "hold": "Ждём"}.get(s.action, "—") }}</b> — {{ reasons.get(s.reason, s.reason) or "свечей ещё не было" }}</p>
 
+  {% set n = b.news %}{% if n %}
+  <div class="card" style="margin-top:12px;background:var(--bg)">
+    <div class="row" style="justify-content:space-between">
+      <b>Новости · ИИ-фильтр <span class="muted" style="font-weight:400">({{ news_modes.get(n.mode, n.mode) }})</span></b>
+      {% if n.score is not none %}<b class="{{ 'pos' if n.score >= 0.3 else 'neg' if n.score <= -0.3 else '' }}" style="font-size:1.2rem">{{ "%+.2f"|format(n.score) }}</b>{% endif %}
+    </div>
+    {% if n.error %}<p class="neg" style="margin:6px 0">{{ n.error }}</p>{% endif %}
+    {% if n.summary %}<p style="margin:6px 0">{{ n.summary }}</p>{% endif %}
+    {% if n.effect %}<p style="margin:6px 0"><b>{% if n.mode == "on" %}Фильтр: {{ news_effects[n.effect] }}.{% else %}Фильтр бы: {{ news_effects[n.effect] }}{% endif %}</b>{% if n.mode != "on" %} <span class="muted">— режим наблюдения, на сделки не влияет</span>{% endif %}</p>{% endif %}
+    {% if n.headlines %}<details><summary class="muted" style="cursor:pointer">Заголовки ({{ n.headlines|length }}) · оценено {{ n.scored_at|localtime }}</summary>
+      <ul style="margin:8px 0 0;padding-left:18px">{% for h in n.headlines[:12] %}
+        <li style="margin:3px 0">{% if h.key %}★ {% endif %}<a href="{{ h.url }}" target="_blank" rel="noopener noreferrer">{{ h.title }}</a>
+          <span class="muted">· {{ h.source }} · {{ h.published|localtime }}{% if h.kind == "market" %} · рынок{% endif %}</span></li>{% endfor %}</ul>
+    </details>{% endif %}
+  </div>{% endif %}
+
   {% set ch = b.chart %}
   <div class="tr-chart" style="margin-top:14px">
-    <div class="tr-axis muted"><span>Баланс + нереализованный PnL</span>{% if ch %}<span class="{{ 'pos' if ch.change_pct >= 0 else 'neg' }}">{{ "%+.2f"|format(ch.change_pct) }}%</span>{% endif %}</div>
+    <div class="tr-axis muted"><span>Стоимость счёта</span>{% if ch %}<span class="{{ 'pos' if ch.change_pct >= 0 else 'neg' }}">{{ "%+.2f"|format(ch.change_pct) }}%</span>{% endif %}</div>
     {% if ch %}
     <svg viewBox="0 0 {{ ch.width }} {{ ch.height }}" preserveAspectRatio="none" role="img" aria-label="График баланса">
       {% for f in [0.25, 0.5, 0.75] %}<line x1="0" x2="{{ ch.width }}" y1="{{ ch.height * f }}" y2="{{ ch.height * f }}"/>{% endfor %}
@@ -78,13 +94,13 @@
     <thead><tr><th>Время</th><th>Действие</th><th>Причина</th><th class="num">Цена</th><th class="num">Сумма</th><th class="num">Стоп</th></tr></thead>
     <tbody>{% for t in b.trades %}
       <tr><td>{{ t.time|localtime }}</td><td>{{ {"open": "Вход", "close": "Выход"}.get(t.action, t.action) }}</td><td>{{ reasons.get(t.reason, t.reason) }}</td>
-        <td class="num">{{ "%.2f"|format(t.mark|float) }}</td><td class="num">{% if t.action == "open" %}${{ "%.2f"|format(t.cash|float) }}{% endif %}</td>
-        <td class="num">{% if t.action == "open" %}{{ "%.2f"|format(t.stop|float) }}{% endif %}</td></tr>
+        <td class="num">{{ t.mark|price }}</td><td class="num">{% if t.action == "open" %}${{ "%.2f"|format(t.cash|float) }}{% endif %}</td>
+        <td class="num">{% if t.action == "open" %}{{ t.stop|price }}{% endif %}</td></tr>
     {% else %}<tr><td colspan="6" class="muted">Сделок пока нет</td></tr>{% endfor %}</tbody>
   </table></div>
 
   <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Настройки бота</summary>
-    <p class="muted">Плечо {{ c.leverage }}x · максимум ${{ c.max_usd }} на позицию · риск {{ "%.1f"|format((c.risk_per_trade or 0) * 100) }}% на сделку · стоп {{ c.stop_atr }}×ATR · тейк {{ c.take_profit_atr }}×ATR. Меняются в <code>.env</code> на сервере (переменные <code>TRADER_*</code>).</p>
+    <p class="muted">{% if c.coins and c.coins|length > 1 %}Монеты: {{ c.coins|join(", ") }} · не больше {{ c.max_positions }} позиций одновременно · {% endif %}Плечо {{ c.leverage }}x · максимум ${{ c.max_usd }} на позицию · риск {{ "%.1f"|format((c.risk_per_trade or 0) * 100) }}% на сделку · стоп {{ c.stop_atr }}×ATR · тейк {{ c.take_profit_atr }}×ATR. {% if c.news_mode %}Новости: {{ news_modes.get(c.news_mode, c.news_mode) }}, вход пропускается при оценке ≤ {{ c.news_block_below }}, позиция закрывается при ≤ {{ c.news_exit_below }}. {% endif %}Меняются в <code>.env</code> на сервере (переменные <code>TRADER_*</code>).</p>
   </details>
 </div>
 {% else %}

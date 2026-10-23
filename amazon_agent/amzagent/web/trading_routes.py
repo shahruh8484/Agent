@@ -25,7 +25,12 @@ REASONS = {
     "paused from the panel; not opening new positions": "пауза — новые входы отключены",
     "short position not opened by this bot; leaving it alone": "ручной шорт — бот не трогает",
     "closed from the panel": "закрыто из панели",
+    "position limit reached": "лимит открытых позиций",
+    "news negative; entry skipped": "плохие новости — вход пропущен",
+    "news very negative; closing": "очень плохие новости — закрываем",
 }
+NEWS_MODES = {"shadow": "наблюдение", "on": "включён", "off": "выключен"}
+NEWS_EFFECTS = {"block": "пропустить вход", "exit": "закрыть позицию"}
 
 
 def _read_json(path: Path) -> dict:
@@ -50,9 +55,23 @@ def _float(value, default: float = 0.0) -> float:
         return default
 
 
+def price(value) -> str:
+    """Prices from $80k BTC down to $0.08 DOGE, with enough digits to tell a stop from the mark."""
+    v = _float(value, None)
+    if v is None:
+        return "—"
+    digits = 2 if abs(v) >= 100 else 4 if abs(v) >= 1 else 6
+    text = f"{v:.{digits}f}"
+    return text.rstrip("0").rstrip(".") if digits > 2 and "." in text else text
+
+
 def equity_chart(rows: list[dict], width: int = 1000, height: int = 160) -> dict | None:
-    """SVG polyline for balance + unrealized PnL; None until there are two points."""
-    values = [_float(r.get("balance")) + _float(r.get("unrealized_pnl")) for r in rows]
+    """SVG polyline of the account value; None until there are two points.
+
+    Newer bots write "account" (whole account, including margin held by positions);
+    older rows only have the free balance plus this coin's unrealized PnL."""
+    values = [_float(r.get("account")) if r.get("account") not in (None, "")
+              else _float(r.get("balance")) + _float(r.get("unrealized_pnl")) for r in rows]
     if len(values) < 2:
         return None
     lo, hi = min(values), max(values)
@@ -89,11 +108,13 @@ def load_bot(folder: Path) -> dict:
         "close_requested": bool(control.get("close_requested")),
         "trades": list(reversed(_read_csv(folder / "trades.csv", 30))),
         "chart": equity_chart(_read_csv(folder / "equity.csv", 2000)),
+        "news": status.get("news"),
     }
 
 
 def register_trading_routes(app: FastAPI, templates, settings, logged_in, to_login) -> None:
     root = Path(settings.data_dir) / "trading"
+    templates.env.filters["price"] = price
 
     def folders() -> dict[str, Path]:
         if not root.is_dir():
@@ -122,7 +143,7 @@ def register_trading_routes(app: FastAPI, templates, settings, logged_in, to_log
             return to_login()
         return templates.TemplateResponse(request, "trading.html", {
             "bots": [load_bot(d) for d in folders().values()],
-            "reasons": REASONS,
+            "reasons": REASONS, "news_modes": NEWS_MODES, "news_effects": NEWS_EFFECTS,
             "flash": request.session.pop("flash", None),
         })
 

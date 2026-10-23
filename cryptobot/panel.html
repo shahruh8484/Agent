@@ -71,6 +71,8 @@ const ACTIONS = { open: "Вход", close: "Выход", hold: "Ждём" };
 const REASONS = {
   "EMA cross up": "EMA пересекла вверх", "EMA cross down": "EMA пересекла вниз", "no signal": "нет сигнала",
   "in position": "в позиции", "position size below $1": "позиция меньше $1", "stop would be below zero": "стоп ниже нуля",
+  "position limit reached": "лимит открытых позиций", "news negative; entry skipped": "плохие новости — вход пропущен",
+  "news very negative; closing": "очень плохие новости — закрываем", "closed from the panel": "закрыто из панели",
   "stale TP/SL without a position": "чистка старых стопов", "paused from the panel; not opening new positions": "пауза — новые входы отключены",
   "short position not opened by this bot; leaving it alone": "ручной шорт — бот не трогает",
 };
@@ -114,6 +116,7 @@ function card(bot) {
       <div class="tile"><div class="label">RSI</div><div class="value">${num(s.rsi, 1)}</div></div>
     </div>
     <div class="muted">Последняя свеча ${esc(time(s.candle))}: <b>${esc(ACTIONS[s.action] || "—")}</b> — ${esc(ru(s.reason) || "ещё не было свечей")}</div>
+    ${newsBlock(s.news)}
     <div class="chart-head muted"><span>Баланс + нереализованный PnL, $</span><span>${chartRange(bot.equity)}</span></div>
     <div class="chart">${chart(bot.equity)}</div>
     <div class="table-wrap">
@@ -126,7 +129,24 @@ function card(bot) {
   </section>`;
 }
 
-const equityOf = (e) => Number(e.balance) + Number(e.unrealized_pnl || 0);
+// "account" (whole account incl. margin in positions) is written by newer bots; older rows fall back.
+const equityOf = (e) => (e.account !== undefined && e.account !== null && e.account !== "") ? Number(e.account) : Number(e.balance) + Number(e.unrealized_pnl || 0);
+
+const NEWS_MODE = { shadow: "наблюдение", on: "включён", off: "выключен" };
+const NEWS_FX = { block: "пропустить вход", exit: "закрыть позицию" };
+function newsBlock(n) {
+  if (!n) return "";
+  const sc = n.score, cls = sc === null || sc === undefined ? "" : sc >= 0.3 ? "good" : sc <= -0.3 ? "bad" : "";
+  const fx = n.effect ? (n.mode === "on" ? `Фильтр: ${NEWS_FX[n.effect]}.` : `Фильтр бы: ${NEWS_FX[n.effect]} (режим наблюдения, на сделки не влияет).`) : "";
+  const items = (n.headlines || []).slice(0, 8).map((h) => `<li>${h.key ? "★ " : ""}<a href="${esc(h.url)}" target="_blank" rel="noopener noreferrer">${esc(h.title)}</a> <span class="muted">· ${esc(h.source)} · ${esc(time(h.published))}${h.kind === "market" ? " · рынок" : ""}</span></li>`).join("");
+  return `<div class="tile" style="margin-top:12px">
+    <div class="label">Новости · ИИ-фильтр (${esc(NEWS_MODE[n.mode] || n.mode)})</div>
+    <div class="value ${cls}">${sc === null || sc === undefined ? "—" : (sc > 0 ? "+" : "") + num(sc)}</div>
+    ${n.error ? `<div class="bad">${esc(n.error)}</div>` : ""}
+    <div>${esc(n.summary)}</div>${fx ? `<div><b>${esc(fx)}</b></div>` : ""}
+    ${items ? `<details><summary>Заголовки (${(n.headlines || []).length})</summary><ul style="margin:6px 0;padding-left:18px">${items}</ul></details>` : ""}
+  </div>`;
+}
 
 function chartRange(equity) {
   if (equity.length < 2) return "";

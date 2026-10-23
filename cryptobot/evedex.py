@@ -72,6 +72,9 @@ class EvedexClient:
     def state(self, instrument: str) -> dict:
         return self.call("state", instrument=instrument)
 
+    def states(self, instruments: list[str]) -> dict[str, dict]:
+        return self.call("states", instruments=instruments)["states"]
+
     def open_long(self, instrument: str, cash: float, leverage: int, stop: float, take_profit: float | None) -> dict:
         return self.call(
             "open_long", instrument=instrument, cash=round(cash, 2), leverage=leverage,
@@ -87,6 +90,27 @@ class LiveConfig:
     instrument: str = "BTCUSDT:DEMO"
     leverage: int = 1
     max_usd: float = 100.0  # hard cap on position notional, whatever the sizing says
+    max_positions: int = 2  # open longs across all coins of one bot; they share the balance
+
+
+@dataclass
+class Market:
+    instrument: str  # EVEDEX name, e.g. XRPUSD
+    signal_symbol: str  # candles for signals, e.g. XRP/USDT
+
+
+def parse_markets(spec: str) -> list[Market]:
+    """"XRPUSD, LINKUSD=LINK/USDT" -> markets; the signal pair defaults to <coin>/USDT."""
+    from cryptobot.news import base_coin
+
+    markets = []
+    for part in filter(None, (p.strip() for p in spec.split(","))):
+        instrument, _, symbol = part.partition("=")
+        instrument = instrument.strip()
+        markets.append(Market(instrument, symbol.strip() or f"{base_coin(instrument)}/USDT"))
+    if len({m.instrument for m in markets}) != len(markets):
+        raise ValueError(f"duplicate instrument in {spec!r}")
+    return markets
 
 
 @dataclass
@@ -98,8 +122,9 @@ class Action:
     take_profit: float | None = None
 
 
-def decide(bar: pd.Series, state: dict, params: StrategyParams, risk: BacktestConfig, live: LiveConfig) -> Action:
-    """Pure decision for one closed candle, given the exchange state."""
+def decide(bar: pd.Series, state: dict, params: StrategyParams, risk: BacktestConfig, live: LiveConfig,
+           open_positions: int = 0) -> Action:
+    """Pure decision for one closed candle, given the exchange state and longs open on other coins."""
     position = state.get("position")
     if position:
         if position.get("side") != "BUY":
@@ -112,6 +137,8 @@ def decide(bar: pd.Series, state: dict, params: StrategyParams, risk: BacktestCo
         return Action("close", "stale TP/SL without a position")
     if not bar["entry"]:
         return Action("hold", "no signal")
+    if open_positions >= live.max_positions:
+        return Action("hold", "position limit reached")
 
     price = float(state["markPrice"])
     balance = float(state["availableBalance"])
@@ -175,6 +202,13 @@ class BotFiles:
         tmp.replace(self.status)  # atomic, so the panel never reads half a file
 
     def append(self, path: Path, row: dict) -> None:
+        if path.exists():
+            with path.open() as f:
+                header = f.readline().strip().split(",")
+            if header != list(row):
+                # Columns changed between versions: rewrite once so every row lines up again.
+                pd.concat([pd.read_csv(path), pd.DataFrame([row])]).to_csv(path, index=False)
+                return
         pd.DataFrame([row]).to_csv(path, mode="a", header=not path.exists(), index=False)
 
 
@@ -183,89 +217,144 @@ def run_live(
     live: LiveConfig,
     params: StrategyParams,
     risk: BacktestConfig,
-    signal_symbol: str = "BTC/USDT",
+    markets: list[Market],
     signal_exchange: str = "binance",
     timeframe: str = "1h",
     poll_seconds: int = 60,
     state_dir: str | Path = "paper_state",
+    news_cfg=None,
+    news_desk=None,
 ) -> None:
     import ccxt
 
+    from cryptobot.news import NewsConfig, NewsDesk, effect
+
+    news_cfg = news_cfg or NewsConfig(mode="off")
+    desk = news_desk or NewsDesk(news_cfg)
     feed = getattr(ccxt, signal_exchange)({"enableRateLimit": True})
-    files = BotFiles(state_dir, client.env, live.instrument, timeframe)
+    names = [m.instrument for m in markets]
+    files = {m.instrument: BotFiles(state_dir, client.env, m.instrument, timeframe) for m in markets}
     config = {
-        "env": client.env, "instrument": live.instrument, "timeframe": timeframe,
-        "signal": f"{signal_exchange} {signal_symbol}", "leverage": live.leverage, "max_usd": live.max_usd,
+        "env": client.env, "timeframe": timeframe, "leverage": live.leverage, "max_usd": live.max_usd,
+        "max_positions": live.max_positions, "coins": names,
         "risk_per_trade": risk.risk_per_trade, "fast_ema": params.fast_ema, "slow_ema": params.slow_ema,
         "stop_atr": params.stop_atr, "take_profit_atr": params.take_profit_atr,
+        "news_mode": news_cfg.mode, "news_block_below": news_cfg.block_below, "news_exit_below": news_cfg.exit_below,
     }
-    last: dict = {}
+    last: dict[str, dict] = {m.instrument: {} for m in markets}
+    news: dict = {}
 
-    log.info("EVEDEX %s [%s] on %s %s %s signals, leverage=%sx, max=$%s",
-             live.instrument, client.env.upper(), signal_exchange, signal_symbol, timeframe,
-             live.leverage, live.max_usd)
+    log.info("EVEDEX %s [%s] on %s %s signals, leverage=%sx, max=$%s, max positions=%s, news=%s",
+             ", ".join(f"{m.instrument}<-{m.signal_symbol}" for m in markets), client.env.upper(),
+             signal_exchange, timeframe, live.leverage, live.max_usd, live.max_positions, news_cfg.mode)
     try:
-        log.info("start state: %s", client.state(live.instrument))
+        log.info("start state: %s", client.states(names))
     except EvedexError as exc:
         log.warning("EVEDEX not reachable yet, will keep retrying: %s", exc)
 
+    def journal(m: Market, time_: str, action: Action, mark) -> None:
+        files[m.instrument].append(files[m.instrument].trades, {
+            "time": time_, "env": client.env, "action": action.kind, "reason": action.reason,
+            "cash": action.cash, "stop": action.stop, "take_profit": action.take_profit, "mark": mark,
+        })
+
     while True:
-        error = None
+        errors: dict[str, str] = {}
         try:
-            if files.close_requested():
-                # Stays requested until the close succeeds, so a failed attempt is retried.
-                closed = client.close(live.instrument).get("closed")
-                update_control(files.control, paused=True, close_requested=False)
-                log.info("closed from the panel: %s", closed)
-                if closed:
-                    state = client.state(live.instrument)
-                    files.append(files.trades, {
-                        "time": pd.Timestamp.now(tz="UTC").isoformat(), "env": client.env, "action": "close",
-                        "reason": "closed from the panel", "cash": 0.0, "stop": 0.0, "take_profit": None,
-                        "mark": state["markPrice"],
+            for m in markets:
+                f = files[m.instrument]
+                if f.close_requested():
+                    # Stays requested until the close succeeds, so a failed attempt is retried.
+                    closed = client.close(m.instrument).get("closed")
+                    update_control(f.control, paused=True, close_requested=False)
+                    log.info("%s closed from the panel: %s", m.instrument, closed)
+                    if closed:
+                        journal(m, pd.Timestamp.now(tz="UTC").isoformat(), Action("close", "closed from the panel"),
+                                client.states([m.instrument])[m.instrument]["markPrice"])
+
+            due = {}
+            for m in markets:
+                try:
+                    df = fetch_closed_candles(feed, m.signal_symbol, timeframe, params.slow_ema * 5)
+                except ccxt.BaseError as exc:
+                    log.warning("%s: no candles for %s: %s", m.instrument, m.signal_symbol, exc)
+                    errors[m.instrument] = f"свечи {m.signal_symbol}: {exc}"
+                    continue
+                candle = df.index[-1].isoformat()
+                lc = files[m.instrument].last_candle
+                if not (lc.exists() and lc.read_text() == candle):
+                    due[m.instrument] = (m, candle, generate_signals(df, params).iloc[-1])
+
+            if due:
+                if news_cfg.mode != "off":
+                    try:
+                        news = desk.views(list(due))
+                    except Exception as exc:  # the filter must never stop trading
+                        log.warning("news filter failed: %s", exc)
+                        news = {}
+                states = client.states(names)
+                open_longs = sum(1 for st in states.values() if (st.get("position") or {}).get("side") == "BUY")
+
+                for name, (m, candle, bar) in due.items():
+                    f, state = files[name], states[name]
+                    position = state.get("position")
+                    in_long = (position or {}).get("side") == "BUY"
+                    action = decide(bar, state, params, risk, live, open_longs - (1 if in_long else 0))
+                    if action.kind == "open" and f.paused():
+                        action = Action("hold", "paused from the panel; not opening new positions")
+
+                    view = news.get(name)
+                    fx = effect(view, news_cfg, in_long and action.kind == "hold", action.kind == "open")
+                    if fx and news_cfg.mode == "on":
+                        action = (Action("hold", "news negative; entry skipped") if fx == "block"
+                                  else Action("close", "news very negative; closing"))
+                    log.info("%s candle %s close=%s mark=%s balance=%.2f -> %s (%s)%s", name, candle,
+                             bar["close"], state["markPrice"], state["availableBalance"], action.kind, action.reason,
+                             f" news={view.score} {fx or ''}" if view else "")
+
+                    if action.kind == "open":
+                        result = client.open_long(name, action.cash, live.leverage, action.stop, action.take_profit)
+                        open_longs += 1
+                        log.info("%s opened qty=%s avg=%s stop=%s tp=%s", name, result["position"]["quantity"],
+                                 result["position"]["avgPrice"], action.stop, action.take_profit)
+                    elif action.kind == "close":
+                        if client.close(name).get("closed") and in_long:
+                            open_longs -= 1
+                    if action.kind != "hold":
+                        journal(m, candle, action, state["markPrice"])
+                    if view is not None:
+                        f.append(f.dir / "news.csv", {
+                            "time": candle, "mode": news_cfg.mode, "score": view.score, "effect": fx,
+                            "headlines": len(view.headlines), "summary": view.summary, "error": view.error,
+                            "action": action.kind, "close": float(bar["close"]),
+                        })
+                    last[name] = {
+                        "candle": candle, "close": float(bar["close"]), "ema_fast": float(bar["ema_fast"]),
+                        "ema_slow": float(bar["ema_slow"]), "rsi": float(bar["rsi"]), "atr": float(bar["atr"]),
+                        "action": action.kind, "reason": action.reason,
+                        "news": None if view is None else {**view.__dict__, "effect": fx, "mode": news_cfg.mode},
+                    }
+
+                states = client.states(names)
+                account = (next(iter(states.values()))["fundingBalance"] if states else 0.0) + sum(
+                    float((st.get("position") or {}).get("unRealizedPnL") or 0) for st in states.values())
+                for name, (m, candle, _) in due.items():
+                    position = states[name].get("position") or {}
+                    files[name].append(files[name].equity, {
+                        "time": candle, "balance": states[name]["availableBalance"],
+                        "unrealized_pnl": position.get("unRealizedPnL", 0.0), "mark": states[name]["markPrice"],
+                        "account": account,
                     })
-                    last = {**last, "state": state}
-
-            df = fetch_closed_candles(feed, signal_symbol, timeframe, params.slow_ema * 5)
-            candle = df.index[-1].isoformat()
-            if not (files.last_candle.exists() and files.last_candle.read_text() == candle):
-                bar = generate_signals(df, params).iloc[-1]
-                state = client.state(live.instrument)
-                action = decide(bar, state, params, risk, live)
-                if action.kind == "open" and files.paused():
-                    action = Action("hold", "paused from the panel; not opening new positions")
-                log.info("candle %s close=%.2f mark=%.2f balance=%.2f -> %s (%s)",
-                         candle, bar["close"], state["markPrice"], state["availableBalance"],
-                         action.kind, action.reason)
-
-                if action.kind == "open":
-                    result = client.open_long(live.instrument, action.cash, live.leverage, action.stop, action.take_profit)
-                    log.info("opened qty=%s avg=%s stop=%.2f tp=%s", result["position"]["quantity"],
-                             result["position"]["avgPrice"], action.stop, action.take_profit)
-                elif action.kind == "close":
-                    log.info("closed: %s", client.close(live.instrument).get("closed"))
-
-                if action.kind != "hold":
-                    files.append(files.trades, {
-                        "time": candle, "env": client.env, "action": action.kind, "reason": action.reason,
-                        "cash": action.cash, "stop": action.stop, "take_profit": action.take_profit,
-                        "mark": state["markPrice"],
-                    })
-                    state = client.state(live.instrument)
-                position = state.get("position") or {}
-                files.append(files.equity, {
-                    "time": candle, "balance": state["availableBalance"],
-                    "unrealized_pnl": position.get("unRealizedPnL", 0.0), "mark": state["markPrice"],
-                })
-                last = {
-                    "candle": candle, "close": float(bar["close"]), "ema_fast": float(bar["ema_fast"]),
-                    "ema_slow": float(bar["ema_slow"]), "rsi": float(bar["rsi"]), "atr": float(bar["atr"]),
-                    "action": action.kind, "reason": action.reason, "state": state,
-                }
-                files.last_candle.write_text(candle)
+                    files[name].last_candle.write_text(candle)
+                for name, st in states.items():
+                    last[name]["state"] = st
         except (EvedexError, subprocess.TimeoutExpired, ccxt.NetworkError) as exc:
-            # The candle stays unprocessed, so the next poll retries it.
+            # Unprocessed candles stay unprocessed, so the next poll retries them.
             log.warning("retrying after error: %s", exc)
-            error = str(exc)
-        files.write_status(config=config, paused=files.paused(), error=error, poll_seconds=poll_seconds, **last)
+            errors = {name: str(exc) for name in names}
+        for m in markets:
+            f = files[m.instrument]
+            f.write_status(config={**config, "instrument": m.instrument, "signal": f"{signal_exchange} {m.signal_symbol}"},
+                           paused=f.paused(), error=errors.get(m.instrument), poll_seconds=poll_seconds,
+                           **last[m.instrument])
         time.sleep(poll_seconds)

@@ -59,7 +59,7 @@ def test_shows_bot_state_history_and_chart(settings, store):
     _bot(settings)
     page = _client(settings, store).get("/admin/trading").text
     assert "BTCUSDT:DEMO" in page and "ДЕМО" in page and "РЕАЛЬНЫЙ СЧЁТ" not in page
-    assert "$1012.40" in page and "Лонг 0.0089" in page and "65800 / 69100" in page
+    assert "$1012.40" in page and "Лонг 0.0089" in page and "65800.00 / 69100.00" in page
     assert "EMA пересекла вверх" in page and "в позиции" in page
     assert "<polyline" in page and "бот не отвечает" not in page
 
@@ -93,3 +93,31 @@ def test_equity_chart_needs_two_points():
     assert equity_chart([{"balance": "1000"}]) is None
     chart = equity_chart([{"balance": "1000", "time": "a"}, {"balance": "1100", "unrealized_pnl": "", "time": "b"}])
     assert round(chart["change_pct"], 2) == 10.0 and chart["points"].count(",") == 2
+
+
+def test_news_block_and_account_chart(settings, store):
+    folder = _bot(settings)
+    status = json.loads((folder / "status.json").read_text())
+    status["config"].update(coins=["XRPUSD", "LINKUSD"], max_positions=2, news_mode="shadow",
+                            news_block_below=-0.3, news_exit_below=-0.7)
+    status["news"] = {"mode": "shadow", "score": -0.45, "summary": "Иск SEC против Ripple.", "effect": "block",
+                      "error": "", "scored_at": "2026-10-23T13:00:00+00:00",
+                      "headlines": [{"kind": "coin", "title": "SEC sues <b>Ripple</b>", "source": "coindesk.com",
+                                     "url": "https://coindesk.com/x", "published": "2026-10-23T12:00:00+00:00",
+                                     "key": True}]}
+    (folder / "status.json").write_text(json.dumps(status))
+    (folder / "equity.csv").write_text("time,balance,unrealized_pnl,mark,account\n"
+                                       "2026-10-23T12:00:00+00:00,15,0,1.3,25\n"
+                                       "2026-10-23T13:00:00+00:00,15,0.5,1.3,25.5\n")
+    page = _client(settings, store).get("/admin/trading").text
+    assert "ИИ-фильтр" in page and "наблюдение" in page and "-0.45" in page
+    assert "Фильтр бы: пропустить вход" in page and "на сделки не влияет" in page
+    assert "SEC sues &lt;b&gt;Ripple&lt;/b&gt;" in page and "★" in page
+    assert "+2.00%" in page  # 25 -> 25.5 from the account column, not the free balance
+    assert "XRPUSD, LINKUSD" in page and "не больше 2 позиций" in page
+
+
+def test_price_format():
+    from amzagent.web.trading_routes import price
+    assert price(81710.2) == "81710.20" and price(1.3195) == "1.3195" and price(1.30) == "1.3"
+    assert price(0.080221) == "0.080221" and price(None) == "—" and price("") == "—"
