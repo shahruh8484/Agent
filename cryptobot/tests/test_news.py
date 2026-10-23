@@ -229,3 +229,20 @@ def test_live_loop_good_news_trades_normally(tmp_path, monkeypatch):
     client = FakeClient()
     _run_once(tmp_path, monkeypatch, client, "on", 0.4, max_positions=2)
     assert [n for n, _ in client.opened] == ["XRPUSD", "LINKUSD"]
+
+
+def test_restart_shows_current_state_without_trading_again(tmp_path, monkeypatch):
+    from cryptobot.evedex import fetch_closed_candles
+
+    candle = fetch_closed_candles(FakeFeed(), "XRP/USDT", "1h", 250).index[-1].isoformat()
+    for name in ("XRPUSD", "LINKUSD"):
+        d = tmp_path / f"evedex_demo_{name}_1h"
+        d.mkdir(parents=True)
+        (d / "last_candle").write_text(candle)  # handled before the restart
+    client = FakeClient()
+    status = _run_once(tmp_path, monkeypatch, client, "shadow", -0.4, max_positions=2)
+    assert client.opened == [] and client.closed == []
+    xrp = status["evedex_demo_XRPUSD_1h"]
+    assert xrp["candle"] == candle and xrp["reason"] == "restarted; waiting for the next candle"
+    assert xrp["state"]["availableBalance"] == 25.0 and xrp["news"]["score"] == -0.4 and xrp["news"]["effect"] == ""
+    assert not (tmp_path / "evedex_demo_XRPUSD_1h" / "trades.csv").exists()
