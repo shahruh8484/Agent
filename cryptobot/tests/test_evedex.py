@@ -83,3 +83,22 @@ def test_prod_asks_for_confirmation(monkeypatch):
     monkeypatch.setattr(evedex, "run_live", lambda *a, **k: pytest.fail("must not start"))
     result = CliRunner().invoke(app, ["evedex", "--env", "prod", "--real-money"], input="n\n")
     assert result.exit_code != 0 and "REAL MONEY" in result.output
+
+
+def test_prod_yes_skips_prompt_but_still_needs_real_money(monkeypatch):
+    started = []
+    monkeypatch.setattr(evedex, "run_live", lambda *a, **k: started.append(a[0].env))
+    assert CliRunner().invoke(app, ["evedex", "--env", "prod", "--yes"]).exit_code == 1
+    assert CliRunner().invoke(app, ["evedex", "--env", "prod", "--real-money", "--yes"]).exit_code == 0
+    assert started == ["prod"]
+
+
+def test_control_file_merges_fields(tmp_path):
+    from cryptobot.evedex import BotFiles, update_control
+
+    files = BotFiles(tmp_path, "demo", "BTCUSDT:DEMO", "1h")
+    update_control(files.control, paused=True)
+    update_control(files.control, close_requested=True)
+    assert files.paused() and files.close_requested()
+    update_control(files.control, close_requested=False)
+    assert files.paused() and not files.close_requested()

@@ -118,8 +118,25 @@ def fetch_closed_candles(feed, symbol: str, timeframe: str, limit: int) -> pd.Da
     return df.iloc[:-1]  # drop the still-forming candle
 
 
+def read_control(path: Path) -> dict:
+    try:
+        return json.loads(path.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def update_control(path: Path, **fields) -> None:
+    """Merge fields into control.json: {"paused": bool, "close_requested": bool}."""
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps({**read_control(path), **fields}))
+    tmp.replace(path)
+
+
 class BotFiles:
-    """Files a running bot shares with the control panel (cryptobot/panel.py)."""
+    """Files a running bot shares with control panels (cryptobot/panel.py, the pushpannel tab).
+
+    status.json, trades.csv and equity.csv are written by the bot; control.json by panels.
+    """
 
     def __init__(self, state_dir: str | Path, env: str, instrument: str, timeframe: str):
         self.dir = Path(state_dir) / f"evedex_{env}_{instrument.replace(':', '_')}_{timeframe}"
@@ -131,10 +148,10 @@ class BotFiles:
         self.last_candle = self.dir / "last_candle"
 
     def paused(self) -> bool:
-        try:
-            return bool(json.loads(self.control.read_text()).get("paused"))
-        except (FileNotFoundError, json.JSONDecodeError):
-            return False
+        return bool(read_control(self.control).get("paused"))
+
+    def close_requested(self) -> bool:
+        return bool(read_control(self.control).get("close_requested"))
 
     def write_status(self, **fields) -> None:
         tmp = self.status.with_suffix(".tmp")
@@ -171,11 +188,28 @@ def run_live(
     log.info("EVEDEX %s [%s] on %s %s %s signals, leverage=%sx, max=$%s",
              live.instrument, client.env.upper(), signal_exchange, signal_symbol, timeframe,
              live.leverage, live.max_usd)
-    log.info("start state: %s", client.state(live.instrument))
+    try:
+        log.info("start state: %s", client.state(live.instrument))
+    except EvedexError as exc:
+        log.warning("EVEDEX not reachable yet, will keep retrying: %s", exc)
 
     while True:
         error = None
         try:
+            if files.close_requested():
+                # Stays requested until the close succeeds, so a failed attempt is retried.
+                closed = client.close(live.instrument).get("closed")
+                update_control(files.control, paused=True, close_requested=False)
+                log.info("closed from the panel: %s", closed)
+                if closed:
+                    state = client.state(live.instrument)
+                    files.append(files.trades, {
+                        "time": pd.Timestamp.now(tz="UTC").isoformat(), "env": client.env, "action": "close",
+                        "reason": "closed from the panel", "cash": 0.0, "stop": 0.0, "take_profit": None,
+                        "mark": state["markPrice"],
+                    })
+                    last = {**last, "state": state}
+
             df = fetch_closed_candles(feed, signal_symbol, timeframe, params.slow_ema * 5)
             candle = df.index[-1].isoformat()
             if not (files.last_candle.exists() and files.last_candle.read_text() == candle):

@@ -17,7 +17,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
-from cryptobot.evedex import EvedexClient, EvedexError
+from cryptobot.evedex import EvedexClient, EvedexError, update_control
 
 PAGE = Path(__file__).parent / "panel.html"
 
@@ -60,7 +60,7 @@ def create_app(state_dir: str | Path = "paper_state", password: str | None = Non
         return status
 
     def set_paused(d: Path, paused: bool) -> None:
-        (d / "control.json").write_text(json.dumps({"paused": paused}))
+        update_control(d / "control.json", paused=paused)
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:

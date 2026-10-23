@@ -134,6 +134,7 @@ def evedex(
     timeframe: str = "1h",
     env: str = typer.Option("demo", help="demo (test USDT) or prod (real money, needs --real-money)"),
     real_money: bool = typer.Option(False, "--real-money", help="Required together with --env prod"),
+    yes: bool = typer.Option(False, "--yes", help="Skip the real-money prompt (for servers; still needs --real-money)"),
     leverage: int = typer.Option(1, min=1, max=5),
     max_usd: float = typer.Option(100.0, help="Hard cap on position size in USD"),
     risk: float = typer.Option(0.01, help="Fraction of balance lost if the stop is hit"),
@@ -142,6 +143,7 @@ def evedex(
     stop_atr: float = 2.0,
     tp_atr: float = 4.0,
     poll: int = 60,
+    state_dir: str = typer.Option("paper_state", help="Where status/trades are written for the panels"),
 ):
     """Trade the strategy on EVEDEX (demo by default)."""
     from cryptobot.evedex import EvedexClient, LiveConfig, run_live
@@ -149,7 +151,7 @@ def evedex(
     if env == "prod" and not real_money:
         typer.echo("--env prod trades REAL money; add --real-money to confirm.")
         raise typer.Exit(1)
-    if env == "prod":
+    if env == "prod" and not yes:
         typer.confirm(
             f"REAL MONEY on {instrument}: up to ${max_usd} per position, {leverage}x leverage. Continue?",
             abort=True,
@@ -162,6 +164,7 @@ def evedex(
         StrategyParams(fast_ema=fast, slow_ema=slow, stop_atr=stop_atr, take_profit_atr=tp_atr),
         BacktestConfig(risk_per_trade=risk),
         signal_symbol=signal_symbol, signal_exchange=signal_exchange, timeframe=timeframe, poll_seconds=poll,
+        state_dir=state_dir,
     )
 
 
