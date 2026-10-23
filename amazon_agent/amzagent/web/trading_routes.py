@@ -34,6 +34,7 @@ REASONS = {
     "position limit reached": "лимит открытых позиций",
     "news negative; entry skipped": "плохие новости — вход пропущен",
     "news very negative; closing": "очень плохие новости — закрываем",
+    "restarted; waiting for the next candle": "бот перезапущен — ждём следующую свечу",
 }
 NEWS_MODES = {"shadow": "наблюдение", "on": "включён", "off": "выключен"}
 NEWS_EFFECTS = {"block": "пропустить вход", "exit": "закрыть позицию"}

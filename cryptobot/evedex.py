@@ -213,6 +213,9 @@ class BotFiles:
         pd.DataFrame([row]).to_csv(path, mode="a", header=not path.exists(), index=False)
 
 
+STATE_REFRESH_SECONDS = 300
+
+
 def run_live(
     client: EvedexClient,
     live: LiveConfig,
@@ -274,6 +277,7 @@ def run_live(
 
     sett: dict[str, tuple] = {}
     objs: dict[str, tuple] = {}
+    states_at = time.monotonic()
 
     while True:
         errors: dict[str, str] = {}
@@ -289,7 +293,7 @@ def run_live(
                         journal(m, pd.Timestamp.now(tz="UTC").isoformat(), Action("close", "closed from the panel"),
                                 client.states([m.instrument])[m.instrument]["markPrice"])
 
-            due = {}
+            due, peek = {}, {}
             for m in markets:
                 cur, serr, over, lv, pr, rk, nc = settings_for(m)
                 sett[m.instrument] = (cur, serr, over)
@@ -304,6 +308,9 @@ def run_live(
                 lc = files[m.instrument].last_candle
                 if not (lc.exists() and lc.read_text() == candle):
                     due[m.instrument] = (m, candle, generate_signals(df, pr).iloc[-1])
+                elif "candle" not in last[m.instrument]:
+                    # Restarted after this candle was handled: show it, but don't trade on it again.
+                    peek[m.instrument] = (m, candle, generate_signals(df, pr).iloc[-1])
 
             if due:
                 watched = [n for n in due if objs[n][3].mode != "off"]
@@ -371,6 +378,33 @@ def run_live(
                     files[name].last_candle.write_text(candle)
                 for name, st in states.items():
                     last[name]["state"] = st
+                states_at = time.monotonic()
+
+            if peek:
+                watched = [n for n in peek if objs[n][3].mode != "off"]
+                views = {}
+                if watched:
+                    try:
+                        views = desk.views(watched)
+                    except Exception as exc:
+                        log.warning("news filter failed: %s", exc)
+                states = client.states(names)
+                states_at = time.monotonic()
+                for name, (m, candle, bar) in peek.items():
+                    view = views.get(name)
+                    last[name] = {
+                        "candle": candle, "close": float(bar["close"]), "ema_fast": float(bar["ema_fast"]),
+                        "ema_slow": float(bar["ema_slow"]), "rsi": float(bar["rsi"]), "atr": float(bar["atr"]),
+                        "action": "hold", "reason": "restarted; waiting for the next candle",
+                        "news": None if view is None else {**view.__dict__, "effect": "", "mode": objs[name][3].mode},
+                    }
+                for name, st in states.items():
+                    last[name]["state"] = st
+            elif time.monotonic() - states_at > STATE_REFRESH_SECONDS:
+                # Keep balance/position current between candles (e.g. a stop hit mid-hour).
+                for name, st in client.states(names).items():
+                    last[name]["state"] = st
+                states_at = time.monotonic()
         except (EvedexError, subprocess.TimeoutExpired, ccxt.NetworkError) as exc:
             # Unprocessed candles stay unprocessed, so the next poll retries them.
             log.warning("retrying after error: %s", exc)
