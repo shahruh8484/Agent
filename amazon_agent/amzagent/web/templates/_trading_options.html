@@ -40,7 +40,7 @@
     <tbody>{% for p in s.positions or [] %}
       <tr><td>{{ p.instrument }}</td><td class="num">{{ "%.0f"|format(p.strike) }}</td><td>{{ p.expiry|localtime }}</td>
         <td class="num">{{ p.amount }}</td><td class="num">{{ p.sold_price|price }}</td><td class="num">{{ p.mark|price }}</td>
-        <td class="num {{ 'pos' if p.captured_pct > 0 else 'neg' }}">{{ "%.0f"|format(p.captured_pct) }}%</td>
+        <td class="num {{ 'pos' if p.captured_pct >= 0.5 else 'neg' if p.captured_pct <= -0.5 else '' }}">{{ "%.0f"|format(p.captured_pct) }}%</td>
         <td class="num">{{ "%.2f"|format(p.delta) }}</td>
         <td class="num {{ 'pos' if p.pnl_coin > 0 else 'neg' if p.pnl_coin < 0 else '' }}">{{ "%+.5f"|format(p.pnl_coin) }}</td></tr>
     {% else %}<tr><td colspan="9" class="muted">Нет открытых позиций</td></tr>{% endfor %}</tbody>
@@ -48,7 +48,7 @@
 
   {% set ch = b.chart %}
   <div class="tr-chart" style="margin-top:14px">
-    <div class="tr-axis muted"><span>Счёт, {{ cur }}</span>{% if ch %}<span class="{{ 'pos' if ch.change_pct >= 0 else 'neg' }}">{{ "%+.2f"|format(ch.change_pct) }}%</span>{% endif %}</div>
+    <div class="tr-axis muted"><span>Счёт, {{ cur }}</span>{% if ch %}<span class="{{ 'pos' if ch.change_pct >= 0.005 else 'neg' if ch.change_pct <= -0.005 else 'muted' }}">{{ "%+.2f"|format(ch.change_pct + 0) if ch.change_pct|abs >= 0.005 else "0.00" }}%</span>{% endif %}</div>
     {% if ch %}
     <svg viewBox="0 0 {{ ch.width }} {{ ch.height }}" preserveAspectRatio="none" role="img" aria-label="График счёта">
       {% for f in [0.25, 0.5, 0.75] %}<line x1="0" x2="{{ ch.width }}" y1="{{ ch.height * f }}" y2="{{ ch.height * f }}"/>{% endfor %}
