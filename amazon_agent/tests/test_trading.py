@@ -274,3 +274,10 @@ def test_options_card_without_positions_disables_close(settings, store):
     page = _client(settings, store).get("/admin/trading").text
     assert "РЕАЛЬНЫЙ СЧЁТ" in page and "Нет открытых позиций" in page
     assert re.search(r'<button class="danger"\s+disabled>Закрыть позиции', page)
+
+
+def test_tiny_moves_dont_fill_the_chart():
+    rows = [{"time": "a", "equity": "100"}, {"time": "b", "equity": "99.9999"}]
+    chart = equity_chart(rows, min_funded=1e-9)
+    ys = [float(p.split(",")[1]) for p in chart["points"].split()]
+    assert abs(ys[0] - ys[1]) < 1  # under a pixel of 160, not top-to-bottom

@@ -92,7 +92,8 @@ def equity_chart(rows: list[dict], width: int = 1000, height: int = 160,
     if len(values) < 2:
         return None
     lo, hi = min(values), max(values)
-    pad = (hi - lo) * 0.1 or 1.0
+    # At least ±1% of the account in view: a fee of 0.0001 on 100 BTC must not look like a crash.
+    pad = max((hi - lo) * 0.1, abs(hi) * 0.01) or 1.0
     lo, hi = lo - pad, hi + pad
     points = " ".join(
         f"{i / (len(values) - 1) * width:.1f},{height - (v - lo) / (hi - lo) * height:.1f}"
