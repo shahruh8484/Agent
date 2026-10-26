@@ -24,6 +24,19 @@ services:
     volumes:
       - trading_data:/data/trading
 
+  # Deribit put seller (../cryptobot/options.py), same image. Starts only with "options"
+  # in COMPOSE_PROFILES (e.g. COMPOSE_PROFILES=trading,options); shows on the Трейдинг tab too.
+  options:
+    profiles: ["options"]
+    build:
+      context: ..
+      dockerfile: cryptobot/Dockerfile
+    command: ["options"]
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - trading_data:/data/trading
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped

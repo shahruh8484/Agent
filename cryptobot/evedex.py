@@ -181,8 +181,8 @@ class BotFiles:
     status.json, trades.csv and equity.csv are written by the bot; control.json by panels.
     """
 
-    def __init__(self, state_dir: str | Path, env: str, instrument: str, timeframe: str):
-        self.dir = Path(state_dir) / f"evedex_{env}_{instrument.replace(':', '_')}_{timeframe}"
+    def __init__(self, state_dir: str | Path, env: str, instrument: str, timeframe: str, folder: str = ""):
+        self.dir = Path(state_dir) / (folder or f"evedex_{env}_{instrument.replace(':', '_')}_{timeframe}")
         self.dir.mkdir(parents=True, exist_ok=True)
         self.status = self.dir / "status.json"
         self.control = self.dir / "control.json"

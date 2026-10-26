@@ -77,15 +77,17 @@ def price(value) -> str:
 MIN_FUNDED = 1.0  # $; below this the account counts as empty
 
 
-def equity_chart(rows: list[dict], width: int = 1000, height: int = 160) -> dict | None:
+def equity_chart(rows: list[dict], width: int = 1000, height: int = 160,
+                 min_funded: float = MIN_FUNDED) -> dict | None:
     """SVG polyline of the account value; None until there are two points.
 
     Newer bots write "account" (whole account, including margin held by positions);
     older rows only have the free balance plus this coin's unrealized PnL."""
     values = [_float(r.get("account")) if r.get("account") not in (None, "")
+              else _float(r.get("equity")) if r.get("equity") not in (None, "")  # options bot, in the coin
               else _float(r.get("balance")) + _float(r.get("unrealized_pnl")) for r in rows]
     # Start once the account is funded: growth from ~$0 to the first deposit isn't performance.
-    start = next((i for i, v in enumerate(values) if v >= MIN_FUNDED), len(values))
+    start = next((i for i, v in enumerate(values) if v >= min_funded), len(values))
     rows, values = rows[start:], values[start:]
     if len(values) < 2:
         return None
@@ -101,6 +103,22 @@ def equity_chart(rows: list[dict], width: int = 1000, height: int = 160) -> dict
         "min": min(values), "max": max(values),
         "change_pct": (values[-1] / values[0] - 1) * 100 if values[0] else 0.0,
         "first": rows[0].get("time"), "last": rows[-1].get("time"),
+    }
+
+
+def load_options_bot(folder: Path, status: dict) -> dict:
+    """The Deribit put seller: balances are in the coin (BTC/ETH), so the chart starts at any non-zero value."""
+    control = _read_json(folder / "control.json")
+    trades = _read_csv(folder / "trades.csv", 500)
+    realized = sum(_float(t.get("pnl_coin")) for t in trades)
+    realized_usd = sum(_float(t.get("pnl_usd")) for t in trades)
+    return {
+        "name": folder.name, "kind": "options", "status": status, "config": status.get("config") or {},
+        "state": {}, "position": None,
+        "alive": time.time() - _float(status.get("updated_at")) < _float(status.get("poll_seconds"), 60) * 3 + 30,
+        "paused": bool(control.get("paused")), "close_requested": bool(control.get("close_requested")),
+        "trades": list(reversed(trades[-30:])), "realized": realized, "realized_usd": realized_usd,
+        "chart": equity_chart(_read_csv(folder / "equity.csv", 2000), min_funded=1e-9),
     }
 
 
@@ -142,6 +160,8 @@ def parse_settings(form, schema: dict, rules: list, defaults: dict) -> tuple[dic
 
 def load_bot(folder: Path) -> dict:
     status = _read_json(folder / "status.json")
+    if status.get("kind") == "options":
+        return load_options_bot(folder, status)
     control = _read_json(folder / "control.json")
     state = status.get("state") or {}
     tpsl = state.get("tpsl") or []

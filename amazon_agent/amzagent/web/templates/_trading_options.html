@@ -1,0 +1,75 @@
+{# Card of the Deribit put seller (cryptobot/options.py); `b`, `c`, `s` come from trading.html. #}
+{% set cur = c.currency or "" %}
+<div class="card" id="{{ b.name }}" style="margin-top:14px">
+  <div class="tr-head">
+    <div class="tr-title">
+      <span><span class="dot {{ 'd-active' if b.alive else 'd-error' }}"></span>{{ cur }} путы</span>
+      {% if c.env == "prod" %}<span class="pill tr-real">РЕАЛЬНЫЙ СЧЁТ</span>{% else %}<span class="pill tr-demo">ТЕСТОВАЯ БИРЖА</span>{% endif %}
+      <span class="pill muted">Deribit · опционы</span>
+      {% if b.paused %}<span class="pill" style="color:var(--warn)">ПАУЗА</span>{% endif %}
+      {% if b.close_requested %}<span class="pill" style="color:var(--warn)">закрываем позиции…</span>{% endif %}
+      {% if not b.alive %}<span class="pill bad" style="color:var(--bad)">бот не отвечает</span>{% endif %}
+    </div>
+    <div class="row" style="gap:8px">
+      {% if b.paused %}
+      <form class="inline" method="post" action="/admin/trading/{{ b.name }}/resume"><button>▶ Продолжить</button></form>
+      {% else %}
+      <form class="inline" method="post" action="/admin/trading/{{ b.name }}/pause"><button>⏸ Пауза</button></form>
+      {% endif %}
+      <form class="inline" method="post" action="/admin/trading/{{ b.name }}/close"
+            onsubmit="return confirm('{% if c.env == "prod" %}РЕАЛЬНЫЙ СЧЁТ. {% endif %}Откупить все проданные опционы {{ cur }}, снять ордер и поставить бота на паузу?')">
+        <button class="danger"{% if not (s.positions or s.pending) or b.close_requested %} disabled{% endif %}>Закрыть позиции</button></form>
+    </div>
+  </div>
+  {% if s.error %}<div class="banner bad">Ошибка: {{ s.error }}</div>{% endif %}
+
+  <div class="kpis">
+    <div class="card kpi"><b>{{ s.equity|price }} {{ cur }}</b><span>счёт · ≈ ${{ "%.0f"|format(s.equity_usd or 0) }}</span></div>
+    <div class="card kpi"><b>{{ s.available|price }} {{ cur }}</b><span>свободно под залог</span></div>
+    <div class="card kpi"><b>${{ s.index|price }}</b><span>цена {{ cur }} (индекс)</span></div>
+    <div class="card kpi"><b class="{{ 'pos' if b.realized > 0 else 'neg' if b.realized < 0 else '' }}">{{ "%+.5f"|format(b.realized) }} {{ cur }}</b><span>итог закрытых сделок · ≈ {{ "+" if b.realized_usd >= 0 else "−" }}${{ "%.2f"|format(b.realized_usd|abs) }}</span></div>
+  </div>
+
+  <p class="muted" style="margin:12px 0 0">Проверка {{ s.checked_at|localtime or "—" }}: <b style="color:var(--fg)">{{ {"sell": "Продали", "sell_order": "Ордер", "buyback": "Откупили", "expired": "Экспирация", "hold": "Ждём"}.get(s.action, "—") }}</b> — {{ s.reason or "проверок ещё не было" }}</p>
+
+  {% if s.pending %}<div class="banner" style="margin-top:10px">Ордер на продажу ждёт исполнения: <b>{{ s.pending.instrument }}</b> по {{ s.pending.price|price }} {{ cur }}, дельта ≈ {{ "%.2f"|format(s.pending.delta or 0) }}. Если за 30 минут не исполнится — бот переставит его по свежей цене.</div>{% endif %}
+
+  <h4 style="margin:16px 0 6px">Открытые позиции</h4>
+  <div class="scroll"><table class="camp">
+    <thead><tr><th>Опцион</th><th class="num">Страйк</th><th>Экспирация</th><th class="num">Объём</th><th class="num">Продали за</th><th class="num">Сейчас</th><th class="num">Забрано премии</th><th class="num">Дельта</th><th class="num">P&amp;L</th></tr></thead>
+    <tbody>{% for p in s.positions or [] %}
+      <tr><td>{{ p.instrument }}</td><td class="num">{{ "%.0f"|format(p.strike) }}</td><td>{{ p.expiry|localtime }}</td>
+        <td class="num">{{ p.amount }}</td><td class="num">{{ p.sold_price|price }}</td><td class="num">{{ p.mark|price }}</td>
+        <td class="num {{ 'pos' if p.captured_pct > 0 else 'neg' }}">{{ "%.0f"|format(p.captured_pct) }}%</td>
+        <td class="num">{{ "%.2f"|format(p.delta) }}</td>
+        <td class="num {{ 'pos' if p.pnl_coin > 0 else 'neg' if p.pnl_coin < 0 else '' }}">{{ "%+.5f"|format(p.pnl_coin) }}</td></tr>
+    {% else %}<tr><td colspan="9" class="muted">Нет открытых позиций</td></tr>{% endfor %}</tbody>
+  </table></div>
+
+  {% set ch = b.chart %}
+  <div class="tr-chart" style="margin-top:14px">
+    <div class="tr-axis muted"><span>Счёт, {{ cur }}</span>{% if ch %}<span class="{{ 'pos' if ch.change_pct >= 0 else 'neg' }}">{{ "%+.2f"|format(ch.change_pct) }}%</span>{% endif %}</div>
+    {% if ch %}
+    <svg viewBox="0 0 {{ ch.width }} {{ ch.height }}" preserveAspectRatio="none" role="img" aria-label="График счёта">
+      {% for f in [0.25, 0.5, 0.75] %}<line x1="0" x2="{{ ch.width }}" y1="{{ ch.height * f }}" y2="{{ ch.height * f }}"/>{% endfor %}
+      <polygon points="0,{{ ch.height }} {{ ch.points }} {{ ch.width }},{{ ch.height }}"/><polyline points="{{ ch.points }}"/>
+    </svg>
+    <div class="tr-axis muted"><span>{{ ch.first|localtime }}</span><span>мин {{ ch.min|price }} · макс {{ ch.max|price }}</span><span>{{ ch.last|localtime }}</span></div>
+    {% else %}<p class="muted">График появится после второй проверки.</p>{% endif %}
+  </div>
+
+  <h4 style="margin:16px 0 6px">Сделки</h4>
+  <div class="scroll"><table class="camp">
+    <thead><tr><th>Время</th><th>Действие</th><th>Опцион</th><th class="num">Объём</th><th class="num">Цена, {{ cur }}</th><th class="num">P&amp;L, {{ cur }}</th><th class="num">P&amp;L, $</th><th>Причина</th></tr></thead>
+    <tbody>{% for t in b.trades %}
+      <tr><td>{{ t.time|localtime }}</td><td>{{ {"sell": "Продажа", "buyback": "Откуп", "expired": "Экспирация", "gone": "Закрыта не ботом"}.get(t.action, t.action) }}</td>
+        <td>{{ t.instrument }}</td><td class="num">{{ t.amount }}</td><td class="num">{{ t.price|price }}</td>
+        {% set pc = t.pnl_coin|float(0) %}
+        <td class="num {{ 'pos' if pc > 0 else 'neg' if pc < 0 else '' }}">{% if t.pnl_coin not in (none, "") %}{{ "%+.5f"|format(pc) }}{% endif %}</td>
+        <td class="num">{% if t.pnl_usd not in (none, "") %}{% set pu = t.pnl_usd|float %}{{ "+" if pu >= 0 else "−" }}${{ "%.2f"|format(pu|abs) }}{% endif %}</td>
+        <td>{{ t.reason }}</td></tr>
+    {% else %}<tr><td colspan="8" class="muted">Сделок пока нет</td></tr>{% endfor %}</tbody>
+  </table></div>
+
+  {% include "_trading_settings.html" %}
+</div>

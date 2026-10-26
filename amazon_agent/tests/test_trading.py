@@ -1,3 +1,4 @@
+import re
 import json
 import time
 
@@ -225,3 +226,51 @@ def test_old_bot_without_schema(settings, store):
     assert "не умеет менять настройки" in page and not (folder / "settings.json").exists()
     anon = TestClient(create_app(settings, store, start_loop=False))
     assert anon.post(f"/admin/trading/{folder.name}/settings", follow_redirects=False).status_code == 303
+
+
+def _options_bot(settings, env="testnet", positions=True):
+    folder = settings_dir(settings) / f"deribit_{env}_BTC_puts"
+    folder.mkdir(parents=True)
+    pos = [{"instrument": "BTC-31OCT26-60000-P", "strike": 60000.0, "expiry": "2026-10-31T08:00:00+00:00",
+            "amount": 0.1, "sold_price": 0.0043, "mark": 0.0021, "delta": -0.07, "pnl_coin": 0.00022,
+            "captured_pct": 51.2}] if positions else []
+    (folder / "status.json").write_text(json.dumps({
+        "updated_at": time.time(), "poll_seconds": 60, "error": None, "kind": "options", "currency": "BTC",
+        "index": 67012.5, "equity": 9.87654, "equity_usd": 661860.0, "available": 9.5, "initial_margin": 0.3,
+        "positions": pos, "pending": None, "action": "hold", "reason": "ждём",
+        "checked_at": "2026-10-26T10:00:00+00:00",
+        "config": {"env": env, "currency": "BTC", "instrument": "BTC путы", "lots": 1,
+                   "settings_schema": {"lots": {"label": "Размер, минимальных лотов", "type": "int", "min": 1,
+                                                "max": 10, "step": 1}},
+                   "settings_defaults": {"lots": 1}, "settings_overrides": [], "settings_error": "",
+                   "settings_rules": []}}))
+    (folder / "trades.csv").write_text(
+        "time,env,action,instrument,amount,price,pnl_coin,pnl_usd,index,reason\n"
+        "2026-10-20T10:00:00+00:00,testnet,sell,BTC-24OCT26-58000-P,0.1,0.004,,,66000,продан пут\n"
+        "2026-10-24T08:00:00+00:00,testnet,expired,BTC-24OCT26-58000-P,0.1,0.0,0.0004,26.4,66000,экспирация вне денег — премия наша\n")
+    (folder / "equity.csv").write_text("time,equity,equity_usd,index\n"
+                                       "2026-10-25T10:00:00+00:00,9.8,656600,67000\n"
+                                       "2026-10-26T10:00:00+00:00,9.87654,661860,67012.5\n")
+    return folder
+
+
+def test_options_card(settings, store):
+    folder = _options_bot(settings)
+    _bot(settings)  # an EVEDEX bot next to it keeps its own card
+    page = _client(settings, store).get("/admin/trading").text
+    assert "BTC путы" in page and "ТЕСТОВАЯ БИРЖА" in page and "Deribit · опционы" in page
+    assert "BTC-31OCT26-60000-P" in page and "51%" in page and "+0.00022" in page
+    assert "Экспирация" in page and "премия наша" in page and "+0.00040 BTC" in page and "+$26.40" in page
+    assert "Размер, минимальных лотов" in page and "Откупить все проданные опционы BTC" in page
+    assert "Счёт, BTC" in page and "<polyline" in page  # coin-sized equity still charts
+    assert "BTCUSDT:DEMO" in page  # the EVEDEX card still renders
+    client = _client(settings, store)
+    client.post(f"/admin/trading/{folder.name}/close")
+    assert json.loads((folder / "control.json").read_text()) == {"paused": True, "close_requested": True}
+
+
+def test_options_card_without_positions_disables_close(settings, store):
+    _options_bot(settings, env="prod", positions=False)
+    page = _client(settings, store).get("/admin/trading").text
+    assert "РЕАЛЬНЫЙ СЧЁТ" in page and "Нет открытых позиций" in page
+    assert re.search(r'<button class="danger"\s+disabled>Закрыть позиции', page)
