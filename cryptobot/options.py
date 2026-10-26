@@ -43,7 +43,8 @@ RULES = [
     ["min_dte", "<", "max_dte", "Минимальный срок должен быть меньше максимального"],
     ["target_delta", "<", "max_delta", "Целевая дельта должна быть меньше стоп-дельты"],
 ]
-DEFAULTS = {"lots": 1, "target_delta": 0.12, "min_otm_pct": 8.0, "min_dte": 4, "max_dte": 9,
+# Weekly expiries are 7 days apart, so the window must be at least that wide to always hold one.
+DEFAULTS = {"lots": 1, "target_delta": 0.12, "min_otm_pct": 8.0, "min_dte": 3, "max_dte": 10,
             "take_profit_pct": 75.0, "stop_multiple": 3.0, "max_delta": 0.4, "max_margin_pct": 50.0}
 REPRICE_SECONDS = 30 * 60
 
@@ -321,6 +322,7 @@ class PutSeller:
         if action == "hold" and reason == "ждём" and views:
             reason = "держим позицию: тейк и стоп не достигнуты, до экспирации {}".format(
                 ", ".join(v["expiry"][:10] for v in views))
+        log.info("%s: %s — %s", self.cur, action, reason)
         self._save(m)
         self.files.append(self.files.equity, {"time": now.isoformat(timespec="seconds"), "equity": equity,
                                               "equity_usd": round(equity * spot, 2), "index": spot})
@@ -333,9 +335,13 @@ class PutSeller:
         }
 
     def _enter(self, s: dict, m: dict, spot: float, equity: float, available: float, now: datetime):
-        put = choose_put(self.c.instruments(self.cur), self.c.book(self.cur), spot, s, now)
+        instruments = self.c.instruments(self.cur)
+        put = choose_put(instruments, self.c.book(self.cur), spot, s, now)
         if not put:
-            return "hold", f"нет подходящего пута на {s['min_dte']}–{s['max_dte']} дней"
+            soon = sorted({round((parse_expiry(i) - now).total_seconds() / 86400, 1) for i in instruments
+                           if i.get("option_type") == "put" and parse_expiry(i) > now})[:4]
+            return "hold", (f"нет подходящего пута на {s['min_dte']}–{s['max_dte']} дней; ближайшие экспирации "
+                            f"через {', '.join(str(d) for d in soon) or '—'} дн.")
         t = self.c.ticker(put["instrument_name"])
         delta = float((t.get("greeks") or {}).get("delta") or put["est_delta"])
         if abs(delta) >= s["max_delta"]:

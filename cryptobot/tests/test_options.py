@@ -243,3 +243,21 @@ def test_cli_prod_gate(monkeypatch):
     assert CliRunner().invoke(app, ["options", "--env", "prod"]).exit_code == 1
     assert CliRunner().invoke(app, ["options", "--env", "prod", "--real-money"], input="n\n").exit_code != 0
     assert CliRunner().invoke(app, ["options", "--env", "mainnet"]).exit_code == 1
+
+
+def test_window_always_contains_a_weekly_expiry():
+    # Mondays 09:37 UTC: next Friday is 3.9 days out, the one after 10.9 — the old 4..9 window missed both
+    monday = datetime(2026, 10, 26, 9, 37, tzinfo=timezone.utc)
+    fri = lambda d: int(datetime(2026, 10, d, 8, tzinfo=timezone.utc).timestamp() * 1000)  # noqa: E731
+    insts = [{**_inst("BTC-30OCT-60000-P", 60000, 0), "expiration_timestamp": fri(30)},
+             {**_inst("BTC-6NOV-60000-P", 60000, 0), "expiration_timestamp": fri(30) + 7 * 86400000}]
+    book = [{"instrument_name": i["instrument_name"], "mark_price": 0.004, "mark_iv": 50} for i in insts]
+    assert choose_put(insts, book, 70000, {**DEFAULTS, "min_dte": 4, "max_dte": 9}, monday) is None
+    assert choose_put(insts, book, 70000, DEFAULTS, monday)["instrument_name"] == "BTC-30OCT-60000-P"
+
+
+def test_no_put_reason_lists_expiries(tmp_path):
+    c = FakeDeribit()
+    bot = PutSeller(c, "BTC", {**DEFAULTS, "min_dte": 20, "max_dte": 30}, tmp_path, 60)
+    bot.step()
+    assert "ближайшие экспирации через" in bot.last["reason"] and "6.0" in bot.last["reason"]
