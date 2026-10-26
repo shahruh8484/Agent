@@ -181,6 +181,33 @@ def evedex(
 
 
 @app.command()
+def options(
+    env: str = typer.Option("testnet", help="testnet (fake coins) or prod (real money, needs --real-money)"),
+    real_money: bool = typer.Option(False, "--real-money", help="Required together with --env prod"),
+    yes: bool = typer.Option(False, "--yes", help="Skip the real-money prompt (servers; still needs --real-money)"),
+    currencies: str = typer.Option("BTC,ETH", help="Option underlyings on Deribit"),
+    state_dir: str = "paper_state",
+    check: int = typer.Option(300, help="Seconds between market checks"),
+    poll: int = typer.Option(60, help="Seconds between status updates / panel button checks"),
+):
+    """Sell weekly out-of-the-money puts on Deribit (testnet by default)."""
+    from cryptobot.options import DEFAULTS, DeribitClient, run_options
+
+    if env not in ("testnet", "prod"):
+        typer.echo("--env must be testnet or prod")
+        raise typer.Exit(1)
+    if env == "prod" and not real_money:
+        typer.echo("--env prod trades REAL money; add --real-money to confirm.")
+        raise typer.Exit(1)
+    if env == "prod" and not yes:
+        typer.confirm(f"REAL MONEY: selling puts on {currencies} on Deribit. Continue?", abort=True)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+    run_options(DeribitClient(env, os.getenv("DERIBIT_CLIENT_ID", ""), os.getenv("DERIBIT_CLIENT_SECRET", "")),
+                [c.strip().upper() for c in currencies.split(",") if c.strip()], dict(DEFAULTS),
+                state_dir=state_dir, check_seconds=check, poll_seconds=poll)
+
+
+@app.command()
 def panel(
     host: str = typer.Option("127.0.0.1", help="0.0.0.0 to open from other devices (needs PANEL_PASSWORD)"),
     port: int = 8050,

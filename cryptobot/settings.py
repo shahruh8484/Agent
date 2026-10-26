@@ -46,11 +46,12 @@ def base_settings(live, params: StrategyParams, risk: BacktestConfig, news: News
     }
 
 
-def validate(values: dict) -> tuple[dict, list[str]]:
+def validate(values: dict, schema: dict | None = None) -> tuple[dict, list[str]]:
     """Coerce and range-check overrides; unknown keys are dropped. Returns (clean, errors)."""
+    schema = SCHEMA if schema is None else schema
     clean, errors = {}, []
     for key, raw in values.items():
-        spec = SCHEMA.get(key)
+        spec = schema.get(key)
         if spec is None:
             continue
         label = spec["label"]
@@ -77,19 +78,20 @@ def validate(values: dict) -> tuple[dict, list[str]]:
     return clean, errors
 
 
-def check_rules(merged: dict) -> list[str]:
+def check_rules(merged: dict, rules: list | None = None) -> list[str]:
     errors = []
-    for a, op, b, message in RULES:
+    for a, op, b, message in RULES if rules is None else rules:
         if op == "<" and not merged[a] < merged[b] or op == "<=" and not merged[a] <= merged[b]:
             errors.append(message)
     return errors
 
 
-def effective(base: dict, overrides: dict) -> tuple[dict, list[str]]:
+def effective(base: dict, overrides: dict, schema: dict | None = None,
+              rules: list | None = None) -> tuple[dict, list[str]]:
     """Base settings with valid overrides applied; on any error the overrides are ignored as a whole."""
-    clean, errors = validate(overrides)
+    clean, errors = validate(overrides, schema)
     merged = {**base, **clean}
-    errors += check_rules(merged)
+    errors += check_rules(merged, rules)
     if errors:
         return dict(base), errors
     return merged, []
