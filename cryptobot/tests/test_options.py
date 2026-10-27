@@ -261,3 +261,13 @@ def test_no_put_reason_lists_expiries(tmp_path):
     bot = PutSeller(c, "BTC", {**DEFAULTS, "min_dte": 20, "max_dte": 30}, tmp_path, 60)
     bot.step()
     assert "ближайшие экспирации через" in bot.last["reason"] and "6.0" in bot.last["reason"]
+
+
+def test_outage_errors_are_short():
+    import ccxt
+
+    page = 'deribit GET https://test.deribit.com/x 502 Bad Gateway <!DOCTYPE html><html class="no-js">...</html>'
+    msg = opt.describe_error(ccxt.ExchangeNotAvailable(page), 300)
+    assert msg.startswith("Deribit временно недоступен (502)") and "<" not in msg and "5 мин" in msg
+    other = opt.describe_error(ValueError("bad <b>thing</b>"), 300)
+    assert other == "ValueError: bad thing"

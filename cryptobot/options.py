@@ -376,6 +376,21 @@ class PutSeller:
         self.last["settings"] = (s, serr, over)
 
 
+def describe_error(exc: Exception, check_seconds: int) -> str:
+    """Short text for the panel: exchange outages come back as whole HTML error pages."""
+    import re
+
+    import ccxt
+
+    text = str(exc)
+    if isinstance(exc, (ccxt.ExchangeNotAvailable, ccxt.NetworkError)):
+        code = re.search(r"\b(5\d\d)\b", text)
+        return (f"Deribit временно недоступен{f' ({code.group(1)})' if code else ''}: "
+                f"проверим снова через {max(1, check_seconds // 60)} мин. Позиции на бирже не затронуты.")
+    text = re.sub(r"<[^>]+>|<!--.*?-->", " ", text)  # just in case another error carries HTML
+    return f"{type(exc).__name__}: {' '.join(text.split())}"[:400]
+
+
 def run_options(client: DeribitClient, currencies: list[str], base: dict, state_dir: str | Path = "paper_state",
                 check_seconds: int = 300, poll_seconds: int = 60) -> None:
     import ccxt
@@ -392,8 +407,8 @@ def run_options(client: DeribitClient, currencies: list[str], base: dict, state_
                     bot.step()
                     bot.error = None
                 except (ccxt.BaseError, KeyError, ValueError, TypeError) as exc:
-                    log.warning("%s: %s", bot.cur, exc)
-                    bot.error = f"{type(exc).__name__}: {exc}"[:400]  # shown until the next successful check
+                    log.warning("%s: %s", bot.cur, str(exc)[:300])
+                    bot.error = describe_error(exc, check_seconds)  # shown until the next successful check
             bot.write_status()
         if due:
             next_check = time.monotonic() + check_seconds
