@@ -37,6 +37,40 @@ services:
     volumes:
       - trading_data:/data/trading
 
+  # Interactive Brokers: IB Gateway logs in to the account (paper by default) and the put
+  # seller (../cryptobot/ibkr.py) trades through it. Both start only with "ibkr" in
+  # COMPOSE_PROFILES. The gateway needs ~600-800 MB of RAM and restarts itself daily.
+  ib-gateway:
+    profiles: ["ibkr"]
+    image: ghcr.io/gnzsnz/ib-gateway:stable
+    restart: unless-stopped
+    environment:
+      TWS_USERID: ${IBKR_USERNAME:-}
+      TWS_PASSWORD: ${IBKR_PASSWORD:-}
+      TRADING_MODE: ${IBKR_ENV:-paper}
+      READ_ONLY_API: "no"
+      TWOFA_TIMEOUT_ACTION: restart
+      AUTO_RESTART_TIME: "11:59 PM"
+      TIME_ZONE: America/New_York
+      TZ: America/New_York
+      JAVA_HEAP_SIZE: "768"
+    expose:
+      - "4003"
+      - "4004"
+
+  ibkr:
+    profiles: ["ibkr"]
+    build:
+      context: ..
+      dockerfile: cryptobot/Dockerfile
+    command: ["ibkr"]
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - ib-gateway
+    volumes:
+      - trading_data:/data/trading
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped

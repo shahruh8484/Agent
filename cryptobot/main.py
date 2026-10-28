@@ -208,6 +208,36 @@ def options(
 
 
 @app.command()
+def ibkr(
+    env: str = typer.Option("paper", help="paper (IBKR paper account) or live (real money, needs --real-money)"),
+    real_money: bool = typer.Option(False, "--real-money", help="Required together with --env live"),
+    yes: bool = typer.Option(False, "--yes", help="Skip the real-money prompt (servers; still needs --real-money)"),
+    symbols: str = typer.Option("SPY,QQQ", help="Underlyings whose puts to sell"),
+    host: str = typer.Option("ib-gateway", help="IB Gateway host"),
+    port: int = typer.Option(4004, help="IB Gateway API port (4004 paper / 4003 live in the ib-gateway image)"),
+    client_id: int = 7,
+    delayed: bool = typer.Option(True, help="Use free 15-minute delayed quotes when there is no subscription"),
+    state_dir: str = "paper_state",
+    check: int = typer.Option(300, help="Seconds between market checks"),
+    poll: int = typer.Option(60, help="Seconds between status updates / panel button checks"),
+):
+    """Sell weekly out-of-the-money puts on US ETFs/stocks through IB Gateway (paper by default)."""
+    from cryptobot.ibkr import DEFAULTS, IbClient, run_ibkr
+
+    if env not in ("paper", "live"):
+        typer.echo("--env must be paper or live")
+        raise typer.Exit(1)
+    if env == "live" and not real_money:
+        typer.echo("--env live trades REAL money; add --real-money to confirm.")
+        raise typer.Exit(1)
+    if env == "live" and not yes:
+        typer.confirm(f"REAL MONEY: selling puts on {symbols} through Interactive Brokers. Continue?", abort=True)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+    run_ibkr(IbClient(host, port, client_id, delayed), env, [x.strip().upper() for x in symbols.split(",") if x.strip()],
+             dict(DEFAULTS), state_dir=state_dir, check_seconds=check, poll_seconds=poll, delayed=delayed)
+
+
+@app.command()
 def panel(
     host: str = typer.Option("127.0.0.1", help="0.0.0.0 to open from other devices (needs PANEL_PASSWORD)"),
     port: int = 8050,

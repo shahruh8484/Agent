@@ -335,6 +335,19 @@ EVEDEX_OCT_PRIVATE_KEY=0x...  # ключ one-click-trading кошелька
 `DERIBIT_CLIENT_SECRET` с test.deribit.com (права trade + read), затем `deploy/autoupdate.sh --force`.
 Логи: `docker compose logs -f options`. Реальный счёт — только `OPTIONS_ENV=prod` и `OPTIONS_REAL_MONEY=yes`.
 
+## Опционы на акции (Interactive Brokers, бумажный счёт)
+
+Сервисы `ib-gateway` (официальный IB Gateway в образе `gnzsnz/ib-gateway`, входит в аккаунт) и `ibkr`
+(`cryptobot/ibkr.py`) продают недельные путы на SPY и QQQ: экспирация через 3–10 дней, дельта около 0.15,
+минимум на 3% ниже цены, 1 контракт (100 акций). Выход — как у Deribit (тейк 75%, стоп ×3 или |дельта| ≥ 0.45),
+плюс в день экспирации после 15:00 по Нью-Йорку откупается пут с |дельта| ≥ 0.2, чтобы не получить
+акции; если акции всё же пришли, бот встаёт на паузу. Продажи только пн–пт 9:35–15:45 по Нью-Йорку.
+Без подписки на данные котировки с задержкой 15 минут.
+
+Включение: сервер с 2 ГБ памяти, `COMPOSE_PROFILES=trading,options,ibkr`, `IBKR_ENV=paper`,
+`IBKR_USERNAME` / `IBKR_PASSWORD` от бумажного счёта, затем `deploy/autoupdate.sh --force`.
+Логи: `docker compose logs -f ib-gateway ibkr`. Реальный счёт — `IBKR_ENV=live` и `IBKR_REAL_MONEY=yes`.
+
 ## Режим: авто или ручной
 
 Переключатель «Режим: Авто | Ручной» вверху панели.

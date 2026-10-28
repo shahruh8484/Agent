@@ -281,3 +281,27 @@ def test_tiny_moves_dont_fill_the_chart():
     chart = equity_chart(rows, min_funded=1e-9)
     ys = [float(p.split(",")[1]) for p in chart["points"].split()]
     assert abs(ys[0] - ys[1]) < 1  # under a pixel of 160, not top-to-bottom
+
+
+def test_ibkr_card_in_dollars(settings, store):
+    folder = settings_dir(settings) / "ibkr_paper_SPY_puts"
+    folder.mkdir(parents=True)
+    (folder / "status.json").write_text(json.dumps({
+        "updated_at": time.time(), "poll_seconds": 60, "error": None, "kind": "options", "currency": "USD",
+        "index": 600.12, "equity": 1003456.0, "equity_usd": 1003456.0, "available": 950000.0,
+        "positions": [{"instrument": "SPY 20261030 570 P", "strike": 570.0, "expiry": "2026-10-30T20:00:00+00:00",
+                       "amount": 1, "sold_price": 0.85, "mark": 0.4, "delta": -0.08, "pnl_coin": 45.0,
+                       "captured_pct": 52.9}],
+        "pending": None, "action": "hold", "reason": "держим позицию", "checked_at": "2026-10-28T15:00:00+00:00",
+        "config": {"env": "paper", "currency": "USD", "underlying": "SPY", "instrument": "SPY путы",
+                   "signal": "Interactive Brokers · опционы · котировки с задержкой 15 мин", "lots": 1,
+                   "settings_schema": {}, "settings_defaults": {}, "settings_overrides": [], "settings_error": ""}}))
+    (folder / "trades.csv").write_text(
+        "time,env,action,instrument,amount,price,pnl_coin,pnl_usd,index,reason\n"
+        "2026-10-23T20:00:00+00:00,paper,expired,SPY 20261023 565 P,1,0.0,72.0,72.0,598,экспирация вне денег — премия наша\n"
+        "2026-10-24T20:00:00+00:00,paper,assigned,SPY 20261024 580 P,1,580,,,575,исполнение: получено 100 акций SPY по 580\n")
+    page = _client(settings, store).get("/admin/trading").text
+    assert "SPY путы" in page and "БУМАЖНЫЙ СЧЁТ" in page and "Interactive Brokers · опционы" in page
+    assert "$1,003,456" in page and "цена SPY" in page and "+$72.00" in page
+    assert "SPY 20261030 570 P" in page and "+45.00 $" in page and "Цена, $/акция" in page
+    assert "Исполнение акциями" in page and "P&amp;L, $" in page and page.count("P&amp;L, $") == 1
