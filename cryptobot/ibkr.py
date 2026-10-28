@@ -54,6 +54,15 @@ def expiry_day_late(expiry: str, now: datetime) -> bool:
     return ny.strftime("%Y%m%d") == expiry and ny.hour >= 15
 
 
+def _num(v) -> float | None:
+    """IB sends NaN or -1 for "no data"; turn those into None."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if f == f and f not in (float("inf"), float("-inf")) and f >= 0 else None
+
+
 def round_cents(price: float, up: bool = False) -> float:
     return (math.ceil(price * 100 - 1e-9) if up else round(price * 100)) / 100
 
@@ -97,22 +106,37 @@ class IbClient:
         c = next((c for c in chains if c.exchange == "SMART" and c.tradingClass == symbol), chains[0])
         return {"expirations": sorted(c.expirations), "strikes": sorted(c.strikes), "trading_class": c.tradingClass}
 
+    def expiry_strikes(self, symbol: str, expiry: str, trading_class: str) -> list[float]:
+        """Strikes that really exist for this expiry (the chain's strike list is the union of all)."""
+        from ib_async import Option
+
+        details = self.ib.reqContractDetails(Option(symbol, expiry, 0.0, "P", "SMART", tradingClass=trading_class))
+        for d in details:
+            self._contracts[self.key(symbol, expiry, d.contract.strike)] = d.contract
+        return sorted({float(d.contract.strike) for d in details})
+
     def quotes(self, symbol: str, expiry: str, strikes: list[float], trading_class: str) -> list[dict]:
         from ib_async import Option
 
-        opts = [Option(symbol, expiry, k, "P", "SMART", tradingClass=trading_class, multiplier="100") for k in strikes]
-        opts = [o for o in self.ib.qualifyContracts(*opts) if o.conId]
+        opts = []
+        for k in strikes:
+            key = self.key(symbol, expiry, k)
+            if key not in self._contracts:
+                o = Option(symbol, expiry, k, "P", "SMART", tradingClass=trading_class, multiplier="100")
+                q = self.ib.qualifyContracts(o)
+                if not q or q[0] is None or not getattr(q[0], "conId", 0):
+                    continue  # no such contract for this expiry
+                self._contracts[key] = q[0]
+            opts.append(self._contracts[key])
         out = []
-        for o, t in zip(opts, self.ib.reqTickers(*opts)):
+        for o, t in zip(opts, self.ib.reqTickers(*opts) if opts else []):
             g = t.modelGreeks
-            key = self.key(symbol, expiry, o.strike)
-            self._contracts[key] = o
-            out.append({"key": key, "symbol": symbol, "expiry": expiry, "strike": float(o.strike),
-                        "bid": float(t.bid or 0) if t.bid and t.bid > 0 else 0.0,
-                        "ask": float(t.ask or 0) if t.ask and t.ask > 0 else 0.0,
-                        "mark": float(g.optPrice) if g and g.optPrice and g.optPrice > 0 else self._price(t),
-                        "delta": float(g.delta) if g and g.delta is not None else None,
-                        "iv": float(g.impliedVol) if g and g.impliedVol else None})
+            opt_price = _num(g.optPrice) if g else None
+            out.append({"key": self.key(symbol, expiry, o.strike), "symbol": symbol, "expiry": expiry,
+                        "strike": float(o.strike), "bid": _num(t.bid) or 0.0, "ask": _num(t.ask) or 0.0,
+                        "mark": opt_price if opt_price else self._price(t),
+                        "delta": float(g.delta) if g and g.delta is not None and g.delta == g.delta else None,
+                        "iv": _num(g.impliedVol) if g else None})
         return out
 
     def account(self) -> dict:
@@ -362,12 +386,17 @@ class IbPutSeller:
             return "hold", f"нет экспирации на {s['min_dte']}–{s['max_dte']} дней"
         expiry = expiries[0]
         limit = spot * (1 - s["min_otm_pct"] / 100)
-        strikes = [k for k in ch["strikes"] if k <= limit][-12:]  # the dozen strikes just below the cushion
+        real = self.c.expiry_strikes(self.sym, expiry, ch["trading_class"])
+        strikes = [k for k in real if k <= limit][-12:]  # the dozen strikes just below the cushion
         if not strikes:
             return "hold", "нет подходящих страйков"
         days = (expiry_close(expiry) - now).total_seconds() / 86400
         best = None
-        for q in self.c.quotes(self.sym, expiry, strikes, ch["trading_class"]):
+        quotes = self.c.quotes(self.sym, expiry, strikes, ch["trading_class"])
+        if quotes and not any(q["bid"] > 0 or q["mark"] > 0 for q in quotes):
+            return "hold", ("IBKR не прислал котировки по опционам — похоже, нужна подписка на данные "
+                            "US Options (OPRA) для бумажного счёта")
+        for q in quotes:
             if q["bid"] <= 0 and q["mark"] <= 0:
                 continue
             d = q["delta"] if q["delta"] is not None else (put_delta(spot, q["strike"], q["iv"] * 100, days)
