@@ -317,3 +317,13 @@ def test_summary_lists_every_bot_real_money_first(settings, store):
     assert summary.index("реальный") < summary.index("тестовый")  # real money on top
     assert "BTC-31OCT26-60000-P · забрано 51% премии" in summary and "+$26.40" in summary
     assert "лонг 0.0089" in summary and "в позиции" in summary and "Deribit" in summary
+
+
+
+def test_summary_row_shows_error_text(settings, store):
+    _options_bot(settings)
+    st = settings_dir(settings) / "deribit_testnet_BTC_puts" / "status.json"
+    st.write_text(st.read_text().replace('"error": null', '"error": "IB Gateway не отвечает"'))
+    page = _client(settings, store).get("/admin/trading").text
+    summary = page.split("<h2", 2)[1].split("Подробно")[0]
+    assert "ошибка" in summary and "IB Gateway не отвечает" in summary

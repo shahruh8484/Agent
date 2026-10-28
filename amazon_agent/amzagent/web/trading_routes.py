@@ -168,7 +168,7 @@ def summarize(b: dict) -> dict:
     return {"name": name, "title": c.get("instrument") or name, "exchange": exchange, "account": account,
             "account_tone": tone, "state": state, "state_tone": state_tone, "position": position,
             "balance": balance, "result": result, "alive": b.get("alive"),
-            "reason": REASONS.get(s.get("reason"), s.get("reason") or "")}
+            "reason": s.get("error") or REASONS.get(s.get("reason"), s.get("reason") or "")}
 
 
 def parse_settings(form, schema: dict, rules: list, defaults: dict) -> tuple[dict, list[str]]:
