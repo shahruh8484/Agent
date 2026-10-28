@@ -273,13 +273,14 @@ def test_outage_errors_are_short():
     assert other == "ValueError: bad thing"
 
 
-def test_asking_price_concedes_slowly_and_never_below_half_mark():
+def test_asking_price_concedes_slowly_and_never_below_75pct_of_mark():
     from cryptobot.options import asking_price
 
     assert asking_price(0.0020, 0.0016, 0) == 0.0020
     assert asking_price(0.0020, 0.0016, 2) == pytest.approx(0.0018)
     assert asking_price(0.0020, 0.0016, 4) == 0.0016
-    assert asking_price(0.0020, 0.0004, 4) == pytest.approx(0.0012)  # bid too low: halfway, not the bid
+    assert asking_price(0.0020, 0.0011, 4) == pytest.approx(0.0015)  # bid too low: 75% of the mark, not the bid
+    assert asking_price(0.0020, 0.0011, 2) == pytest.approx(0.00155)  # halfway is above the 75% floor
     assert asking_price(0.0020, 0.0, 9) == 0.0020  # nobody bidding: keep the fair price
 
 
@@ -300,3 +301,12 @@ def test_unfilled_orders_concede_over_time(tmp_path, monkeypatch):
     assert min(prices) >= round_price(mark * 0.9, INSTRUMENTS[0])  # fake bid is 0.9 x mark
     bot.step()
     assert "ждём, пока купят наш ордер (попытка 5)" == bot.last["reason"]
+
+
+
+def test_stop_uses_fair_price_when_sold_cheap():
+    s = DEFAULTS
+    # sold at 0.0011 although fair was 0.0020: 0.0023 is just noise, not 3x
+    assert exit_reason(0.0011, 0.0023, -0.08, s, fair=0.0020) == ""
+    assert "стоп" in exit_reason(0.0011, 0.0061, -0.2, s, fair=0.0020)
+    assert "стоп" in exit_reason(0.0011, 0.0034, -0.2, s)  # without the fair price: old behaviour
