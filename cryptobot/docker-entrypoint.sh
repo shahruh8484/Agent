@@ -3,6 +3,24 @@
 # Real money needs both TRADER_ENV=prod and TRADER_REAL_MONEY=yes.
 set -eu
 
+# "ibkr": the Interactive Brokers put seller (IBKR_* variables).
+if [ "${1:-}" = "ibkr" ]; then
+  if [ "${IBKR_ENV:-paper}" = "live" ]; then
+    if [ "${IBKR_REAL_MONEY:-}" != "yes" ]; then
+      echo "IBKR_ENV=live trades REAL money: set IBKR_REAL_MONEY=yes to confirm. Not starting." >&2
+      sleep 3600
+      exit 1
+    fi
+    set -- --env live --real-money --yes --port "${IBKR_PORT:-4003}"
+  else
+    set -- --env paper --port "${IBKR_PORT:-4004}"
+  fi
+  exec python -m cryptobot.main ibkr "$@" \
+    --symbols "${IBKR_SYMBOLS:-SPY,QQQ}" \
+    --host "${IBKR_HOST:-ib-gateway}" \
+    --state-dir "${TRADER_STATE_DIR:-/data/trading}"
+fi
+
 # "options": the Deribit put seller (OPTIONS_* variables); anything else: the EVEDEX bot.
 if [ "${1:-}" = "options" ]; then
   if [ "${OPTIONS_ENV:-testnet}" = "prod" ]; then

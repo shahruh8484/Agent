@@ -4,3 +4,4 @@ numpy>=1.26
 typer>=0.12
 fastapi>=0.115
 uvicorn>=0.30
+ib_async>=2.0
