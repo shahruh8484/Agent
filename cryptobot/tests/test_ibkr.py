@@ -35,6 +35,10 @@ class FakeIb:
         return {"expirations": ["20261028", "20261030", "20261106"], "strikes": [float(k) for k in range(500, 621, 5)],
                 "trading_class": symbol}
 
+    def expiry_strikes(self, symbol, expiry, tc):
+        # weeklies list fewer strikes than the chain's union: only multiples of 5 here
+        return [k for k in self.chain(symbol)["strikes"] if k % 5 == 0]
+
     def quotes(self, symbol, expiry, strikes, tc):
         out = []
         for k in strikes:
@@ -214,3 +218,20 @@ def test_cli_live_gate(monkeypatch):
     assert CliRunner().invoke(app, ["ibkr", "--env", "live"]).exit_code == 1
     assert CliRunner().invoke(app, ["ibkr", "--env", "live", "--real-money"], input="n\n").exit_code != 0
     assert CliRunner().invoke(app, ["ibkr", "--env", "prod"]).exit_code == 1
+
+
+
+def test_no_option_data_is_explained(tmp_path):
+    c = FakeIb()
+    c.quotes = lambda *a: [{"key": "k", "strike": 570.0, "bid": 0.0, "ask": 0.0, "mark": 0.0, "delta": None,
+                            "iv": None, "expiry": "20261030", "symbol": "SPY"}]
+    bot = _bot(tmp_path, c)
+    bot.step(TUE)
+    assert not c.sells and "OPRA" in bot.last["reason"]
+
+
+def test_ib_number_cleanup():
+    from cryptobot.ibkr import _num
+
+    assert _num(float("nan")) is None and _num(-1) is None and _num(None) is None and _num("x") is None
+    assert _num(1.25) == 1.25 and _num(0) == 0.0
