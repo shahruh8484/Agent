@@ -123,6 +123,54 @@ def load_options_bot(folder: Path, status: dict) -> dict:
     }
 
 
+ACCOUNTS = {"prod": ("реальный", "real"), "live": ("реальный", "real"), "paper": ("бумажный", "test"),
+            "testnet": ("тестовый", "test"), "demo": ("демо", "test")}
+
+
+def summarize(b: dict) -> dict:
+    """One row of the overview table at the top of the tab."""
+    c, s = b["config"], b["status"]
+    name = b["name"]
+    exchange = "Deribit" if name.startswith("deribit_") else "IBKR" if name.startswith("ibkr_") else "EVEDEX"
+    account, tone = ACCOUNTS.get(c.get("env"), (c.get("env") or "—", "test"))
+    usd = c.get("currency") == "USD"
+    if b.get("kind") == "options":
+        positions = s.get("positions") or []
+        if positions:
+            p = positions[0]
+            captured = _float(p.get("captured_pct"))
+            position = f"{p.get('instrument')} · " + (f"забрано {captured:.0f}% премии" if captured >= 0
+                                                       else f"пут подорожал на {-captured:.0f}%")
+        elif s.get("pending"):
+            position = f"ордер {s['pending'].get('instrument')}"
+        else:
+            position = "—"
+        result = b.get("realized_usd" if not usd else "realized") or 0.0
+        balance = f"${_float(s.get('equity')):,.0f}" if usd else f"{price(s.get('equity'))} {c.get('currency', '')}"
+    else:
+        pos = b.get("position")
+        position = (f"{'лонг' if pos.get('side') == 'BUY' else 'шорт'} {pos.get('quantity')} · "
+                    f"PnL ${_float(pos.get('unRealizedPnL')):+.2f}") if pos else "—"
+        result = None  # EVEDEX journal has no realized P&L column
+        balance = f"${_float(b['state'].get('availableBalance')):,.2f}"
+    if s.get("error"):
+        state, state_tone = "ошибка", "bad"
+    elif not b.get("alive"):
+        state, state_tone = "не отвечает", "bad"
+    elif b.get("paused"):
+        state, state_tone = "пауза", "warn"
+    elif position.startswith("ордер"):
+        state, state_tone = "ордер ждёт", "ok"
+    elif position != "—":
+        state, state_tone = "в позиции", "ok"
+    else:
+        state, state_tone = "ждёт", "muted"
+    return {"name": name, "title": c.get("instrument") or name, "exchange": exchange, "account": account,
+            "account_tone": tone, "state": state, "state_tone": state_tone, "position": position,
+            "balance": balance, "result": result, "alive": b.get("alive"),
+            "reason": REASONS.get(s.get("reason"), s.get("reason") or "")}
+
+
 def parse_settings(form, schema: dict, rules: list, defaults: dict) -> tuple[dict, list[str]]:
     """Form -> overrides (only values that differ from the bot's .env defaults), checked against the
     schema the bot published. The bot checks again before applying; this is for a clear message now."""
@@ -216,8 +264,10 @@ def register_trading_routes(app: FastAPI, templates, settings, logged_in, to_log
             return to_login()
         try:
             bots = [load_bot(d) for d in folders().values()]
+            # Real-money bots first, then by exchange, so what matters most is on top.
+            rows = sorted((summarize(b) for b in bots), key=lambda r: (r["account_tone"] != "real", r["exchange"], r["title"]))
             page = templates.get_template("trading.html").render({
-                "request": request, "bots": bots, "flash": request.session.pop("flash", None),
+                "request": request, "bots": bots, "rows": rows, "flash": request.session.pop("flash", None),
                 "flash_bad": request.session.pop("flash_bad", False),
                 "reasons": REASONS, "news_modes": NEWS_MODES, "news_effects": NEWS_EFFECTS,
             })

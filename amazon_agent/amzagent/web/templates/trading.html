@@ -24,6 +24,26 @@
 
 <div class="banner">EVEDEX: бот торгует бессрочными фьючерсами: вход по пересечению EMA, стоп-лосс и тейк-профит ставятся на самой бирже и сработают, даже если бот выключен. Только лонг, риск 1% баланса на сделку, размер позиции и число позиций ограничены. ИИ читает новости и может только запретить вход или закрыть позицию раньше — сам сделки не открывает. Deribit и Interactive Brokers: бот продаёт недельные путы далеко от цены и откупает их по тейку или стопу. Страница обновляется каждые 30 секунд.</div>
 
+{% if rows %}
+<h2 style="margin-top:18px">Сводка</h2>
+<div class="scroll"><table class="camp tr-summary">
+  <thead><tr><th>Бот</th><th>Биржа</th><th>Счёт</th><th>Состояние</th><th>Позиция</th><th class="num">Баланс</th><th class="num">Итог сделок</th></tr></thead>
+  <tbody>{% for r in rows %}
+    <tr onclick="location.hash='{{ r.name }}'" title="{{ r.reason }}">
+      <td><a href="#{{ r.name }}" class="t" style="font-weight:600;text-decoration:none;color:var(--fg)"><span class="dot {{ 'd-active' if r.alive else 'd-error' }}"></span>{{ r.title }}</a></td>
+      <td>{{ r.exchange }}</td>
+      <td>{% if r.account_tone == "real" %}<span class="pill tr-real">{{ r.account }}</span>{% else %}<span class="muted">{{ r.account }}</span>{% endif %}</td>
+      <td><span class="{{ {'bad': 'neg', 'warn': '', 'ok': 'pos', 'muted': 'muted'}[r.state_tone] }}"{% if r.state_tone == 'warn' %} style="color:var(--warn)"{% endif %}>{{ r.state }}</span>
+        <span class="sub">{{ r.reason|truncate(60) }}</span></td>
+      <td>{{ r.position }}</td>
+      <td class="num">{{ r.balance }}</td>
+      <td class="num {{ 'pos' if r.result and r.result > 0 else 'neg' if r.result and r.result < 0 else 'muted' }}">{% if r.result is none %}—{% else %}{{ "+" if r.result >= 0 else "−" }}${{ "%.2f"|format(r.result|abs) }}{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+</table></div>
+<style>.tr-summary tbody tr { cursor:pointer; } .tr-summary td { vertical-align:middle; }</style>
+<h2 style="margin-top:24px">Подробно</h2>
+{% endif %}
+
 {% for b in bots %}
 {% set c = b.config %}{% set s = b.status %}{% set st = b.state %}{% set pos = b.position %}
 {% if b.kind == "options" %}{% include "_trading_options.html" %}{% else %}

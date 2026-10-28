@@ -305,3 +305,15 @@ def test_ibkr_card_in_dollars(settings, store):
     assert "$1,003,456" in page and "цена SPY" in page and "+$72.00" in page
     assert "SPY 20261030 570 P" in page and "+45.00 $" in page and "Цена, $/акция" in page
     assert "Исполнение акциями" in page and "P&amp;L, $" in page and page.count("P&amp;L, $") == 1
+
+
+def test_summary_lists_every_bot_real_money_first(settings, store):
+    _bot(settings)                                   # EVEDEX demo, long open
+    _options_bot(settings, env="testnet")            # Deribit BTC, position open, +$26.40 realized
+    _bot(settings, env="prod", position=False)       # EVEDEX real money, idle
+    page = _client(settings, store).get("/admin/trading").text
+    summary = page.split("<h2", 2)[1].split("Подробно")[0]
+    assert "Сводка" in summary and summary.count("<tr onclick") == 3
+    assert summary.index("реальный") < summary.index("тестовый")  # real money on top
+    assert "BTC-31OCT26-60000-P · забрано 51% премии" in summary and "+$26.40" in summary
+    assert "лонг 0.0089" in summary and "в позиции" in summary and "Deribit" in summary
