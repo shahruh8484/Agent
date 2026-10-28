@@ -63,6 +63,13 @@ def _num(v) -> float | None:
     return f if f == f and f not in (float("inf"), float("-inf")) and f >= 0 else None
 
 
+def reg_t_put_margin(spot: float, strike: float, premium: float, qty: int) -> float:
+    """Exchange-standard margin for a naked short put, used when IB's what-if gives no number."""
+    otm = max(spot - strike, 0.0)
+    per_share = premium + max(0.20 * spot - otm, 0.10 * strike)
+    return per_share * 100 * qty
+
+
 def round_cents(price: float, up: bool = False) -> float:
     return (math.ceil(price * 100 - 1e-9) if up else round(price * 100)) / 100
 
@@ -170,11 +177,14 @@ class IbClient:
     def margin(self, key: str, qty: int, price: float) -> float:
         from ib_async import LimitOrder
 
-        state = self.ib.whatIfOrder(self._contract(key), LimitOrder("SELL", qty, price))
-        try:
-            return float(state.initMarginChange)
-        except (TypeError, ValueError):
-            return 0.0
+        contract = self._contract(key)
+        state = self.ib.whatIfOrder(contract, LimitOrder("SELL", qty, price, tif="DAY"))
+        if isinstance(state, list):  # ib_async hands back a list when IB answers with a warning or nothing
+            state = next((x for x in state if hasattr(x, "initMarginChange")), None)
+        m = _num(getattr(state, "initMarginChange", None))
+        if m and m < 1e300:  # IB uses DBL_MAX for "unknown"
+            return m
+        return reg_t_put_margin(self.spot(contract.symbol), float(contract.strike), price, qty)
 
     def sell(self, key: str, qty: int, price: float) -> str:
         from ib_async import LimitOrder

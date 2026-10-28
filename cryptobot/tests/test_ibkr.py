@@ -235,3 +235,30 @@ def test_ib_number_cleanup():
 
     assert _num(float("nan")) is None and _num(-1) is None and _num(None) is None and _num("x") is None
     assert _num(1.25) == 1.25 and _num(0) == 0.0
+
+
+def test_margin_falls_back_to_reg_t_when_whatif_is_empty():
+    from types import SimpleNamespace
+
+    from cryptobot.ibkr import IbClient, reg_t_put_margin
+
+    assert reg_t_put_margin(600, 570, 1.0, 1) == pytest.approx((1.0 + max(120 - 30, 57)) * 100)
+
+    class Ib:
+        def whatIfOrder(self, c, o):
+            self.tif = o.tif
+            return self.answer
+
+        def isConnected(self):
+            return True
+
+    c = IbClient()
+    c.ib = Ib()
+    c.spot = lambda sym: 600.0
+    c._contracts["QQQ 20261102 570 P"] = SimpleNamespace(symbol="QQQ", strike=570.0)
+    c.ib.answer = []
+    assert c.margin("QQQ 20261102 570 P", 1, 1.0) == pytest.approx(9100.0) and c.ib.tif == "DAY"
+    c.ib.answer = [SimpleNamespace(initMarginChange="7500.5")]
+    assert c.margin("QQQ 20261102 570 P", 1, 1.0) == 7500.5
+    c.ib.answer = SimpleNamespace(initMarginChange=str(1.7976931348623157e308))
+    assert c.margin("QQQ 20261102 570 P", 1, 1.0) == pytest.approx(9100.0)
