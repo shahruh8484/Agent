@@ -49,6 +49,18 @@ DEFAULTS = {"lots": 1, "target_delta": 0.12, "min_otm_pct": 8.0, "min_dte": 3, "
 REPRICE_SECONDS = 30 * 60
 
 
+def asking_price(mark: float, bid: float, attempts: int) -> float:
+    """Where to offer the put: the fair (mark) price first; after 2 unfilled re-prices (~1 h)
+    halfway to the best bid; after 4 (~2 h) the bid itself — but never below half the mark."""
+    if bid <= 0 or bid >= mark:
+        return max(mark, bid)
+    if attempts >= 4 and bid >= mark * 0.5:
+        return bid
+    if attempts >= 2:
+        return max((mark + bid) / 2, mark * 0.5)
+    return mark
+
+
 class DeribitClient:
     """The few Deribit v2 calls the bot needs, through ccxt (auth, testnet switch, rate limits)."""
 
@@ -269,11 +281,14 @@ class PutSeller:
                 self.journal("sell", p["instrument"], filled, float(st["average_price"]), None, spot,
                              f"продан пут, дельта ≈ {p['delta']:.2f}")
                 m["pending"] = None
+                m.pop("attempts", None)
                 action, reason = "sell", "ордер исполнен"
             elif st.get("order_state") in ("cancelled", "rejected"):
                 m["pending"] = None
             elif time.time() - p["placed_at"] > REPRICE_SECONDS or paused:
                 self.c.cancel(p["order_id"])
+                # Remember how long we've been trying, so the next order can concede a little.
+                m["attempts"] = {"instrument": p["instrument"], "count": p.get("attempt", 0) + 1}
                 if filled > 0:  # partly filled: keep that part, re-check on the next step
                     st = self.c.order_state(p["order_id"])
                     m["managed"][p["instrument"]] = {"sold_price": float(st["average_price"]),
@@ -319,6 +334,8 @@ class PutSeller:
             else:
                 action, reason = self._enter(s, m, spot, equity, float(summary.get("available_funds") or 0), now)
 
+        if m["pending"] and reason == "ждём":
+            reason = f"ждём, пока купят наш ордер (попытка {m['pending'].get('attempt', 0) + 1})"
         if action == "hold" and reason == "ждём" and views:
             reason = "держим позицию: тейк и стоп не достигнуты, до экспирации {}".format(
                 ", ".join(v["expiry"][:10] for v in views))
@@ -346,7 +363,10 @@ class PutSeller:
         delta = float((t.get("greeks") or {}).get("delta") or put["est_delta"])
         if abs(delta) >= s["max_delta"]:
             return "hold", f"у выбранного пута |дельта| {abs(delta):.2f} — слишком рискованно"
-        price = round_price(max(float(t.get("mark_price") or 0), float(t.get("best_bid_price") or 0)), put)
+        tries = m.get("attempts") or {}
+        attempt = tries.get("count", 0) if tries.get("instrument") == put["instrument_name"] else 0
+        price = round_price(asking_price(float(t.get("mark_price") or 0), float(t.get("best_bid_price") or 0),
+                                         attempt), put)
         tick = float(put.get("tick_size") or 0.0001)
         if price < 2 * tick:
             return "hold", "премия слишком мала"
@@ -358,7 +378,8 @@ class PutSeller:
         order = self.c.sell(put["instrument_name"], amount, price)
         m["pending"] = {"order_id": order["order_id"], "instrument": put["instrument_name"], "price": price,
                         "strike": put["strike"], "expiry": parse_expiry(put).isoformat(), "delta": delta,
-                        "placed_at": time.time(), "amount": amount, "tick_size": put.get("tick_size"),
+                        "placed_at": time.time(), "amount": amount, "attempt": attempt,
+                        "tick_size": put.get("tick_size"),
                         "tick_size_steps": put.get("tick_size_steps") or []}
         log.info("%s selling %s x%s at %s (delta %.2f, margin %s)", self.cur, put["instrument_name"], amount,
                  price, delta, margin)

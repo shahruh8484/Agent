@@ -271,3 +271,32 @@ def test_outage_errors_are_short():
     assert msg.startswith("Deribit временно недоступен (502)") and "<" not in msg and "5 мин" in msg
     other = opt.describe_error(ValueError("bad <b>thing</b>"), 300)
     assert other == "ValueError: bad thing"
+
+
+def test_asking_price_concedes_slowly_and_never_below_half_mark():
+    from cryptobot.options import asking_price
+
+    assert asking_price(0.0020, 0.0016, 0) == 0.0020
+    assert asking_price(0.0020, 0.0016, 2) == pytest.approx(0.0018)
+    assert asking_price(0.0020, 0.0016, 4) == 0.0016
+    assert asking_price(0.0020, 0.0004, 4) == pytest.approx(0.0012)  # bid too low: halfway, not the bid
+    assert asking_price(0.0020, 0.0, 9) == 0.0020  # nobody bidding: keep the fair price
+
+
+def test_unfilled_orders_concede_over_time(tmp_path, monkeypatch):
+    c = FakeDeribit()
+    bot = _bot(tmp_path, c)
+    clock = [1000.0]
+    monkeypatch.setattr(opt.time, "time", lambda: clock[0])
+    bot.step()
+    assert "попытка 1" in bot.last["reason"] or bot.last["action"] == "sell_order"
+    prices = [c.sells[-1][2]]
+    for _ in range(4):
+        clock[0] += 31 * 60
+        bot.step()
+        prices.append(c.sells[-1][2])
+    mark = c.marks[c.sells[0][0]]
+    assert prices[0] == round_price(mark, INSTRUMENTS[0]) and prices[-1] < prices[0]
+    assert min(prices) >= round_price(mark * 0.9, INSTRUMENTS[0])  # fake bid is 0.9 x mark
+    bot.step()
+    assert "ждём, пока купят наш ордер (попытка 5)" == bot.last["reason"]
