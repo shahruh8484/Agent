@@ -49,15 +49,19 @@ DEFAULTS = {"lots": 1, "target_delta": 0.12, "min_otm_pct": 8.0, "min_dte": 3, "
 REPRICE_SECONDS = 30 * 60
 
 
+MIN_OF_MARK = 0.75  # never sell below this share of the fair price
+
+
 def asking_price(mark: float, bid: float, attempts: int) -> float:
     """Where to offer the put: the fair (mark) price first; after 2 unfilled re-prices (~1 h)
-    halfway to the best bid; after 4 (~2 h) the bid itself — but never below half the mark."""
+    halfway to the best bid; after 4 (~2 h) the bid itself — never below 75% of the mark."""
+    floor = mark * MIN_OF_MARK
     if bid <= 0 or bid >= mark:
         return max(mark, bid)
-    if attempts >= 4 and bid >= mark * 0.5:
-        return bid
+    if attempts >= 4:
+        return max(bid, floor)
     if attempts >= 2:
-        return max((mark + bid) / 2, mark * 0.5)
+        return max((mark + bid) / 2, floor)
     return mark
 
 
@@ -171,11 +175,14 @@ def choose_put(instruments: list[dict], book: list[dict], spot: float, s: dict, 
     return None
 
 
-def exit_reason(sold: float, mark: float, delta: float, s: dict) -> str:
+def exit_reason(sold: float, mark: float, delta: float, s: dict, fair: float = 0.0) -> str:
+    """Take profit against what we got; the stop against the fair price at the sale if we sold
+    below it (a cheap fill on a thin book must not pull the stop close)."""
     if mark <= sold * (1 - s["take_profit_pct"] / 100):
         return f"тейк: забрано {s['take_profit_pct']:.0f}% премии"
-    if mark >= sold * s["stop_multiple"]:
-        return f"стоп: пут подорожал в {mark / sold:.1f} раза"
+    ref = max(sold, fair)
+    if mark >= ref * s["stop_multiple"]:
+        return f"стоп: пут подорожал в {mark / ref:.1f} раза"
     if abs(delta) >= s["max_delta"]:
         return f"стоп: |дельта| {abs(delta):.2f} ≥ {s['max_delta']}"
     return ""
@@ -275,6 +282,7 @@ class PutSeller:
             filled = float(st.get("filled_amount") or 0)
             if filled > 0 and st.get("order_state") in ("filled", "cancelled"):
                 m["managed"][p["instrument"]] = {"sold_price": float(st["average_price"]), "amount": filled,
+                                                  "fair_price": p.get("mark", 0.0),
                                                   "strike": p["strike"], "expiry": p["expiry"],
                                                   "tick_size": p["tick_size"], "tick_size_steps": p["tick_size_steps"],
                                                   "opened_at": now.isoformat(timespec="seconds")}
@@ -293,6 +301,7 @@ class PutSeller:
                     st = self.c.order_state(p["order_id"])
                     m["managed"][p["instrument"]] = {"sold_price": float(st["average_price"]),
                                                       "amount": float(st["filled_amount"]), "strike": p["strike"],
+                                                      "fair_price": p.get("mark", 0.0),
                                                       "expiry": p["expiry"], "tick_size": p["tick_size"],
                                                       "tick_size_steps": p["tick_size_steps"],
                                                       "opened_at": now.isoformat(timespec="seconds")}
@@ -316,7 +325,7 @@ class PutSeller:
         for name, info in list(m["managed"].items()):
             t = self.c.ticker(name)
             mark, delta = float(t.get("mark_price") or 0), float((t.get("greeks") or {}).get("delta") or 0)
-            why = exit_reason(info["sold_price"], mark, delta, s)
+            why = exit_reason(info["sold_price"], mark, delta, s, info.get("fair_price", 0.0))
             if why:
                 action, reason = "buyback", why
                 if not self._buy_back(name, info, m, spot, why):
@@ -377,6 +386,7 @@ class PutSeller:
             return "hold", f"мало залога: нужно {margin:.4f} {self.cur}, доступно {min(available, limit):.4f}"
         order = self.c.sell(put["instrument_name"], amount, price)
         m["pending"] = {"order_id": order["order_id"], "instrument": put["instrument_name"], "price": price,
+                        "mark": float(t.get("mark_price") or 0),
                         "strike": put["strike"], "expiry": parse_expiry(put).isoformat(), "delta": delta,
                         "placed_at": time.time(), "amount": amount, "attempt": attempt,
                         "tick_size": put.get("tick_size"),
