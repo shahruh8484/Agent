@@ -310,3 +310,29 @@ def test_stop_uses_fair_price_when_sold_cheap():
     assert exit_reason(0.0011, 0.0023, -0.08, s, fair=0.0020) == ""
     assert "стоп" in exit_reason(0.0011, 0.0061, -0.2, s, fair=0.0020)
     assert "стоп" in exit_reason(0.0011, 0.0034, -0.2, s)  # without the fair price: old behaviour
+
+
+def test_cheap_puts_are_skipped_for_a_later_expiry():
+    inst = INSTRUMENTS + [_inst("BTC-9D-58000-P", 58000, 9)]
+    book = [{"instrument_name": i["instrument_name"], "mark_price": 0.0003 if "-6D-" in i["instrument_name"] else 0.004,
+             "mark_iv": 50} for i in inst]
+    put = choose_put(inst, book, SPOT, DEFAULTS, NOW)
+    assert put["instrument_name"] == "BTC-9D-58000-P"  # all 6-day puts pay only 3 ticks
+    assert choose_put(inst, book, SPOT, {**DEFAULTS, "min_premium_ticks": 2}, NOW)["instrument_name"].startswith("BTC-6D-")
+
+
+def test_pause_after_stop(tmp_path, monkeypatch):
+    c = FakeDeribit()
+    bot = _bot(tmp_path, c)
+    bot.step()
+    c.fill("o1")
+    bot.step()
+    c.marks[c.sells[0][0]] = 0.013  # tripled -> stop
+    bot.step()
+    assert "стоп" in bot.last["reason"]
+    bot.step()
+    assert len(c.sells) == 1 and "пауза после стопа" in bot.last["reason"]
+    later = opt.time.time() + 6 * 3600 + 1
+    monkeypatch.setattr(opt.time, "time", lambda: later)
+    bot.step()
+    assert len(c.sells) == 2

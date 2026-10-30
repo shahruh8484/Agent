@@ -38,6 +38,9 @@ SCHEMA = {
     "stop_multiple": {"label": "Стоп: пут подорожал в … раз", "type": "float", "min": 1.5, "max": 10, "step": 0.5},
     "max_delta": {"label": "Стоп по дельте, |дельта| ≥", "type": "float", "min": 0.2, "max": 0.9, "step": 0.05},
     "max_margin_pct": {"label": "Залог не больше, % счёта", "type": "float", "min": 5, "max": 90, "step": 5},
+    "min_premium_ticks": {"label": "Премия не меньше, шагов цены (шаг 0.0001)", "type": "int", "min": 2,
+                          "max": 50, "step": 1},
+    "stop_cooldown_hours": {"label": "Пауза после стопа, часов", "type": "float", "min": 0, "max": 72, "step": 1},
 }
 RULES = [
     ["min_dte", "<", "max_dte", "Минимальный срок должен быть меньше максимального"],
@@ -45,7 +48,9 @@ RULES = [
 ]
 # Weekly expiries are 7 days apart, so the window must be at least that wide to always hold one.
 DEFAULTS = {"lots": 1, "target_delta": 0.12, "min_otm_pct": 8.0, "min_dte": 3, "max_dte": 10,
-            "take_profit_pct": 75.0, "stop_multiple": 3.0, "max_delta": 0.4, "max_margin_pct": 50.0}
+            "take_profit_pct": 75.0, "stop_multiple": 3.0, "max_delta": 0.4, "max_margin_pct": 50.0,
+            # A premium of a couple of ticks triples on noise and the spread alone trips the stop.
+            "min_premium_ticks": 5, "stop_cooldown_hours": 6.0}
 REPRICE_SECONDS = 30 * 60
 
 
@@ -166,6 +171,8 @@ def choose_put(instruments: list[dict], book: list[dict], spot: float, s: dict, 
                 continue
             if not b.get("mark_price") or not b.get("mark_iv"):
                 continue
+            if float(b["mark_price"]) < s.get("min_premium_ticks", 0) * float(i.get("tick_size") or 0.0001):
+                continue  # too cheap to be worth the risk; a later expiry pays more
             d = put_delta(spot, i["strike"], float(b["mark_iv"]), days)
             gap = abs(abs(d) - s["target_delta"])
             if best is None or gap < best[0] or gap == best[0] and i["strike"] < best[1]["strike"]:
@@ -240,6 +247,8 @@ class PutSeller:
             paid = float(order.get("average_price") or price)
             pnl = round((info["sold_price"] - paid) * filled, 8)
             self.journal("buyback", name, filled, paid, pnl, spot, why)
+            if why.startswith("стоп"):
+                m["stopped_at"] = time.time()
             log.info("%s bought back %s x%s at %s (%s), pnl=%s", self.cur, name, filled, paid, why, pnl)
         info["amount"] = round(info["amount"] - filled, 8)
         if info["amount"] <= 1e-9:
@@ -361,6 +370,10 @@ class PutSeller:
         }
 
     def _enter(self, s: dict, m: dict, spot: float, equity: float, available: float, now: datetime):
+        resume = m["stopped_at"] + s.get("stop_cooldown_hours", 0) * 3600 if m.get("stopped_at") else 0
+        if time.time() < resume:
+            left = int(resume - time.time()) // 60
+            return "hold", f"пауза после стопа — новые продажи через {left // 60} ч {left % 60} мин"
         instruments = self.c.instruments(self.cur)
         put = choose_put(instruments, self.c.book(self.cur), spot, s, now)
         if not put:
@@ -377,8 +390,8 @@ class PutSeller:
         price = round_price(asking_price(float(t.get("mark_price") or 0), float(t.get("best_bid_price") or 0),
                                          attempt), put)
         tick = float(put.get("tick_size") or 0.0001)
-        if price < 2 * tick:
-            return "hold", "премия слишком мала"
+        if price < max(2, s.get("min_premium_ticks", 2)) * tick - 1e-12:
+            return "hold", f"премия слишком мала ({price} {self.cur})"
         amount = float(put["min_trade_amount"]) * s["lots"]
         margin = float(self.c.margins(put["instrument_name"], amount, price).get("sell") or 0)
         limit = equity * s["max_margin_pct"] / 100
