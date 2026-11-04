@@ -209,7 +209,7 @@ def options(
 
 @app.command()
 def arb(
-    exchanges: str = typer.Option(",".join(["bybit", "okx", "kucoin", "gate", "mexc", "bitget"]),
+    exchanges: str = typer.Option(",".join(["binance", "bybit", "okx", "kucoin", "gate", "mexc", "bitget"]),
                                   help="ccxt exchange ids to compare"),
     coins: str = typer.Option("BTC,ETH,SOL,XRP,DOGE,ADA,TRX,LTC,AVAX,LINK,TON,SUI", help="Coins (vs USDT)"),
     state_dir: str = "paper_state",

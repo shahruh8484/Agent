@@ -26,7 +26,7 @@ from cryptobot.settings import effective
 
 log = logging.getLogger(__name__)
 
-EXCHANGES = ["bybit", "okx", "kucoin", "gate", "mexc", "bitget"]
+EXCHANGES = ["binance", "bybit", "okx", "kucoin", "gate", "mexc", "bitget"]
 COINS = ["BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "TRX", "LTC", "AVAX", "LINK", "TON", "SUI"]
 TITLES = {"bybit": "Bybit", "okx": "OKX", "kucoin": "KuCoin", "gate": "Gate", "mexc": "MEXC", "bitget": "Bitget",
           "binance": "Binance", "htx": "HTX"}
