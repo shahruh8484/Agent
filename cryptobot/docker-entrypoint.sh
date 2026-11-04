@@ -21,6 +21,14 @@ if [ "${1:-}" = "ibkr" ]; then
     --state-dir "${TRADER_STATE_DIR:-/data/trading}"
 fi
 
+# "arb": paper arbitrage on public prices (ARB_* variables). No keys, never places orders.
+if [ "${1:-}" = "arb" ]; then
+  exec python -m cryptobot.main arb \
+    --exchanges "${ARB_EXCHANGES:-bybit,okx,kucoin,gate,mexc,bitget}" \
+    --coins "${ARB_COINS:-BTC,ETH,SOL,XRP,DOGE,ADA,TRX,LTC,AVAX,LINK,TON,SUI}" \
+    --state-dir "${TRADER_STATE_DIR:-/data/trading}"
+fi
+
 # "options": the Deribit put seller (OPTIONS_* variables); anything else: the EVEDEX bot.
 if [ "${1:-}" = "options" ]; then
   if [ "${OPTIONS_ENV:-testnet}" = "prod" ]; then

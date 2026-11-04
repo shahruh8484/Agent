@@ -37,6 +37,20 @@ services:
     volumes:
       - trading_data:/data/trading
 
+  # Paper arbitrage (../cryptobot/arb.py): compares public prices and funding rates on several
+  # exchanges and records simulated trades. No keys, never places orders. Starts only with
+  # "arb" in COMPOSE_PROFILES.
+  arb:
+    profiles: ["arb"]
+    build:
+      context: ..
+      dockerfile: cryptobot/Dockerfile
+    command: ["arb"]
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - trading_data:/data/trading
+
   # Interactive Brokers: IB Gateway logs in to the account (paper by default) and the put
   # seller (../cryptobot/ibkr.py) trades through it. Both start only with "ibkr" in
   # COMPOSE_PROFILES. The gateway needs ~600-800 MB of RAM and restarts itself daily.

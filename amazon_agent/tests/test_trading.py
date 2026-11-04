@@ -327,3 +327,43 @@ def test_summary_row_shows_error_text(settings, store):
     page = _client(settings, store).get("/admin/trading").text
     summary = page.split("<h2", 2)[1].split("Подробно")[0]
     assert "ошибка" in summary and "IB Gateway не отвечает" in summary
+
+
+def _arb_bot(settings, name, status, trades):
+    folder = settings_dir(settings) / name
+    folder.mkdir(parents=True)
+    (folder / "status.json").write_text(json.dumps({
+        "updated_at": time.time(), "poll_seconds": 60, "error": None, "kind": "arb", "checked_at": "2026-11-04T10:01:00+00:00",
+        "config": {"env": "paper", "currency": "USD", "settings_schema": {}, "settings_defaults": {},
+                   "settings_overrides": [], "settings_error": "", "settings_rules": []}, **status}))
+    (folder / "trades.csv").write_text(trades)
+    (folder / "equity.csv").write_text("time,equity\n2026-11-04T10:00:00+00:00,1000\n2026-11-04T10:01:00+00:00,1000.13\n")
+
+
+def test_arb_cards_and_summary(settings, store):
+    _arb_bot(settings, "arb_paper_spread", {
+        "config": {"env": "paper", "instrument": "Арбитраж между биржами", "signal": "покупка на одной бирже",
+                   "currency": "USD"},
+        "equity": 1000.13, "realized_usd": 0.13, "trade_count": 1, "reason": "выгодных разниц нет",
+        "feed_errors": {"Bybit": "451 restricted location"}, "exchanges_ok": ["OKX", "Gate"],
+        "opportunities": [{"what": "XRP", "where": "купить OKX → продать MEXC", "gross": 19.9, "net": 19.65,
+                           "note": "похоже на ловушку (закрыт ввод/вывод или другой токен)"}],
+        "metric_label": "Разница", "net_label": "После комиссий"},
+        "time,env,action,instrument,detail,amount,price,price2,gross_pct,pnl_usd,reason\n"
+        "2026-11-04T10:00:00+00:00,paper,arb,BTC,OKX → Gate,100,100.01,100.4,0.39,0.1399,купили на OKX\n")
+    _arb_bot(settings, "arb_paper_funding", {
+        "config": {"env": "paper", "instrument": "Ставка финансирования", "signal": "шорт фьючерса",
+                   "currency": "USD"},
+        "equity": 999.6, "realized_usd": -0.4,
+        "positions": [{"instrument": "SOL · Gate", "notional": 250.0, "apr": 43.8, "collected": 0.0,
+                       "next_ts": "2026-11-04T16:00:00+00:00"}],
+        "opportunities": [{"what": "SOL", "where": "Gate", "gross": 43.8, "net": 0.04, "note": "держим"}],
+        "metric_label": "% годовых", "net_label": "Ставка за период, %", "reason": "держим: SOL 43.8% годовых"},
+        "time,env,action,instrument,detail,amount,price,pnl_usd,reason\n"
+        "2026-11-04T10:00:00+00:00,paper,open,SOL,Gate,250,0.0004,-0.4,купили SOL и открыли шорт\n")
+    page = _client(settings, store).get("/admin/trading").text
+    summary = page.split("<h2", 2)[1].split("Подробно")[0]
+    assert summary.count("несколько бирж") == 2 and "SOL · Gate" in summary and "сделок: 1" in summary
+    assert "+$0.13" in summary and "−$0.40" in summary
+    assert "БУМАЖНЫЙ · БЕЗ ДЕНЕГ" in page and "похоже на ловушку" in page and "Bybit" in page
+    assert "OKX → Gate" in page and "Лучшие ставки сейчас" in page and "43.8" in page

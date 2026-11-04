@@ -113,8 +113,10 @@ def load_options_bot(folder: Path, status: dict) -> dict:
     trades = _read_csv(folder / "trades.csv", 500)
     realized = sum(_float(t.get("pnl_coin")) for t in trades)
     realized_usd = sum(_float(t.get("pnl_usd")) for t in trades)
+    if status.get("realized_usd") is not None:  # arb bots keep the full total; the file can outgrow 500 rows
+        realized_usd = _float(status["realized_usd"])
     return {
-        "name": folder.name, "kind": "options", "status": status, "config": status.get("config") or {},
+        "name": folder.name, "kind": status.get("kind") or "options", "status": status, "config": status.get("config") or {},
         "state": {}, "position": None,
         "alive": time.time() - _float(status.get("updated_at")) < _float(status.get("poll_seconds"), 60) * 3 + 30,
         "paused": bool(control.get("paused")), "close_requested": bool(control.get("close_requested")),
@@ -131,10 +133,17 @@ def summarize(b: dict) -> dict:
     """One row of the overview table at the top of the tab."""
     c, s = b["config"], b["status"]
     name = b["name"]
-    exchange = "Deribit" if name.startswith("deribit_") else "IBKR" if name.startswith("ibkr_") else "EVEDEX"
+    exchange = ("Deribit" if name.startswith("deribit_") else "IBKR" if name.startswith("ibkr_")
+                else "несколько бирж" if name.startswith("arb_") else "EVEDEX")
     account, tone = ACCOUNTS.get(c.get("env"), (c.get("env") or "—", "test"))
     usd = c.get("currency") == "USD"
-    if b.get("kind") == "options":
+    if b.get("kind") == "arb":
+        positions = s.get("positions") or []
+        position = (", ".join(p["instrument"] for p in positions) if positions
+                    else f"сделок: {s['trade_count']}" if s.get("trade_count") else "—")
+        result = b.get("realized_usd") or 0.0
+        balance = f"${_float(s.get('equity')):,.2f}"
+    elif b.get("kind") == "options":
         positions = s.get("positions") or []
         if positions:
             p = positions[0]
@@ -161,7 +170,7 @@ def summarize(b: dict) -> dict:
         state, state_tone = "пауза", "warn"
     elif position.startswith("ордер"):
         state, state_tone = "ордер ждёт", "ok"
-    elif position != "—":
+    elif position != "—" and not position.startswith("сделок"):
         state, state_tone = "в позиции", "ok"
     else:
         state, state_tone = "ждёт", "muted"
@@ -209,7 +218,7 @@ def parse_settings(form, schema: dict, rules: list, defaults: dict) -> tuple[dic
 
 def load_bot(folder: Path) -> dict:
     status = _read_json(folder / "status.json")
-    if status.get("kind") == "options":
+    if status.get("kind") in ("options", "arb"):  # both keep amounts and P&L in trades.csv the same way
         return load_options_bot(folder, status)
     control = _read_json(folder / "control.json")
     state = status.get("state") or {}
