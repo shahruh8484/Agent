@@ -208,6 +208,24 @@ def options(
 
 
 @app.command()
+def arb(
+    exchanges: str = typer.Option(",".join(["bybit", "okx", "kucoin", "gate", "mexc", "bitget"]),
+                                  help="ccxt exchange ids to compare"),
+    coins: str = typer.Option("BTC,ETH,SOL,XRP,DOGE,ADA,TRX,LTC,AVAX,LINK,TON,SUI", help="Coins (vs USDT)"),
+    state_dir: str = "paper_state",
+    check: int = typer.Option(60, help="Seconds between price checks"),
+    funding_check: int = typer.Option(300, help="Seconds between funding-rate checks"),
+):
+    """Paper arbitrage on live public prices: cross-exchange spreads and funding-rate carry. Never trades."""
+    from cryptobot import arb as arb_mod
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+    arb_mod.run_arb(arb_mod.Feeds([e.strip().lower() for e in exchanges.split(",") if e.strip()]),
+                    [c.strip().upper() for c in coins.split(",") if c.strip()],
+                    state_dir=state_dir, spread_seconds=check, funding_seconds=funding_check)
+
+
+@app.command()
 def ibkr(
     env: str = typer.Option("paper", help="paper (IBKR paper account) or live (real money, needs --real-money)"),
     real_money: bool = typer.Option(False, "--real-money", help="Required together with --env live"),
