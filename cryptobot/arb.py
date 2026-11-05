@@ -30,7 +30,7 @@ EXCHANGES = ["binance", "bybit", "okx", "kucoin", "gate", "mexc", "bitget"]
 COINS = ["BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "TRX", "LTC", "AVAX", "LINK", "TON", "SUI"]
 TITLES = {"bybit": "Bybit", "okx": "OKX", "kucoin": "KuCoin", "gate": "Gate", "mexc": "MEXC", "bitget": "Bitget",
           "binance": "Binance", "htx": "HTX"}
-STALE_SECONDS = 120
+STALE_SECONDS = 20  # older quotes are not compared: in a fast market they make gaps that aren't there
 
 
 def iso(ts: float | None) -> str | None:
@@ -85,15 +85,32 @@ class Feeds:
                     tickers = x.fetch_tickers(symbols)
                 except Exception:  # some exchanges only return everything at once
                     tickers = {k: v for k, v in x.fetch_tickers().items() if k in symbols}
+                got = time.time()
                 for sym, t in tickers.items():
                     quotes[(name, sym.split("/")[0])] = {
                         "bid": _num(t.get("bid")) or 0.0, "ask": _num(t.get("ask")) or 0.0,
                         "bid_size": _num(t.get("bidVolume")), "ask_size": _num(t.get("askVolume")),
-                        "ts": (t.get("timestamp") or 0) / 1000 or None}
+                        "ts": (t.get("timestamp") or 0) / 1000 or got}
             except Exception as exc:
                 self._x.pop((name, "spot"), None)
                 errors[name] = _short(exc)
         return quotes, errors
+
+    def confirm(self, coin: str, buy_ex: str, sell_ex: str) -> dict | None:
+        """Both order books fetched at the same moment: the ask where we'd buy, the bid where we'd sell."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        def top(name):
+            book = self._ex(name, "spot").fetch_order_book(f"{coin}/USDT", limit=5)
+            return book["asks"][0] if name == buy_ex else book["bids"][0]
+
+        try:
+            with ThreadPoolExecutor(2) as pool:
+                (ask, ask_size), (bid, bid_size) = [r[:2] for r in pool.map(top, [buy_ex, sell_ex])]
+        except Exception as exc:
+            log.warning("order book check %s %s>%s failed: %s", coin, buy_ex, sell_ex, _short(exc))
+            return None
+        return {"ask": float(ask), "ask_size": float(ask_size), "bid": float(bid), "bid_size": float(bid_size)}
 
     def funding(self, coins: list[str]) -> tuple[dict, dict]:
         rates, errors = {}, {}
@@ -197,11 +214,12 @@ class SpreadBot(PaperBot):
                 "max_gap_pct": 3.0, "capital_usd": 1000.0}
     COOLDOWN = 300  # a gap that persists for minutes is one opportunity, not one per check
 
-    def step(self, quotes: dict, errors: dict, now: float | None = None) -> None:
+    def step(self, quotes: dict, errors: dict, now: float | None = None, confirm=None) -> None:
         now = now or time.time()
         st = self.settings()
         s = st[0]
         m = self._mem()
+        m.setdefault("unconfirmed", 0)
         m.setdefault("realized", 0.0)
         m.setdefault("trades", 0)
         m.setdefault("last_trade", {})
@@ -236,6 +254,15 @@ class SpreadBot(PaperBot):
             key = f"{o['coin']} {o['buy']}>{o['sell']}"
             if now - m["last_trade"].get(key, 0) < self.COOLDOWN:
                 continue
+            if confirm:  # the gap must still be there in both live order books, fetched together
+                book = confirm(o["coin"], o["buy"], o["sell"])
+                gross = (book["bid"] / book["ask"] - 1) * 100 if book else None
+                if gross is None or gross - cost < s["min_net_pct"] or gross > s["max_gap_pct"]:
+                    m["unconfirmed"] += 1
+                    m["last_trade"][key] = now  # don't hammer the same pair every minute
+                    continue
+                o.update(ask=book["ask"], bid=book["bid"], gross=gross, net=gross - cost,
+                         size=min(book["ask_size"] * book["ask"], book["bid_size"] * book["bid"]))
             usd = min(s["trade_usd"], o["size"]) if o["size"] else s["trade_usd"]
             if usd < 5:
                 continue
@@ -266,7 +293,7 @@ class SpreadBot(PaperBot):
                                               "equity": round(equity, 4)})
         self.last = {
             "action": "arb" if done else "hold", "reason": reason, "checked_at": iso(now), "equity": equity,
-            "realized_usd": m["realized"], "trade_count": m["trades"],
+            "realized_usd": m["realized"], "trade_count": m["trades"], "unconfirmed": m["unconfirmed"],
             "feed_errors": {title(k): v for k, v in errors.items()},
             "exchanges_ok": sorted({title(ex) for ex, _ in quotes}),
             "opportunities": [{"what": o["coin"], "where": f"купить {title(o['buy'])} → продать {title(o['sell'])}",
@@ -417,7 +444,7 @@ def run_arb(feeds: Feeds, coins: list[str], state_dir: str | Path = "paper_state
     while True:
         started = time.monotonic()
         try:
-            spread.step(*feeds.spot(coins))
+            spread.step(*feeds.spot(coins), confirm=feeds.confirm)
         except Exception as exc:  # keep the loop alive; the panel shows the error
             log.exception("spread step failed")
             spread.error = _short(exc)
