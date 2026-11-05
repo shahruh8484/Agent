@@ -32,7 +32,7 @@
     {% if funding %}
     <div class="card kpi"><b>{{ (s.positions or [])|length }}</b><span>открытых позиций</span></div>
     {% else %}
-    <div class="card kpi"><b>{{ s.trade_count or 0 }}</b><span>сделок всего</span></div>
+    <div class="card kpi"><b>{{ s.trade_count or 0 }}</b><span>сделок всего{% if s.unconfirmed %} · {{ s.unconfirmed }} не подтвердились стаканом{% endif %}</span></div>
     {% endif %}
     <div class="card kpi"><b>{{ (s.exchanges_ok or [])|length }}</b><span>бирж отвечает{% if s.exchanges_ok %}: {{ s.exchanges_ok|join(", ") }}{% endif %}</span></div>
   </div>

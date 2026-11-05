@@ -344,7 +344,7 @@ def test_arb_cards_and_summary(settings, store):
     _arb_bot(settings, "arb_paper_spread", {
         "config": {"env": "paper", "instrument": "Арбитраж между биржами", "signal": "покупка на одной бирже",
                    "currency": "USD"},
-        "equity": 1000.13, "realized_usd": 0.13, "trade_count": 1, "reason": "выгодных разниц нет",
+        "equity": 1000.13, "realized_usd": 0.13, "trade_count": 1, "unconfirmed": 7, "reason": "выгодных разниц нет",
         "feed_errors": {"Bybit": "451 restricted location"}, "exchanges_ok": ["OKX", "Gate"],
         "opportunities": [{"what": "XRP", "where": "купить OKX → продать MEXC", "gross": 19.9, "net": 19.65,
                            "note": "похоже на ловушку (закрыт ввод/вывод или другой токен)"}],
@@ -367,3 +367,4 @@ def test_arb_cards_and_summary(settings, store):
     assert "+$0.13" in summary and "−$0.40" in summary
     assert "БУМАЖНЫЙ · БЕЗ ДЕНЕГ" in page and "похоже на ловушку" in page and "Bybit" in page
     assert "OKX → Gate" in page and "Лучшие ставки сейчас" in page and "43.8" in page
+    assert "7 не подтвердились стаканом" in page

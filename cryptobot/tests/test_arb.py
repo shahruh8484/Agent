@@ -124,3 +124,19 @@ def test_cli_arb_is_paper_only(monkeypatch):
     monkeypatch.setattr(arb, "run_arb", lambda feeds, coins, **k: seen.update(ex=feeds.names, coins=coins, **k))
     assert CliRunner().invoke(app, ["arb", "--exchanges", "okx,bybit", "--coins", "btc,eth"]).exit_code == 0
     assert seen["ex"] == ["okx", "bybit"] and seen["coins"] == ["BTC", "ETH"]
+
+
+def test_spread_needs_both_live_order_books_to_agree(tmp_path):
+    bot = SpreadBot(tmp_path, 60)
+    quotes = {("gate", "ETH"): q(2349.0, 2349.8), ("okx", "ETH"): q(2357.2, 2357.3)}  # +0.32% on tickers
+    gone = lambda coin, b, s: {"ask": 2357.0, "ask_size": 1.0, "bid": 2357.2, "bid_size": 1.0}
+    bot.step(quotes, {}, NOW, confirm=gone)
+    assert not bot.files.trades.exists() and _status(bot)["unconfirmed"] == 1
+    held = lambda coin, b, s: {"ask": 2349.8, "ask_size": 0.02, "bid": 2357.2, "bid_size": 1.0}
+    bot2 = SpreadBot(tmp_path / "b", 60)
+    bot2.step(quotes, {}, NOW, confirm=held)
+    row = _trades(bot2)[0]
+    assert row["amount"] == pytest.approx(47.0, abs=0.1)  # only 0.02 ETH on the ask
+    failed = SpreadBot(tmp_path / "c", 60)
+    failed.step(quotes, {}, NOW, confirm=lambda *a: None)
+    assert not failed.files.trades.exists()
