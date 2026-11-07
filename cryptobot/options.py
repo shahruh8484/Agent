@@ -109,7 +109,12 @@ class DeribitClient:
         return self._r(self.x.private_get_get_margins({"instrument_name": name, "amount": amount, "price": price}))
 
     def order_state(self, order_id: str) -> dict:
-        return self._r(self.x.private_get_get_order_state({"order_id": order_id}))
+        import ccxt
+
+        try:
+            return self._r(self.x.private_get_get_order_state({"order_id": order_id}))
+        except ccxt.OrderNotFound:  # Deribit forgets old orders (and testnet resets wipe them)
+            return {"order_state": "missing"}
 
     def sell(self, name: str, amount: float, price: float) -> dict:
         return self._r(self.x.private_get_sell({"instrument_name": name, "amount": amount, "type": "limit",
@@ -288,6 +293,12 @@ class PutSeller:
         if m["pending"]:
             p = m["pending"]
             st = self.c.order_state(p["order_id"])
+            if st.get("order_state") == "missing":
+                # The exchange no longer knows the order: whatever sold shows up as a position.
+                pos = positions.get(p["instrument"])
+                st = {"order_state": "filled" if pos else "cancelled",
+                      "filled_amount": abs(float(pos["size"])) if pos else 0,
+                      "average_price": float(pos.get("average_price") or p["price"]) if pos else 0}
             filled = float(st.get("filled_amount") or 0)
             if filled > 0 and st.get("order_state") in ("filled", "cancelled"):
                 m["managed"][p["instrument"]] = {"sold_price": float(st["average_price"]), "amount": filled,
