@@ -336,3 +336,21 @@ def test_pause_after_stop(tmp_path, monkeypatch):
     monkeypatch.setattr(opt.time, "time", lambda: later)
     bot.step()
     assert len(c.sells) == 2
+
+
+def test_forgotten_order_is_resolved_from_positions(tmp_path):
+    c = FakeDeribit()
+    bot = _bot(tmp_path, c)
+    bot.step()
+    name, amount, price = c.sells[0]
+    c.positions_[name] = amount  # it filled, then the exchange forgot the order
+    c.order_state = lambda oid: {"order_state": "missing"}
+    bot.step()
+    assert bot.last["positions"][0]["instrument"] == name and _trades(bot)[0]["action"] == "sell"
+
+    c2 = FakeDeribit()
+    bot2 = _bot(tmp_path / "b", c2)
+    bot2.step()
+    c2.order_state = lambda oid: {"order_state": "missing"}  # never filled
+    bot2.step()
+    assert not bot2.last["positions"] and len(c2.sells) == 2  # pending dropped, a fresh order placed
