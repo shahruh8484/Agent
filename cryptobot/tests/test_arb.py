@@ -140,3 +140,16 @@ def test_spread_needs_both_live_order_books_to_agree(tmp_path):
     failed = SpreadBot(tmp_path / "c", 60)
     failed.step(quotes, {}, NOW, confirm=lambda *a: None)
     assert not failed.files.trades.exists()
+
+
+def test_one_way_gap_stops_when_inventory_runs_out(tmp_path):
+    bot = SpreadBot(tmp_path, 60)
+    quotes = lambda t: {("mexc", "ADA"): q(0.1820, 0.1821, ts=t), ("bybit", "ADA"): q(0.1834, 0.1835, ts=t)}
+    for i in range(6):  # a stuck gap: same direction every 5+ minutes
+        bot.step(quotes(NOW + i * 400), {}, NOW + i * 400)
+    rows = _trades(bot)
+    assert sum(r["amount"] for r in rows) == pytest.approx(300.0)  # $300 of USDT on MEXC, then nothing
+    assert "кончились USDT на MEXC" in _status(bot)["reason"]
+    day = NOW + 25 * 3600  # coins moved back after a day
+    bot.step(quotes(day), {}, day)
+    assert len(_trades(bot)) == len(rows) + 1

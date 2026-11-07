@@ -209,9 +209,15 @@ class SpreadBot(PaperBot):
                           "max": 1, "step": 0.01},
         "max_gap_pct": {"label": "Разница больше % — ловушка, не торгуем", "type": "float", "min": 0.5, "max": 20,
                         "step": 0.5},
+        "inventory_usd": {"label": "Запас каждой монеты и USDT на каждой бирже, $", "type": "float", "min": 10,
+                          "max": 100000, "step": 10},
+        "rebalance_hours": {"label": "Перевозим монеты между биржами раз в, часов", "type": "float", "min": 1,
+                            "max": 168, "step": 1},
     }
+    # Coins and USDT sit on every exchange in advance. Buying on one side uses up its USDT and
+    # selling on the other its coins; until they are moved back the same direction can't repeat.
     DEFAULTS = {"trade_usd": 100.0, "min_net_pct": 0.05, "fee_pct": 0.1, "rebalance_pct": 0.05,
-                "max_gap_pct": 3.0, "capital_usd": 1000.0}
+                "max_gap_pct": 3.0, "capital_usd": 1000.0, "inventory_usd": 300.0, "rebalance_hours": 24.0}
     COOLDOWN = 300  # a gap that persists for minutes is one opportunity, not one per check
 
     def step(self, quotes: dict, errors: dict, now: float | None = None, confirm=None) -> None:
@@ -223,6 +229,10 @@ class SpreadBot(PaperBot):
         m.setdefault("realized", 0.0)
         m.setdefault("trades", 0)
         m.setdefault("last_trade", {})
+        m.setdefault("inv", {})  # "COIN exchange" -> coins gained there since the last rebalance, in $
+        if now - m.setdefault("rebalanced_at", now) >= s["rebalance_hours"] * 3600:
+            m["inv"], m["rebalanced_at"] = {}, now
+        blocked = []
         paused = bool(read_control(self.files.control).get("paused"))
         cost = 2 * s["fee_pct"] + s["rebalance_pct"]
 
@@ -264,8 +274,16 @@ class SpreadBot(PaperBot):
                 o.update(ask=book["ask"], bid=book["bid"], gross=gross, net=gross - cost,
                          size=min(book["ask_size"] * book["ask"], book["bid_size"] * book["bid"]))
             usd = min(s["trade_usd"], o["size"]) if o["size"] else s["trade_usd"]
+            have_usdt = s["inventory_usd"] - m["inv"].get(f"{o['coin']} {o['buy']}", 0)
+            have_coin = s["inventory_usd"] + m["inv"].get(f"{o['coin']} {o['sell']}", 0)
+            usd = min(usd, have_usdt, have_coin)
             if usd < 5:
+                if min(have_usdt, have_coin) < 5:
+                    side = f"USDT на {title(o['buy'])}" if have_usdt < 5 else f"{o['coin']} на {title(o['sell'])}"
+                    blocked.append(f"{o['coin']}: кончились {side}")
                 continue
+            m["inv"][f"{o['coin']} {o['buy']}"] = round(m["inv"].get(f"{o['coin']} {o['buy']}", 0) + usd, 2)
+            m["inv"][f"{o['coin']} {o['sell']}"] = round(m["inv"].get(f"{o['coin']} {o['sell']}", 0) - usd, 2)
             pnl = round(usd * o["net"] / 100, 4)
             m["realized"] = round(m["realized"] + pnl, 4)
             m["trades"] += 1
@@ -280,6 +298,10 @@ class SpreadBot(PaperBot):
             reason = "пауза — новые сделки отключены"
         elif done:
             reason = "сделки: " + ", ".join(done)
+        elif blocked:
+            left = (m["rebalanced_at"] + s["rebalance_hours"] * 3600 - now) / 3600
+            reason = (f"{'; '.join(blocked)} — ждём перевозки монет (через {left:.0f} ч). Если разница держится "
+                      f"часами, скорее всего на бирже закрыт ввод/вывод и перевезти не получится")
         elif best:
             top = best[0]
             reason = (f"выгодных разниц нет: лучшая {top['coin']} {title(top['buy'])}→{title(top['sell'])} "
