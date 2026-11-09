@@ -28,6 +28,9 @@ class FakeIb:
     def ensure(self):
         pass
 
+    def reset(self):
+        self.resets = getattr(self, "resets", 0) + 1
+
     def spot(self, symbol):
         return SPOT
 
@@ -262,3 +265,20 @@ def test_margin_falls_back_to_reg_t_when_whatif_is_empty():
     assert c.margin("QQQ 20261102 570 P", 1, 1.0) == 7500.5
     c.ib.answer = SimpleNamespace(initMarginChange=str(1.7976931348623157e308))
     assert c.margin("QQQ 20261102 570 P", 1, 1.0) == pytest.approx(9100.0)
+
+
+def test_requests_time_out_and_a_stuck_connection_is_reset(tmp_path, monkeypatch):
+    from cryptobot.ibkr import REQUEST_TIMEOUT, IbClient
+
+    assert IbClient().ib.RequestTimeout == REQUEST_TIMEOUT > 0
+    c = FakeIb()
+
+    def hang(symbol):
+        raise TimeoutError()
+
+    c.spot = hang
+    monkeypatch.setattr(c, "wait", lambda s: (_ for _ in ()).throw(KeyboardInterrupt()), raising=False)
+    with pytest.raises(KeyboardInterrupt):
+        ibkr.run_ibkr(c, "paper", ["SPY"], dict(DEFAULTS), state_dir=tmp_path)
+    st = json.loads((tmp_path / "ibkr_paper_SPY_puts" / "status.json").read_text())
+    assert c.resets == 1 and "нет связи с IB Gateway" in st["error"]
