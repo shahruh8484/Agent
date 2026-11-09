@@ -70,6 +70,9 @@ def reg_t_put_margin(spot: float, strike: float, premium: float, qty: int) -> fl
     return per_share * 100 * qty
 
 
+REQUEST_TIMEOUT = 60  # seconds for any single request to IB Gateway
+
+
 def round_cents(price: float, up: bool = False) -> float:
     return (math.ceil(price * 100 - 1e-9) if up else round(price * 100)) / 100
 
@@ -81,7 +84,15 @@ class IbClient:
         from ib_async import IB
 
         self.ib, self.host, self.port, self.client_id, self.delayed = IB(), host, port, client_id, delayed
+        # ib_async waits forever by default: a request lost while the gateway restarts froze the bot.
+        self.ib.RequestTimeout = REQUEST_TIMEOUT
         self._contracts: dict[str, object] = {}
+
+    def reset(self) -> None:
+        try:
+            self.ib.disconnect()
+        except Exception:
+            pass
 
     def ensure(self) -> None:
         if not self.ib.isConnected():
@@ -471,6 +482,8 @@ def run_ibkr(client, env: str, symbols: list[str], base: dict, state_dir: str | 
                 except Exception as exc:  # the gateway restarts daily; never let that kill the loop
                     log.warning("%s: %s", bot.sym, str(exc)[:300])
                     bot.error = describe_error(exc)
+                    if isinstance(exc, (TimeoutError, ConnectionError)):
+                        client.reset()  # a half-dead connection: start a fresh one next time
             bot.write_status()
         if due:
             next_check = time.monotonic() + check_seconds
