@@ -17,6 +17,7 @@ if [ "${1:-}" = "ibkr" ]; then
   fi
   exec python -m cryptobot.main ibkr "$@" \
     --symbols "${IBKR_SYMBOLS:-SPY,QQQ}" \
+    --spread-symbols "${IBKR_SPREAD_SYMBOLS-SPY,QQQ}" \
     --host "${IBKR_HOST:-ib-gateway}" \
     --state-dir "${TRADER_STATE_DIR:-/data/trading}"
 fi

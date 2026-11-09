@@ -231,6 +231,7 @@ def ibkr(
     real_money: bool = typer.Option(False, "--real-money", help="Required together with --env live"),
     yes: bool = typer.Option(False, "--yes", help="Skip the real-money prompt (servers; still needs --real-money)"),
     symbols: str = typer.Option("SPY,QQQ", help="Underlyings whose puts to sell"),
+    spread_symbols: str = typer.Option("SPY,QQQ", help="Underlyings for put credit spreads ('' = none)"),
     host: str = typer.Option("ib-gateway", help="IB Gateway host"),
     port: int = typer.Option(4004, help="IB Gateway API port (4004 paper / 4003 live in the ib-gateway image)"),
     client_id: int = 7,
@@ -252,7 +253,8 @@ def ibkr(
         typer.confirm(f"REAL MONEY: selling puts on {symbols} through Interactive Brokers. Continue?", abort=True)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     run_ibkr(IbClient(host, port, client_id, delayed), env, [x.strip().upper() for x in symbols.split(",") if x.strip()],
-             dict(DEFAULTS), state_dir=state_dir, check_seconds=check, poll_seconds=poll, delayed=delayed)
+             dict(DEFAULTS), state_dir=state_dir, check_seconds=check, poll_seconds=poll, delayed=delayed,
+             spread_symbols=[x.strip().upper() for x in spread_symbols.split(",") if x.strip()])
 
 
 @app.command()
