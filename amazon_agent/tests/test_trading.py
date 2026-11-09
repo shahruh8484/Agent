@@ -368,3 +368,24 @@ def test_arb_cards_and_summary(settings, store):
     assert "БУМАЖНЫЙ · БЕЗ ДЕНЕГ" in page and "похоже на ловушку" in page and "Bybit" in page
     assert "OKX → Gate" in page and "Лучшие ставки сейчас" in page and "43.8" in page
     assert "7 не подтвердились стаканом" in page
+
+
+def test_ibkr_spread_card_shows_max_risk(settings, store):
+    folder = settings_dir(settings) / "ibkr_paper_SPY_spread"
+    folder.mkdir(parents=True)
+    (folder / "status.json").write_text(json.dumps({
+        "updated_at": time.time(), "poll_seconds": 60, "error": None, "kind": "options", "currency": "USD",
+        "index": 731.0, "equity": 1001157.0, "equity_usd": 1001157.0, "available": 950000.0,
+        "positions": [{"instrument": "SPY 20261114 715/710 P", "strike": 715.0,
+                       "expiry": "2026-11-14T21:00:00+00:00", "amount": 1, "sold_price": 1.12, "mark": 0.9,
+                       "delta": -0.2, "pnl_coin": 22.0, "captured_pct": 19.6, "max_loss": 388.0}],
+        "pending": None, "action": "hold", "reason": "держим спред", "checked_at": "2026-11-10T15:00:00+00:00",
+        "config": {"env": "paper", "currency": "USD", "underlying": "SPY", "instrument": "SPY спреды",
+                   "signal": "Interactive Brokers · пут-спреды", "settings_schema": {}, "settings_defaults": {},
+                   "settings_overrides": [], "settings_error": ""}}))
+    (folder / "trades.csv").write_text("time,env,action,instrument,amount,price,pnl_coin,pnl_usd,index,reason\n")
+    (folder / "equity.csv").write_text("time,equity,equity_usd,index\n")
+    page = _client(settings, store).get("/admin/trading").text
+    summary = page.split("<h2", 2)[1].split("Подробно")[0]
+    assert "SPY спреды" in summary and "SPY 20261114 715/710 P" in summary and "IBKR" in summary
+    assert "Макс. риск" in page and "$388" in page

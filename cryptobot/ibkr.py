@@ -73,6 +73,12 @@ def reg_t_put_margin(spot: float, strike: float, premium: float, qty: int) -> fl
 REQUEST_TIMEOUT = 60  # seconds for any single request to IB Gateway
 
 
+def taken_keys(positions: list[dict], symbol: str, mine: set[str]) -> set[str]:
+    """Option contracts on this symbol held by someone else (the other IBKR bot, or by hand):
+    two bots sharing one contract couldn't tell whose position is whose."""
+    return {p["key"] for p in positions if p["sec_type"] == "OPT" and p["symbol"] == symbol and p["qty"]} - mine
+
+
 def round_cents(price: float, up: bool = False) -> float:
     return (math.ceil(price * 100 - 1e-9) if up else round(price * 100)) / 100
 
@@ -213,11 +219,40 @@ class IbClient:
                 self.ib.reqAllOpenOrders()  # after a bot restart its earlier orders aren't in trades() yet
         return None
 
-    def open_sells(self, symbol: str) -> int:
+    def open_sells(self, symbol: str, label: str = LABEL) -> int:
         """Our sell orders still working for this symbol (also ones placed before a restart)."""
         self.ib.reqAllOpenOrders()
-        return sum(1 for t in self.ib.openTrades() if t.order.orderRef == LABEL and t.order.action == "SELL"
+        return sum(1 for t in self.ib.openTrades() if t.order.orderRef == label and t.order.action == "SELL"
                    and t.contract.symbol == symbol and not t.isDone())
+
+    def _combo(self, short_key: str, long_key: str):
+        """The put debit spread (buy the higher strike, sell the lower one). SELLing it opens the
+        credit spread we want and the limit price is the credit; BUYing it closes it."""
+        from ib_async import ComboLeg, Contract
+
+        short, long_ = self._contract(short_key), self._contract(long_key)
+        return Contract(secType="BAG", symbol=short.symbol, currency="USD", exchange="SMART", comboLegs=[
+            ComboLeg(conId=short.conId, ratio=1, action="BUY", exchange="SMART"),
+            ComboLeg(conId=long_.conId, ratio=1, action="SELL", exchange="SMART")])
+
+    def sell_spread(self, short_key: str, long_key: str, qty: int, credit: float, label: str) -> str:
+        from ib_async import LimitOrder
+
+        trade = self.ib.placeOrder(self._combo(short_key, long_key),
+                                   LimitOrder("SELL", qty, credit, orderRef=label, tif="DAY"))
+        self.ib.sleep(1)
+        return str(trade.order.permId or trade.order.orderId)
+
+    def buy_spread(self, short_key: str, long_key: str, qty: int, price: float, label: str) -> dict:
+        from ib_async import LimitOrder
+
+        trade = self.ib.placeOrder(self._combo(short_key, long_key),
+                                   LimitOrder("BUY", qty, price, orderRef=label, tif="IOC"))
+        for _ in range(10):
+            self.ib.sleep(1)
+            if trade.isDone():
+                break
+        return {"filled": float(trade.orderStatus.filled), "avg": float(trade.orderStatus.avgFillPrice or price)}
 
     def order_state(self, order_id: str) -> dict:
         t = self._trade(order_id)
@@ -417,8 +452,9 @@ class IbPutSeller:
         if quotes and not any(q["bid"] > 0 or q["mark"] > 0 for q in quotes):
             return "hold", ("IBKR не прислал котировки по опционам — похоже, нужна подписка на данные "
                             "US Options (OPRA) для бумажного счёта")
+        taken = taken_keys(self.c.positions(), self.sym, set(m["managed"]))
         for q in quotes:
-            if q["bid"] <= 0 and q["mark"] <= 0:
+            if q["bid"] <= 0 and q["mark"] <= 0 or q["key"] in taken:
                 continue
             d = q["delta"] if q["delta"] is not None else (put_delta(spot, q["strike"], q["iv"] * 100, days)
                                                            if q["iv"] else None)
@@ -467,8 +503,13 @@ def describe_error(exc: Exception) -> str:
 
 
 def run_ibkr(client, env: str, symbols: list[str], base: dict, state_dir: str | Path = "paper_state",
-             check_seconds: int = 300, poll_seconds: int = 60, delayed: bool = True) -> None:
+             check_seconds: int = 300, poll_seconds: int = 60, delayed: bool = True,
+             spread_symbols: list[str] | None = None) -> None:
+    from cryptobot.ibkr_spread import SPREAD_DEFAULTS, IbSpreadSeller
+
     bots = [IbPutSeller(client, s.upper(), env, base, state_dir, poll_seconds, delayed) for s in symbols]
+    bots += [IbSpreadSeller(client, s.upper(), env, dict(SPREAD_DEFAULTS), state_dir, poll_seconds, delayed)
+             for s in spread_symbols or []]
     log.info("IBKR put seller [%s] on %s, settings %s", env.upper(), ", ".join(b.sym for b in bots), base)
     next_check = 0.0
     while True:

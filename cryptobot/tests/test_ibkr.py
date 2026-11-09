@@ -64,7 +64,7 @@ class FakeIb:
     def margin(self, key, qty, price):
         return self.margin_
 
-    def open_sells(self, symbol):
+    def open_sells(self, symbol, label="putseller"):
         return self.stale_open
 
     def sell(self, key, qty, price):

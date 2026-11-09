@@ -44,15 +44,17 @@
 
   {% if s.pending %}<div class="banner" style="margin-top:10px">Ордер на продажу ждёт исполнения: <b>{{ s.pending.instrument }}</b> по {{ s.pending.price|price }} {{ cur }}, дельта ≈ {{ "%.2f"|format(s.pending.delta or 0) }}. Если за 30 минут не исполнится — бот переставит его по свежей цене.</div>{% endif %}
 
+  {% set spread = (s.positions or [])|selectattr("max_loss", "defined")|list %}
   <h4 style="margin:16px 0 6px">Открытые позиции</h4>
   <div class="scroll"><table class="camp">
-    <thead><tr><th>Опцион</th><th class="num">Страйк</th><th>Экспирация</th><th class="num">Объём</th><th class="num">Продали за</th><th class="num">Сейчас</th><th class="num">Забрано премии</th><th class="num">Дельта</th><th class="num">P&amp;L</th></tr></thead>
+    <thead><tr><th>Опцион</th><th class="num">Страйк</th><th>Экспирация</th><th class="num">Объём</th><th class="num">Продали за</th><th class="num">Сейчас</th><th class="num">Забрано премии</th><th class="num">Дельта</th><th class="num">P&amp;L</th>{% if spread %}<th class="num">Макс. риск</th>{% endif %}</tr></thead>
     <tbody>{% for p in s.positions or [] %}
       <tr><td>{{ p.instrument }}</td><td class="num">{{ "%.0f"|format(p.strike) }}</td><td>{{ p.expiry|localtime }}</td>
         <td class="num">{{ p.amount }}</td><td class="num">{{ p.sold_price|price }}</td><td class="num">{{ p.mark|price }}</td>
         <td class="num {{ 'pos' if p.captured_pct >= 0.5 else 'neg' if p.captured_pct <= -0.5 else '' }}">{{ "%.0f"|format(p.captured_pct) }}%</td>
         <td class="num">{{ "%.2f"|format(p.delta) }}</td>
-        <td class="num {{ 'pos' if p.pnl_coin > 0 else 'neg' if p.pnl_coin < 0 else '' }}">{{ ("%+.2f $" if usd else "%+.5f")|format(p.pnl_coin) }}</td></tr>
+        <td class="num {{ 'pos' if p.pnl_coin > 0 else 'neg' if p.pnl_coin < 0 else '' }}">{{ ("%+.2f $" if usd else "%+.5f")|format(p.pnl_coin) }}</td>
+        {% if spread %}<td class="num">{% if p.max_loss is defined %}${{ "%.0f"|format(p.max_loss) }}{% endif %}</td>{% endif %}</tr>
     {% else %}<tr><td colspan="9" class="muted">Нет открытых позиций</td></tr>{% endfor %}</tbody>
   </table></div>
 
