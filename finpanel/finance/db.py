@@ -434,6 +434,70 @@ class Repo:
         self.db.execute("DELETE FROM web_totals WHERE web_id = ?", (web_id,))
         self.db.execute("DELETE FROM webs WHERE id = ?", (web_id,))
 
+    def merge_web(self, src_id: int, dst_id: int) -> None:
+        """Move everything of a web entered twice (src) onto the right one
+        (dst) and delete src. Refuses when both copies hold the same thing
+        (same link, same day of totals or product stats, a reconciliation in
+        the same direction), since then it is unclear which one is true."""
+        if src_id == dst_id:
+            raise ValueError("Выберите двух разных вебов.")
+        src, dst = self.web(src_id), self.web(dst_id)
+        if src is None or dst is None:
+            raise ValueError("Нет такого веба.")
+        problems = []
+        # The same web → rekl (offer) link on both copies is merged into one
+        # when its days don't overlap and its rates are the same.
+        same_links = []
+        for pair in self.db.query(
+            "SELECT s.id AS src_link, l.id AS dst_link, a.name AS adv, l.offer FROM links s JOIN links l ON l.web_id = ? "
+            "AND l.advertiser_id = s.advertiser_id AND l.offer = s.offer COLLATE NOCASE "
+            "JOIN advertisers a ON a.id = s.advertiser_id WHERE s.web_id = ?", (dst_id, src_id),
+        ):
+            name = pair["adv"] + (f" ({pair['offer']})" if pair["offer"] else "")
+            overlap = self.db.one("SELECT COUNT(*) AS n FROM traffic_stats s JOIN traffic_stats d ON d.link_id = ? "
+                                  "AND d.date = s.date WHERE s.link_id = ?", (pair["dst_link"], pair["src_link"]))["n"]
+            if overlap:
+                problems.append(f"у обоих есть статистика связки на {name} за одни и те же дни ({overlap})")
+            elif self._rate_rows(pair["src_link"]) and self._rate_rows(pair["src_link"]) != self._rate_rows(pair["dst_link"]):
+                problems.append(f"у связки на {name} разные ставки")
+            else:
+                same_links.append(pair)
+        src_trash, dst_trash = self.trash_link(src_id), self.trash_link(dst_id)
+        if src_trash and dst_trash and src_trash["advertiser_id"] != dst_trash["advertiser_id"]:
+            problems.append("у обоих есть связка на треш")
+        n = self.db.one("SELECT COUNT(*) AS n FROM web_totals s JOIN web_totals d ON d.web_id = ? AND d.date = s.date "
+                        "WHERE s.web_id = ?", (dst_id, src_id))["n"]
+        if n:
+            problems.append(f"у обоих загружен «весь веб» за одни и те же дни ({n})")
+        n = self.db.one("SELECT COUNT(*) AS n FROM product_stats s JOIN product_stats d ON d.web_id = ? "
+                        "AND d.product_id = s.product_id AND d.date = s.date WHERE s.web_id = ?", (dst_id, src_id))["n"]
+        if n:
+            problems.append(f"у обоих есть статистика по товару за одни и те же дни ({n})")
+        n = self.db.one("SELECT COUNT(*) AS n FROM product_web_rates s JOIN product_web_rates d ON d.web_id = ? "
+                        "AND d.product_id = s.product_id WHERE s.web_id = ?", (dst_id, src_id))["n"]
+        if n:
+            problems.append("у обоих есть ставки по одному товару")
+        n = self.db.one("SELECT COUNT(*) AS n FROM balance_checkpoints s JOIN balance_checkpoints d "
+                        "ON d.party_type = 'web' AND d.party_id = ? AND d.direction = s.direction "
+                        "WHERE s.party_type = 'web' AND s.party_id = ?", (dst_id, src_id))["n"]
+        if n:
+            problems.append("оба сверены по одному направлению")
+        if problems:
+            raise ValueError(f"Нельзя объединить {src['name']} → {dst['name']}: " + "; ".join(problems)
+                             + ". Удалите лишнее у одного из них и повторите.")
+        for pair in same_links:
+            self.db.execute("UPDATE traffic_stats SET link_id = ? WHERE link_id = ?", (pair["dst_link"], pair["src_link"]))
+            self.delete_link(pair["src_link"])
+        for table in ("links", "product_web_rates", "product_stats", "orders", "web_totals"):
+            self.db.execute(f"UPDATE {table} SET web_id = ? WHERE web_id = ?", (dst_id, src_id))
+        for table in ("payments", "accruals", "balance_checkpoints"):
+            self.db.execute(f"UPDATE {table} SET party_id = ? WHERE party_type = 'web' AND party_id = ?", (dst_id, src_id))
+        self.db.execute("DELETE FROM webs WHERE id = ?", (src_id,))
+        self.recompute_trash(dst_id)
+
+    def _rate_rows(self, link_id: int) -> list[tuple]:
+        return [tuple(r)[2:] for r in self.db.query("SELECT * FROM link_rates WHERE link_id = ? ORDER BY valid_from", (link_id,))]
+
     def set_web_hidden(self, web_id: int, hidden: bool) -> None:
         self.db.execute("UPDATE webs SET hidden = ? WHERE id = ?", (int(hidden), web_id))
 

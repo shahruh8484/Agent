@@ -20,6 +20,14 @@
           <input type="hidden" name="web_id" value="{{ w.id }}"><button class="ghost" title="скрыть">скрыть</button></form>{% endif %}</td></tr>
     {% else %}<tr><td colspan="9" class="muted">Вебов пока нет.</td></tr>{% endfor %}
   </table></div>
+  {% if webs|length > 1 %}<details><summary>Объединить двух вебов (завели одного дважды)</summary>
+    <form class="inline" method="post" action="/webs/merge" onsubmit="return confirm('Перенести всё и удалить лишнего веба?')">
+      <label>Лишний веб<select name="src_id">{% for w in webs %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select></label>
+      <label>Оставить<select name="dst_id">{% for w in webs %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select></label>
+      <button>Объединить</button>
+    </form>
+    <p class="hint">Связки, платежи, начисления, статистика, заказы и сверки лишнего веба переходят к тому, кого оставляете, а лишний удаляется. Балансы складываются.</p>
+  </details>{% endif %}
   {% set hidden_webs = webs|selectattr('hidden')|list %}
   {% if hidden_webs %}<details><summary>Скрытые вебы ({{ hidden_webs|length }})</summary>
     <div class="table-wrap"><table>

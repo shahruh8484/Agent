@@ -658,6 +658,17 @@ def create_app(
             return login_redirect()
         return run("/webs", lambda: repo.delete_web(web_id) or "Веб удалён.")
 
+    @app.post("/webs/merge")
+    def merge_web(request: Request, src_id: int = Form(...), dst_id: int = Form(...)):
+        if not authed(request):
+            return login_redirect()
+
+        def do():
+            src, dst = repo.web(src_id), repo.web(dst_id)
+            repo.merge_web(src_id, dst_id)
+            return f"{src['name']} объединён с {dst['name']}."
+        return run("/webs", do)
+
     @app.post("/webs/hide")
     def hide_web(request: Request, web_id: int = Form(...), hidden: int = Form(1)):
         if not authed(request):

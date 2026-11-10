@@ -506,3 +506,37 @@ def test_delete_or_hide_web(settings, repo):
 
     client.post("/webs/delete", data={"web_id": empty})
     assert repo.web(empty) is None
+
+
+def test_merge_duplicate_web(settings, repo):
+    client = make_client(settings, repo)
+    login(client)
+    adv = repo.add_advertiser("Ahmed")
+    other = repo.add_advertiser("Viking")
+    right = repo.add_web("Рич")
+    dup = repo.add_web("Rich")
+    link = repo.add_link(dup, adv, "", "2026-10-01", "approve", 10, 0, "approve", 8)
+    repo.upsert_traffic_stat(link, "2026-10-05", 10, 10, 2)
+    repo.add_payment("2026-10-06", "traffic", "web", dup, 5)
+    repo.add_link(right, other, "", "2026-10-01", "approve", 10, 0, "approve", 8)
+    client.post("/webs/merge", data={"src_id": dup, "dst_id": right})
+    assert repo.web(dup) is None
+    bal = next(b for b in calc.web_balances(repo, TODAY, "traffic") if b.party_id == right)
+    assert bal.balance == pytest.approx(5 - 16)
+
+    # The same link on both copies: merged when the days don't overlap...
+    dup2 = repo.add_web("Рич 2")
+    link2 = repo.add_link(dup2, adv, "", "2026-10-01", "approve", 10, 0, "approve", 8)
+    repo.upsert_traffic_stat(link2, "2026-10-07", 10, 10, 1)
+    client.post("/webs/merge", data={"src_id": dup2, "dst_id": right})
+    assert repo.web(dup2) is None
+    assert len([l for l in repo.links() if l["web_id"] == right and l["advertiser_id"] == adv]) == 1
+    bal = next(b for b in calc.web_balances(repo, TODAY, "traffic") if b.party_id == right)
+    assert bal.balance == pytest.approx(5 - 24)
+
+    # ...and refused when both hold the same day: unclear which one is right.
+    dup3 = repo.add_web("Рич 3")
+    link3 = repo.add_link(dup3, adv, "", "2026-10-01", "approve", 10, 0, "approve", 8)
+    repo.upsert_traffic_stat(link3, "2026-10-05", 10, 10, 2)
+    assert "за одни и те же дни" in client.post("/webs/merge", data={"src_id": dup3, "dst_id": right}).text
+    assert repo.web(dup3) is not None
