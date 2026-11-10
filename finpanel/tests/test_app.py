@@ -481,3 +481,28 @@ def test_traffic_days_for_one_link(settings, repo):
     days = page.split('id="days"')[1]
     assert "2026-10-07" in days and "Итого" in days and ">200<" in days and "$500.00" in days
     assert f"period=this_month&amp;link={a}#days" in page      # link names lead to the day view
+
+
+def test_delete_or_hide_web(settings, repo):
+    client = make_client(settings, repo)
+    login(client)
+    empty = repo.add_web("Пустой")
+    web = repo.add_web("Старый")
+    adv = repo.add_advertiser("Ahmed")
+    link = repo.add_link(web, adv, "", "2026-10-01", "approve", 10, 0, "approve", 8)
+    repo.upsert_traffic_stat(link, "2026-10-05", 10, 10, 1)
+    page = client.get("/webs").text
+    assert 'action="/webs/delete"' in page and 'action="/webs/hide"' in page
+
+    # A web with history can't be deleted, nor hidden while it is owed money.
+    assert "удалить нельзя" in client.post("/webs/delete", data={"web_id": web}).text
+    assert "ненулевой баланс" in client.post("/webs/hide", data={"web_id": web}).text
+    repo.add_payment("2026-10-06", "traffic", "web", web, 8)
+    client.post("/webs/hide", data={"web_id": web})
+    assert repo.web(web)["hidden"] == 1
+    assert "Скрытые вебы (1)" in client.get("/webs").text
+    client.post("/webs/hide", data={"web_id": web, "hidden": 0})
+    assert repo.web(web)["hidden"] == 0
+
+    client.post("/webs/delete", data={"web_id": empty})
+    assert repo.web(empty) is None

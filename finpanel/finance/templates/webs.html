@@ -7,16 +7,28 @@
   <div class="table-wrap"><table>
     <tr><th>Веб</th><th>Условия</th>
       <th class="num">Трафик: выплачено</th><th class="num">начислено</th><th class="num">баланс</th>
-      <th class="num">Товар: выплачено</th><th class="num">начислено</th><th class="num">баланс</th></tr>
-    {% for w in webs %}{% set t = traffic.get(w.id) %}{% set p = product.get(w.id) %}
+      <th class="num">Товар: выплачено</th><th class="num">начислено</th><th class="num">баланс</th><th></th></tr>
+    {% for w in webs if not w.hidden %}{% set t = traffic.get(w.id) %}{% set p = product.get(w.id) %}
     <tr><td><a href="/statement/web/{{ w.id }}">{{ w.name }}</a>{% if w.note %} <span class="tag">{{ w.note }}</span>{% endif %}</td><td class="muted">{{ w.terms }}</td>
       <td class="num">{{ t.paid|usd if t else '—' }}</td><td class="num">{{ t.accrued|usd if t else '—' }}</td>
       <td class="num {{ 'pos' if t and t.balance > 0 else 'neg' if t and t.balance < 0 }}">{{ t.balance|usd if t else '—' }}</td>
       <td class="num">{{ p.paid|usd if p else '—' }}</td><td class="num">{{ p.accrued|usd if p else '—' }}</td>
-      <td class="num {{ 'pos' if p and p.balance > 0 else 'neg' if p and p.balance < 0 }}">{{ p.balance|usd if p else '—' }}</td></tr>
-    {% else %}<tr><td colspan="8" class="muted">Вебов пока нет.</td></tr>{% endfor %}
+      <td class="num {{ 'pos' if p and p.balance > 0 else 'neg' if p and p.balance < 0 }}">{{ p.balance|usd if p else '—' }}</td>
+      <td>{% if w.id in deletable %}<form method="post" action="/webs/delete" onsubmit="return confirm('Удалить веба {{ w.name }}?')">
+          <input type="hidden" name="web_id" value="{{ w.id }}"><button class="ghost" title="удалить">✕</button></form>
+        {% else %}<form method="post" action="/webs/hide" onsubmit="return confirm('Скрыть веба {{ w.name }}? История и выписка останутся.')">
+          <input type="hidden" name="web_id" value="{{ w.id }}"><button class="ghost" title="скрыть">скрыть</button></form>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="9" class="muted">Вебов пока нет.</td></tr>{% endfor %}
   </table></div>
-  <p class="hint">Плюс — вы заплатили вперёд, веб ещё должен трафик. Минус — вы должны вебу. Балансы по трафику и по товару раздельные. Если веб сверен, «выплачено / начислено» — только после даты сверки.</p>
+  {% set hidden_webs = webs|selectattr('hidden')|list %}
+  {% if hidden_webs %}<details><summary>Скрытые вебы ({{ hidden_webs|length }})</summary>
+    <div class="table-wrap"><table>
+      {% for w in hidden_webs %}<tr><td><a href="/statement/web/{{ w.id }}">{{ w.name }}</a></td>
+        <td><form method="post" action="/webs/hide"><input type="hidden" name="web_id" value="{{ w.id }}"><input type="hidden" name="hidden" value="0">
+          <button class="ghost">вернуть</button></form></td></tr>{% endfor %}
+    </table></div></details>{% endif %}
+  <p class="hint">Плюс — вы заплатили вперёд, веб ещё должен трафик. Минус — вы должны вебу. Балансы по трафику и по товару раздельные. Если веб сверен, «выплачено / начислено» — только после даты сверки.
+    ✕ — удалить веба без истории; «скрыть» — убрать из списка веба с историей и нулевым балансом (выписка и прибыль за прошлое остаются).</p>
 </div>
 <div class="card">
   <h2>Реклы — балансы</h2>
@@ -51,7 +63,7 @@
   {% endmacro %}
   <div class="table-wrap"><table>
     <tr><th>Кто</th><th class="num">Сейчас в панели</th><th>По моим данным на дату</th><th></th></tr>
-    {% for w in webs %}
+    {% for w in webs if not w.hidden %}
       {% if traffic.get(w.id) %}{{ row('веб ' ~ w.name ~ ' (трафик)', 'web:' ~ w.id, 'traffic', traffic.get(w.id)) }}{% endif %}
       {% if product.get(w.id) %}{{ row('веб ' ~ w.name ~ ' (товар)', 'web:' ~ w.id, 'product', product.get(w.id)) }}{% endif %}
     {% endfor %}

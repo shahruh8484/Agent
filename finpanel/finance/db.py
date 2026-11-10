@@ -307,6 +307,9 @@ class DB:
         cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(balance_checkpoints)")}
         if "pending_json" not in cols:
             self._conn.execute("ALTER TABLE balance_checkpoints ADD COLUMN pending_json TEXT")
+        cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(webs)")}
+        if "hidden" not in cols:
+            self._conn.execute("ALTER TABLE webs ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0")
         for table in ("payments", "expenses", "stock_moves"):
             cols = {r["name"] for r in self._conn.execute(f"PRAGMA table_info({table})")}
             if "wallet_id" not in cols:
@@ -409,8 +412,36 @@ class Repo:
     def webs(self) -> list[sqlite3.Row]:
         return self.db.query("SELECT * FROM webs ORDER BY name")
 
+    def web_history(self, web_id: int) -> list[str]:
+        """What the web already has in the books; a web with any of it can
+        only be hidden, not deleted, or its balances would change."""
+        checks = (
+            ("связки", "SELECT COUNT(*) AS n FROM links WHERE web_id = ?"),
+            ("ставки по товару", "SELECT COUNT(*) AS n FROM product_web_rates WHERE web_id = ?"),
+            ("статистика по товару", "SELECT COUNT(*) AS n FROM product_stats WHERE web_id = ?"),
+            ("заказы", "SELECT COUNT(*) AS n FROM orders WHERE web_id = ?"),
+            ("платежи", "SELECT COUNT(*) AS n FROM payments WHERE party_type = 'web' AND party_id = ?"),
+            ("начисления", "SELECT COUNT(*) AS n FROM accruals WHERE party_type = 'web' AND party_id = ?"),
+            ("сверки", "SELECT COUNT(*) AS n FROM balance_checkpoints WHERE party_type = 'web' AND party_id = ?"),
+        )
+        return [label for label, sql in checks if self.db.one(sql, (web_id,))["n"]]
+
+    def delete_web(self, web_id: int) -> None:
+        history = self.web_history(web_id)
+        if history:
+            raise ValueError("У веба есть история (" + ", ".join(history) + "), удалить нельзя, иначе изменятся балансы. "
+                             "Его можно скрыть.")
+        self.db.execute("DELETE FROM web_totals WHERE web_id = ?", (web_id,))
+        self.db.execute("DELETE FROM webs WHERE id = ?", (web_id,))
+
+    def set_web_hidden(self, web_id: int, hidden: bool) -> None:
+        self.db.execute("UPDATE webs SET hidden = ? WHERE id = ?", (int(hidden), web_id))
+
     def advertisers(self) -> list[sqlite3.Row]:
         return self.db.query("SELECT * FROM advertisers ORDER BY name")
+
+    def web(self, web_id: int) -> sqlite3.Row | None:
+        return self.db.one("SELECT * FROM webs WHERE id = ?", (web_id,))
 
     def find_web(self, name: str) -> sqlite3.Row | None:
         return self._find("webs", name)

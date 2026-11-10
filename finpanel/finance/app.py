@@ -649,7 +649,30 @@ def create_app(
             adv_balances=calc.advertiser_balances(repo, today),
             accruals=repo.accruals(),
             has_reconcile=any(c["note"].startswith("сверка") for c in repo.accruals()),
+            deletable={w["id"] for w in repo.webs() if not repo.web_history(w["id"])},
         )
+
+    @app.post("/webs/delete")
+    def delete_web(request: Request, web_id: int = Form(...)):
+        if not authed(request):
+            return login_redirect()
+        return run("/webs", lambda: repo.delete_web(web_id) or "Веб удалён.")
+
+    @app.post("/webs/hide")
+    def hide_web(request: Request, web_id: int = Form(...), hidden: int = Form(1)):
+        if not authed(request):
+            return login_redirect()
+
+        def do():
+            if hidden:
+                today = today_fn()
+                for direction in ("traffic", "product"):
+                    b = next((b for b in calc.web_balances(repo, today, direction) if b.party_id == web_id), None)
+                    if b and round(b.balance, 2) != 0:
+                        raise ValueError(f"У веба ненулевой баланс ({b.balance:+.2f} $). Скрыть можно только после расчёта.")
+            repo.set_web_hidden(web_id, bool(hidden))
+            return "Веб скрыт." if hidden else "Веб снова в списке."
+        return run("/webs", do)
 
     @app.get("/statement/{party_type}/{party_id}")
     def statement_page(request: Request, party_type: str, party_id: int):
