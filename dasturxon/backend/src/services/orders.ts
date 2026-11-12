@@ -7,6 +7,7 @@ import { notify } from '../integrations/push.js';
 import { emit, rooms } from '../integrations/realtime.js';
 import { badRequest, conflict, forbidden, HttpError, notFound } from '../lib/errors.js';
 import { haversineKm } from '../lib/geo.js';
+import { nearestDistrict } from '../lib/districts.js';
 import { deliveryPriceForBuyer, splitChefAmount } from '../lib/money.js';
 import { weekStart } from '../lib/time.js';
 
@@ -95,7 +96,7 @@ export function presentOrder(o: any, viewer: 'buyer' | 'chef' | 'admin') {
     // Повар видит сумму без комиссии платформы и только район покупателя (ТЗ 4.2)
     delete base.deliveryFee; delete base.total;
     base.chefAmount = o.chef_net_amount;
-    base.deliveryAddress = { text: o.delivery_address_text };
+    base.deliveryAddress = { text: `${nearestDistrict(o.delivery_lat, o.delivery_lon)} р-н` };
     base.expiresAt = o.status === 'PENDING' ? new Date(new Date(o.created_at).getTime() + config.business.chefAcceptTimeoutSec * 1000) : null;
   }
   if (viewer === 'admin') {

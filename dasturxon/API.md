@@ -25,10 +25,13 @@ Access-токен живёт 15 минут, refresh-токен 30 дней (пр
 | Метод | Путь | Тело / ответ |
 |---|---|---|
 | POST | `/auth/send-otp` | `{ phone: "+998901234567" }` → `{ sent, resendAfterSec: 60, devCode? }`. `devCode` приходит только в dev-режиме. Лимит: 5 SMS за 10 мин (429). |
-| POST | `/auth/verify-otp` | `{ phone, code: "1234", role?: "buyer"\|"chef" }` → `{ accessToken, refreshToken, expiresIn, isNew, user: { id, phone, role, name } }` |
+| POST | `/auth/verify-otp` | `{ phone, code: "1234", role?: "buyer"\|"chef" }` → `{ accessToken, refreshToken, expiresIn, isNew, user: { id, phone, role, name } }`. Для нового номера без `role` ответ `{ needsRole: true }`, код при этом не расходуется: повторите запрос с `role`. 409 — номер зарегистрирован с другой ролью (код тоже не расходуется). |
 | POST | `/auth/refresh` | `{ refreshToken }` → новая пара токенов |
 | DELETE | `/auth/logout` | `{ refreshToken }` |
-| POST | `/auth/device` | `{ token, platform: "ios"\|"android" }` — FCM-токен для push |
+| POST | `/auth/device` | `{ token, platform: "ios"\|"android" }` — Expo push-токен (`ExponentPushToken[...]`) |
+| DELETE | `/auth/device` | `{ token }` — отвязать устройство при выходе |
+| POST | `/notifications/read` | `{ ids?: number[] }` — отметить прочитанными (без `ids` — все) |
+| GET | `/notifications/unread-count` | `{ count }` |
 | POST | `/admin/auth/login` | `{ email, password }` → `{ accessToken, refreshToken, staff: { id, name, email, role, permissions[] } }` |
 
 ## Загрузка фото

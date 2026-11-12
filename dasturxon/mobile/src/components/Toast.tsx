@@ -10,7 +10,7 @@ export function ToastHost() {
   if (!message) return null;
   const bg = kind === 'error' ? colors.red : kind === 'success' ? colors.primary : '#333';
   return (
-    <Pressable onPress={hide} style={[s.toast, { top: insets.top + 8, backgroundColor: bg }]} testID="toast">
+    <Pressable onPress={hide} style={[s.toast, { bottom: insets.bottom + 72, backgroundColor: bg }]} testID="toast">
       <Text style={s.text}>{message}</Text>
     </Pressable>
   );

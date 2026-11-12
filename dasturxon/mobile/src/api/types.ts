@@ -38,6 +38,11 @@ export interface VerifyOtpResponse extends Tokens {
   user: AuthUser;
 }
 
+/** Новый номер: код верный, но нужно выбрать роль (код не израсходован) */
+export interface NeedsRoleResponse {
+  needsRole: true;
+}
+
 export interface FeedItem {
   id: number;
   name: string;

@@ -33,15 +33,21 @@ authRouter.post('/auth/verify-otp', async (req, res) => {
     await query('UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1', [otp.id]);
     throw unauthorized('Неверный код');
   }
+  // Проверки роли — до того, как код помечен использованным, чтобы ошибка не «сжигала» код
+  let user = await one<any>('SELECT * FROM users WHERE phone = $1 AND deleted_at IS NULL', [body.phone]);
+  if (!user && !body.role) {
+    // Новый номер: код верный, но нужно выбрать роль — клиент повторит запрос с тем же кодом и role
+    return res.json({ needsRole: true });
+  }
+  if (user && body.role && body.role !== user.role) {
+    throw conflict(user.role === 'chef' ? 'Этот номер зарегистрирован как повар' : 'Этот номер зарегистрирован как покупатель');
+  }
   await query('UPDATE otp_codes SET used = TRUE WHERE id = $1', [otp.id]);
 
-  let user = await one<any>('SELECT * FROM users WHERE phone = $1 AND deleted_at IS NULL', [body.phone]);
   let isNew = false;
   if (!user) {
-    user = await one<any>('INSERT INTO users (phone, role) VALUES ($1,$2) RETURNING *', [body.phone, body.role ?? 'buyer']);
+    user = await one<any>('INSERT INTO users (phone, role) VALUES ($1,$2) RETURNING *', [body.phone, body.role]);
     isNew = true;
-  } else if (body.role && body.role !== user.role) {
-    throw conflict(user.role === 'chef' ? 'Этот номер зарегистрирован как повар' : 'Этот номер зарегистрирован как покупатель');
   }
   if (!user.is_active) throw new HttpError(403, 'blocked', 'Аккаунт заблокирован. Обратитесь в поддержку');
   const tokens = await issueTokens({ kind: 'user', id: user.id, role: user.role });
@@ -63,6 +69,26 @@ authRouter.post('/auth/device', requireUser(), async (req, res) => {
   const { token, platform } = parse(z.object({ token: z.string().min(10), platform: z.enum(['ios', 'android']).optional() }), req.body);
   await query('INSERT INTO device_tokens (user_id, token, platform) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING', [uid(req), token, platform ?? null]);
   res.json({ ok: true });
+});
+
+authRouter.delete('/auth/device', requireUser(), async (req, res) => {
+  const { token } = parse(z.object({ token: z.string().min(10) }), req.body ?? {});
+  await query('DELETE FROM device_tokens WHERE user_id = $1 AND token = $2', [uid(req), token]);
+  res.json({ ok: true });
+});
+
+// Отметить уведомления прочитанными: { ids: [...] } или без тела — все
+authRouter.post('/notifications/read', requireUser(), async (req, res) => {
+  const { ids } = parse(z.object({ ids: z.array(z.number().int()).max(500).optional() }), req.body ?? {});
+  const r = ids
+    ? await query('UPDATE notifications SET read_at = now() WHERE user_id = $1 AND id = ANY($2::bigint[]) AND read_at IS NULL RETURNING id', [uid(req), ids])
+    : await query('UPDATE notifications SET read_at = now() WHERE user_id = $1 AND read_at IS NULL RETURNING id', [uid(req)]);
+  res.json({ updated: r.length });
+});
+
+authRouter.get('/notifications/unread-count', requireUser(), async (req, res) => {
+  const r = await one<{ n: number }>('SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND read_at IS NULL', [uid(req)]);
+  res.json({ count: r?.n ?? 0 });
 });
 
 // Вход сотрудников админ-панели (email + пароль, bcrypt)

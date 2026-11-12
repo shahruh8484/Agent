@@ -67,10 +67,9 @@ buyerRouter.delete('/buyer/addresses/:id', async (req, res) => {
   const id = parse(idParam, req.params.id);
   const a = await one<any>('UPDATE addresses SET is_deleted = TRUE, is_default = FALSE WHERE id = $1 AND user_id = $2 RETURNING *', [id, uid(req)]);
   if (!a) throw notFound('Адрес не найден');
-  if (a.is_default !== undefined) {
-    await query(`UPDATE addresses SET is_default = TRUE WHERE id = (SELECT id FROM addresses WHERE user_id = $1 AND NOT is_deleted ORDER BY id LIMIT 1)
-                   AND NOT EXISTS (SELECT 1 FROM addresses WHERE user_id = $1 AND NOT is_deleted AND is_default)`, [uid(req)]);
-  }
+  // Если удалили основной адрес — основным становится самый старый из оставшихся
+  await query(`UPDATE addresses SET is_default = TRUE WHERE id = (SELECT id FROM addresses WHERE user_id = $1 AND NOT is_deleted ORDER BY id LIMIT 1)
+                 AND NOT EXISTS (SELECT 1 FROM addresses WHERE user_id = $1 AND NOT is_deleted AND is_default)`, [uid(req)]);
   res.json({ ok: true });
 });
 

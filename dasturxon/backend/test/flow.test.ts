@@ -47,7 +47,7 @@ describe('авторизация', () => {
     expect(sentSms.at(-1)!.text).toContain(s.body.devCode);
     const bad = await api().post('/api/auth/verify-otp').send({ phone, code: s.body.devCode === '0000' ? '1111' : '0000' });
     expect(bad.status).toBe(401);
-    const v = await api().post('/api/auth/verify-otp').send({ phone, code: s.body.devCode });
+    const v = await api().post('/api/auth/verify-otp').send({ phone, code: s.body.devCode, role: 'buyer' });
     expect(v.status).toBe(200);
     expect(v.body.isNew).toBe(true);
     const r1 = await api().post('/api/auth/refresh').send({ refreshToken: v.body.refreshToken });
@@ -59,10 +59,23 @@ describe('авторизация', () => {
     expect(limited.status).toBe(429);
   });
 
-  it('номер покупателя нельзя использовать как повара', async () => {
+  it('номер покупателя нельзя использовать как повара, и ошибка не «сжигает» код', async () => {
     const s = await api().post('/api/auth/send-otp').send({ phone: '+998901234567' });
     const v = await api().post('/api/auth/verify-otp').send({ phone: '+998901234567', code: s.body.devCode, role: 'chef' });
     expect(v.status).toBe(409);
+    const again = await api().post('/api/auth/verify-otp').send({ phone: '+998901234567', code: s.body.devCode });
+    expect(again.status).toBe(200);
+    expect(again.body.user.role).toBe('buyer');
+  });
+
+  it('новый номер без роли → needsRole, тот же код работает с ролью', async () => {
+    const phone = '+998936660000';
+    const s = await api().post('/api/auth/send-otp').send({ phone });
+    const first = await api().post('/api/auth/verify-otp').send({ phone, code: s.body.devCode });
+    expect(first.body).toEqual({ needsRole: true });
+    const second = await api().post('/api/auth/verify-otp').send({ phone, code: s.body.devCode, role: 'chef' });
+    expect(second.body.user.role).toBe('chef');
+    expect(second.body.isNew).toBe(true);
   });
 });
 
@@ -151,6 +164,8 @@ describe('полный цикл заказа (ТЗ 3.4–3.6, 5, 6)', () => {
     expect(mine.chefAmount).toBe(Math.round(order.dishTotal * 0.76));
     expect(mine.total).toBeUndefined(); // повар не видит сумму с комиссией
     expect(mine.expiresAt).toBeTruthy();
+    expect(mine.deliveryAddress.text).toBe('Мирабад р-н'); // повар видит только район (ТЗ 4.2)
+    expect(JSON.stringify(mine)).not.toContain('Амира Темура');
 
     // чужой заказ принять нельзя
     const other = await chefToken('Малика');

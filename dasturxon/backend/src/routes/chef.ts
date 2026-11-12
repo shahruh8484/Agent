@@ -261,7 +261,8 @@ chefRouter.post('/chef/payout/request', async (req, res) => {
 
 chefRouter.get('/chef/reviews', async (req, res) => {
   const { page } = parse(z.object({ page: z.coerce.number().int().min(1).default(1) }), req.query);
-  res.json(await query(`SELECT id, order_id, rating, tags, comment, created_at FROM reviews WHERE chef_id = $1 ORDER BY id DESC LIMIT 20 OFFSET $2`,
+  res.json(await query(`SELECT r.id, r.order_id, r.rating, r.tags, r.comment, r.created_at, COALESCE(u.name, 'Покупатель') AS "buyerName"
+                          FROM reviews r JOIN users u ON u.id = r.buyer_id WHERE r.chef_id = $1 ORDER BY r.id DESC LIMIT 20 OFFSET $2`,
     [uid(req), (page - 1) * 20]));
 });
 

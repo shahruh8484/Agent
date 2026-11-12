@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Image,
   Pressable,
   StyleSheet,
@@ -216,13 +217,13 @@ export function Checkbox({ checked, onChange, label }: { checked: boolean; onCha
   );
 }
 
-export function Toggle({ value, onChange, disabled }: { value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+export function Toggle({ value, onChange, disabled, onColor = colors.primary, offColor = '#C9CED6' }: { value: boolean; onChange: (v: boolean) => void; disabled?: boolean; onColor?: string; offColor?: string }) {
   return (
     <Pressable
       accessibilityRole="switch"
       accessibilityState={{ checked: value, disabled }}
       onPress={disabled ? undefined : () => onChange(!value)}
-      style={[styles.toggle, { backgroundColor: value ? colors.primary : '#C9CED6', opacity: disabled ? 0.5 : 1 }]}
+      style={[styles.toggle, { backgroundColor: value ? onColor : offColor, opacity: disabled ? 0.5 : 1 }]}
     >
       <View style={[styles.knob, { alignSelf: value ? 'flex-end' : 'flex-start' }]} />
     </Pressable>
@@ -242,7 +243,7 @@ export const styles = StyleSheet.create({
   badgeText: { fontSize: 12, fontWeight: '600' },
   label: { fontSize: 13, color: colors.textSecondary, marginBottom: 6, fontWeight: '500' },
   inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md },
-  input: { flex: 1, minHeight: 48, fontSize: 16, color: colors.text, paddingVertical: 10 },
+  input: { flex: 1, minHeight: 48, fontSize: 16, color: colors.text, paddingVertical: 10, ...(Platform.OS === 'web' ? ({ outlineWidth: 0 } as object) : null) },
   error: { color: colors.red, fontSize: 12, marginTop: 4 },
   hint: { color: colors.muted, fontSize: 12, marginTop: 4 },
   listRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: spacing.lg, backgroundColor: colors.card },

@@ -58,17 +58,21 @@ export function CodeScreen({ route, navigation }: Props) {
     setError(null);
     try {
       const r = await authApi.verifyOtp(phone, c, role);
+      if ('needsRole' in r) {
+        // Новый номер — спрашиваем роль; код ещё действителен
+        setAskRole(true);
+        return;
+      }
       await rememberRole(phone, r.user.role);
       await signIn(r);
     } catch (e) {
       setCode('');
       setAskRole(false);
       if (e instanceof ApiError && e.status === 409) {
-        // Номер уже зарегистрирован с другой ролью — код израсходован, нужен новый
+        // Номер уже зарегистрирован с другой ролью; код не израсходован — входим с этой ролью
         const other: Role = role === 'chef' ? 'buyer' : 'chef';
         await rememberRole(phone, other);
-        setError(`${e.message}. Запросите новый код — войдём как ${other === 'chef' ? 'повар' : 'покупатель'}.`);
-        setLeft(0);
+        setError(`${e.message}. Введите код ещё раз — войдём как ${other === 'chef' ? 'повар' : 'покупатель'}.`);
       } else setError(errorMessage(e));
     } finally {
       setBusy(false);
@@ -79,10 +83,8 @@ export function CodeScreen({ route, navigation }: Props) {
     const c = v.replace(/\D/g, '').slice(0, 4);
     setCode(c);
     if (c.length === 4) {
-      // Роль спрашиваем только при первом входе с этим номером на устройстве (ТЗ 3.1/4.1)
-      const known = await knownRole(phone);
-      if (known) verify(c);
-      else setAskRole(true);
+      // Роль спрашиваем только для нового номера: сервер вернёт needsRole (ТЗ 3.1/4.1)
+      verify(c);
     }
   };
 

@@ -107,7 +107,7 @@ export function ChefOrdersScreen() {
             <Text style={s.sub}>{online ? 'Вы онлайн — принимаете заказы' : 'Вы офлайн — заказы не поступают'}</Text>
           </View>
           <View style={{ alignItems: 'center' }}>
-            <Toggle value={online} onChange={setOnline} disabled={toggling} />
+            <Toggle value={online} onChange={setOnline} disabled={toggling} onColor={colors.primaryDark} offColor="rgba(0,0,0,0.25)" />
             <Text style={[s.sub, { marginTop: 4 }]}>{online ? 'Онлайн' : 'Офлайн'}</Text>
           </View>
         </View>

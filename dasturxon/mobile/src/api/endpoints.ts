@@ -22,6 +22,7 @@ import type {
   Tokens,
   Tracking,
   VerifyOtpResponse,
+  NeedsRoleResponse,
 } from './types';
 
 // ---------- Авторизация ----------
@@ -29,7 +30,7 @@ export const authApi = {
   sendOtp: (phone: string) =>
     api.post<{ sent: boolean; resendAfterSec: number; devCode?: string }>('/auth/send-otp', { phone }, false),
   verifyOtp: (phone: string, code: string, role?: Role) =>
-    api.post<VerifyOtpResponse>('/auth/verify-otp', { phone, code, ...(role ? { role } : {}) }, false),
+    api.post<VerifyOtpResponse | NeedsRoleResponse>('/auth/verify-otp', { phone, code, ...(role ? { role } : {}) }, false),
   refresh: (refreshToken: string) => api.post<Tokens>('/auth/refresh', { refreshToken }, false),
   logout: (refreshToken: string) => request<{ ok: boolean }>('/auth/logout', { method: 'DELETE', body: { refreshToken }, auth: false }),
   registerDevice: (token: string, platform: 'ios' | 'android') => api.post<{ ok: boolean }>('/auth/device', { token, platform }),

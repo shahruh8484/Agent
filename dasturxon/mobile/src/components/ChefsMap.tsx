@@ -37,7 +37,7 @@ export function ChefsMap({ center, onChef, style }: { center: Point; onChef: (id
         })),
       ],
     }),
-    [chefs, center],
+    [chefs, center.lat, center.lon], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const onMarker = useCallback((id: string | number) => typeof id === 'number' && onChef(id), [onChef]);
