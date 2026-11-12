@@ -1,15 +1,31 @@
 // Нативная карта: WebView с Yandex Maps JS API 2.1
 import React, { useEffect, useMemo, useRef } from 'react';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
-import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import { WebView as RNWebView } from 'react-native-webview';
 import { YANDEX_MAPS_KEY } from '../../config';
 import { MapFallback } from './MapFallback';
 import { buildMapHtml, type MapData } from './mapHtml';
 
 export type { MapData, MapMarker } from './mapHtml';
 
+// Типы react-native-webview 14 конфликтуют с типами RN 0.88 (props схлопываются в never),
+// поэтому описываем используемое подмножество явно.
+interface WebViewHandle {
+  injectJavaScript: (js: string) => void;
+}
+type WebViewMessageEvent = { nativeEvent: { data: string } };
+const WebView = RNWebView as unknown as React.ComponentType<{
+  ref?: React.Ref<WebViewHandle>;
+  originWhitelist?: string[];
+  source: { html: string; baseUrl?: string };
+  onMessage?: (e: WebViewMessageEvent) => void;
+  javaScriptEnabled?: boolean;
+  domStorageEnabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+}>;
+
 export function YandexMap({ data, onMarkerPress, style }: { data: MapData; onMarkerPress?: (id: string | number) => void; style?: StyleProp<ViewStyle> }) {
-  const ref = useRef<WebView>(null);
+  const ref = useRef<WebViewHandle>(null);
   const ready = useRef(false);
   // HTML строится один раз — дальнейшие обновления идут через setData, без перезагрузки карты
   const html = useMemo(() => (YANDEX_MAPS_KEY ? buildMapHtml(YANDEX_MAPS_KEY, data) : ''), []); // eslint-disable-line react-hooks/exhaustive-deps

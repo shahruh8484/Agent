@@ -45,7 +45,7 @@ export function FeedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'list' | 'map'>('list');
-  const searchRef = useRef<TextInput>(null);
+  const searchRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const reqId = useRef(0);
 
   const load = useCallback(

@@ -101,7 +101,7 @@ export function OrdersScreen() {
           </Card>
         )}
         ListEmptyComponent={loading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} /> : <Empty icon="receipt-outline" title={error ?? 'Заказов пока нет'} text={error ? undefined : 'Самое время попробовать домашнюю еду!'} />}
-        ListFooterComponent={loading && items.length ? <ActivityIndicator color={colors.primary} /> : null}
+        ListFooterComponent={loading && items.length ? <ActivityIndicator color={colors.primary} /> : undefined}
       />
     </View>
   );

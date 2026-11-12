@@ -46,7 +46,7 @@ export function CodeScreen({ route, navigation }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [askRole, setAskRole] = useState(false);
-  const input = useRef<TextInput>(null);
+  const input = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   useEffect(() => {
     const t = setInterval(() => setLeft((v) => (v > 0 ? v - 1 : 0)), 1000);

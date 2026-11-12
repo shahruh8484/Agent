@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type Vie
 import { colors, font, radius } from '../../theme';
 import { distanceKm, MARKER_COLORS, type MapData } from './mapHtml';
 
-const KIND_LABEL = { chef: 'Повар', chefOffline: 'Повар (офлайн)', buyer: 'Вы', courier: 'Курьер' };
+const KIND_LABEL = { chef: 'Повар', chefOffline: 'Повар (на заказ)', buyer: 'Вы', courier: 'Курьер' };
 
 /** Без ключа Яндекс.Карт: простой список точек с расстоянием от центра (покупателя) */
 export function MapFallback({ data, onMarkerPress, style }: { data: MapData; onMarkerPress?: (id: string | number) => void; style?: StyleProp<ViewStyle> }) {

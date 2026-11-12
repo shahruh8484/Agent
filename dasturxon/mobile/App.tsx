@@ -1,20 +1,30 @@
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ToastHost } from './src/components/Toast';
+import { RootNavigator } from './src/navigation/RootNavigator';
+import { useAuth } from './src/store/auth';
+import { colors } from './src/theme';
+
+const theme = {
+  ...DefaultTheme,
+  colors: { ...DefaultTheme.colors, primary: colors.primary, background: colors.bg, card: colors.card },
+};
 
 export default function App() {
+  const bootstrap = useAuth((s) => s.bootstrap);
+  useEffect(() => {
+    bootstrap();
+  }, [bootstrap]);
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <SafeAreaProvider>
+      <NavigationContainer theme={theme}>
+        <StatusBar style="light" />
+        <RootNavigator />
+      </NavigationContainer>
+      <ToastHost />
+    </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

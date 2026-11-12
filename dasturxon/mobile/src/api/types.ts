@@ -263,7 +263,7 @@ export interface ChefSummary {
 export interface ChefBalance {
   balance: number;
   nextPayoutAt: string | null;
-  pendingEarlyWithdrawal: unknown;
+  pendingEarlyWithdrawal: number;
   week: { start: string; orders: number; turnover: number; avgCheck: number; avgRating: number | null };
 }
 

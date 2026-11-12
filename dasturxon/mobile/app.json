@@ -1,28 +1,53 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Dasturxon",
+    "slug": "dasturxon",
+    "scheme": "dasturxon",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "primaryColor": "#1FA37A",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "uz.dasturxon.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Нужно, чтобы определить адрес доставки и показать поваров рядом.",
+        "NSCameraUsageDescription": "Нужно, чтобы сфотографировать блюда и кухню.",
+        "NSPhotoLibraryUsageDescription": "Нужно, чтобы выбрать фото блюд и профиля."
+      }
     },
     "android": {
+      "package": "uz.dasturxon.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#1FA37A",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "CAMERA", "POST_NOTIFICATIONS"],
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "name": "Dasturxon",
+      "themeColor": "#1FA37A"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        { "locationWhenInUsePermission": "Нужно, чтобы определить адрес доставки и показать поваров рядом." }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Нужно, чтобы выбрать фото блюд и профиля.",
+          "cameraPermission": "Нужно, чтобы сфотографировать блюда и кухню.",
+          "microphonePermission": false
+        }
+      ],
+      ["expo-notifications", { "color": "#1FA37A" }]
     ]
   }
 }
