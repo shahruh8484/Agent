@@ -13,7 +13,7 @@ import { UPLOAD_DIR, uploadsRouter } from './routes/uploads.js';
 export function createApp() {
   const app = express();
   app.set('trust proxy', true);
-  app.use(cors({ origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',') }));
+  app.use(cors({ origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(','), exposedHeaders: ['Content-Disposition'] }));
   app.use(express.json({ limit: '1mb' }));
 
   app.get('/health', (_req, res) => { res.json({ ok: true }); });

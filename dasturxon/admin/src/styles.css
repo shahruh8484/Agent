@@ -53,3 +53,8 @@ body { background: #F4F6F8; -webkit-font-smoothing: antialiased; }
 
 .chart-tooltip { background: #fff; border: 1px solid #ECEFF3; border-radius: 10px; padding: 10px 12px; box-shadow: 0 6px 20px rgba(15, 23, 42, .08); font-size: 13px; }
 .chart-tooltip .t { font-weight: 600; margin-bottom: 4px; }
+.app-sider:not(.mobile) { transition: none !important; }
+@media (min-width: 992px) {
+  /* белая полоса сайдбара на всю высоту длинных страниц */
+  .app-root { background: linear-gradient(90deg, #fff 0, #fff 232px, #F4F6F8 232px) !important; }
+}

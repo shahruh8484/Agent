@@ -110,8 +110,11 @@ adminRouter.get('/admin/orders', guard('orders_view'), async (req, res) => {
   if (q.to) add('o.created_at <= ?', q.to);
   if (q.q) {
     const s = q.q.replace(/^#/, '');
-    if (/^\d+$/.test(s) && s.length < 9) add('o.id = ?', Number(s));
-    else add('(cp.nick ILIKE ? OR u.phone ILIKE ?)', `%${s}%`);
+    if (/^\d+$/.test(s) && s.length < 9) {
+      // Короткое число — это может быть и номер заказа, и фрагмент телефона
+      params.push(Number(s), `%${s}%`);
+      where.push(`(o.id = $${params.length - 1} OR u.phone ILIKE $${params.length})`);
+    } else add('(cp.nick ILIKE ? OR u.phone ILIKE ?)', `%${s}%`);
   }
   params.push((q.page - 1) * 50);
   const rows = await query<any>(
@@ -188,7 +191,7 @@ adminRouter.get('/admin/chefs', guard('chefs_view'), async (req, res) => {
   }[q.status];
   const params: unknown[] = [];
   let search = 'TRUE';
-  if (q.q) { params.push(`%${q.q}%`); search = `(cp.nick ILIKE $1 OR u.phone ILIKE $1 OR u.name ILIKE $1)`; }
+  if (q.q) { params.push(`%${q.q}%`); search = role(req) === 'accountant' ? `(cp.nick ILIKE $1 OR u.name ILIKE $1)` : `(cp.nick ILIKE $1 OR u.phone ILIKE $1 OR u.name ILIKE $1)`; }
   params.push((q.page - 1) * 50);
   const rows = await query<any>(
     `SELECT cp.*, u.phone, u.name, count(*) OVER()::int AS total_count FROM chef_profiles cp JOIN users u ON u.id = cp.user_id
@@ -348,7 +351,8 @@ adminRouter.put('/admin/complaints/:id', guard('complaints'), async (req, res) =
   if (b.action === 'warn_chef') {
     await notify(c.chef_id, 'warning', 'Предупреждение', b.note || `Получена жалоба по заказу #${c.order_id}. Пожалуйста, будьте внимательнее.`, { orderId: c.order_id });
   }
-  const status = b.action === 'close' ? 'closed' : 'resolved';
+  // Предупреждение повару не закрывает жалобу — её можно решить отдельно
+  const status = b.action === 'close' ? 'closed' : b.action === 'resolve' ? 'resolved' : c.status;
   await query('UPDATE complaints SET status = $2, resolution_note = COALESCE($3, resolution_note), resolved_by = $4 WHERE id = $1', [id, status, b.note ?? null, uid(req)]);
   await audit(req, `complaint_${b.action}`, 'complaint', id, b);
   res.json({ ok: true, status });

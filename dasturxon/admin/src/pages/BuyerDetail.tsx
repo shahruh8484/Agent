@@ -47,7 +47,7 @@ export default function BuyerDetailPage() {
         extra={can('chefs_block_permanent') && <Button danger={b.is_active} onClick={toggleBlock}>{b.is_active ? 'Заблокировать' : 'Разблокировать'}</Button>}
       />
       <Card bordered={false} style={{ marginBottom: 16 }}>
-        <Descriptions column={{ xs: 1, sm: 2, lg: 4 }} size="small">
+        <Descriptions column={{ xs: 1, sm: 2, md: 2, lg: 4, xl: 4, xxl: 4 }} size="small">
           <Descriptions.Item label="Телефон">{b.phone}</Descriptions.Item>
           <Descriptions.Item label="Регистрация">{dateTime(b.created_at)}</Descriptions.Item>
           <Descriptions.Item label="Заказов">{b.orders.length}</Descriptions.Item>

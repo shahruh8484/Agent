@@ -1,4 +1,4 @@
-import { Alert, Card, Empty, Space, Spin, Tag, Typography } from 'antd';
+import { Alert, Card, Empty, Image, Space, Spin, Tag, Typography } from 'antd';
 import type { ReactNode } from 'react';
 import type { ApiError } from '../api';
 import { payoutStatus, statusColors, statusLabels } from '../format';
@@ -51,4 +51,13 @@ export function Loading() {
 
 export function NotFound({ text = 'Не найдено' }: { text?: string }) {
   return <Card><Empty description={text} /></Card>;
+}
+
+const PHOTO_FALLBACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="90" viewBox="0 0 120 90"><rect width="120" height="90" fill="#F1F3F5"/><path d="M44 60l12-14 9 10 7-8 12 12z" fill="#C7CDD4"/><circle cx="74" cy="34" r="6" fill="#C7CDD4"/><text x="60" y="80" font-family="Arial" font-size="9" fill="#8A94A6" text-anchor="middle">нет фото</text></svg>',
+);
+
+/** Фото с превью и заглушкой, если картинка не загрузилась. */
+export function Photo({ src, width, height }: { src: string; width: number; height: number }) {
+  return <Image src={src} width={width} height={height} fallback={PHOTO_FALLBACK} style={{ objectFit: 'cover', borderRadius: 8 }} />;
 }

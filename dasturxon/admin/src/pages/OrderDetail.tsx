@@ -32,7 +32,7 @@ export default function OrderDetailPage() {
   return (
     <>
       <PageHeader
-        title={<Space><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => nav(-1)} />Заказ #{o.id} <OrderStatusTag status={o.status} /></Space>}
+        title={<Space><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => nav(-1)} />{`Заказ #${o.id}`}<OrderStatusTag status={o.status} /></Space>}
         sub={`Создан ${dateTime(o.createdAt)}`}
         extra={<>
           {canRefund && <Button onClick={() => setRefundOpen(true)}>Возврат</Button>}
@@ -58,7 +58,7 @@ export default function OrderDetailPage() {
             {o.comment && <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>Комментарий: {o.comment}</Typography.Paragraph>}
           </Card>
           <Card bordered={false} title="Участники и доставка" style={{ marginBottom: 16 }}>
-            <Descriptions column={{ xs: 1, sm: 2 }} size="small">
+            <Descriptions column={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2, xxl: 2 }} size="small">
               <Descriptions.Item label="Повар">{can('chefs_view') ? <Link to={`/chefs/${o.chefId}`}>{o.chefNick}</Link> : o.chefNick}</Descriptions.Item>
               <Descriptions.Item label="Телефон повара">{o.chefPhone ?? '—'}</Descriptions.Item>
               <Descriptions.Item label="Покупатель">{can('buyers_view') ? <Link to={`/buyers/${o.buyerId}`}>{o.buyerName || 'Без имени'}</Link> : (o.buyerName || '—')}</Descriptions.Item>

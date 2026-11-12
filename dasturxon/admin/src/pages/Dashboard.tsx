@@ -127,7 +127,7 @@ export default function DashboardPage() {
                       );
                     }}
                   />
-                  <Bar dataKey="orders" radius={[6, 6, 0, 0]} maxBarSize={44}>
+                  <Bar dataKey="orders" radius={[6, 6, 0, 0]} maxBarSize={44} isAnimationActive={false}>
                     {week.map((d) => <Cell key={d.ymd} fill={d.isToday ? '#1FA37A' : '#A7DFC9'} />)}
                   </Bar>
                 </BarChart>

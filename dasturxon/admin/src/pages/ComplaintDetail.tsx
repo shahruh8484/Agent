@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, useApi } from '../api';
 import { useAuth } from '../auth';
 import { BlockChefModal, RefundModal, TextPromptModal } from '../components/actions';
-import { ErrorBox, Loading, OrderStatusTag, PageHeader } from '../components/common';
+import { ErrorBox, Loading, Photo, OrderStatusTag, PageHeader } from '../components/common';
 import { useCounts } from '../components/AppLayout';
 import { complaintStatus, complaintTypes, dateTime, money, paymentLabels } from '../format';
 import type { AdminOrder, Complaint } from '../types';
@@ -37,7 +37,7 @@ export default function ComplaintDetailPage() {
   return (
     <>
       <PageHeader
-        title={<Space><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => nav(-1)} />Жалоба #{c.id} <Tag color={st?.color}>{st?.label ?? c.status}</Tag></Space>}
+        title={<Space><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => nav(-1)} />{`Жалоба #${c.id}`}<Tag color={st?.color}>{st?.label ?? c.status}</Tag></Space>}
         sub={`${complaintTypes[c.type] ?? c.type} · ${dateTime(c.created_at)}`}
         extra={<>
           {canRefund && <Button icon={<DollarOutlined />} onClick={() => setModal('refund')}>Возврат</Button>}
@@ -54,10 +54,10 @@ export default function ComplaintDetailPage() {
             <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', fontSize: 15 }}>{c.description}</Typography.Paragraph>
             {c.photo_urls?.length > 0 && (
               <Image.PreviewGroup>
-                <div className="kitchen-photos">{c.photo_urls.map((u) => <Image key={u} src={u} width={120} height={90} />)}</div>
+                <div className="kitchen-photos">{c.photo_urls.map((u) => <Photo key={u} src={u} width={120} height={90} />)}</div>
               </Image.PreviewGroup>
             )}
-            <Descriptions column={{ xs: 1, sm: 2 }} size="small" style={{ marginTop: 16 }}>
+            <Descriptions column={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2, xxl: 2 }} size="small" style={{ marginTop: 16 }}>
               <Descriptions.Item label="Покупатель">{can('buyers_view') ? <Link to={`/buyers/${c.buyer_id}`}>{c.buyer_name || c.buyer_phone}</Link> : c.buyer_name}</Descriptions.Item>
               <Descriptions.Item label="Телефон">{c.buyer_phone}</Descriptions.Item>
               <Descriptions.Item label="Повар"><Link to={`/chefs/${c.chef_id}`}>{c.chef_nick}</Link></Descriptions.Item>

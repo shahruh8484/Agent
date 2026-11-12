@@ -3,7 +3,7 @@ import { App, Button, Card, Col, DatePicker, Empty, Row, Segmented, Space, Typog
 import dayjs, { type Dayjs } from 'dayjs';
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { download, useApi } from '../api';
 import { useAuth } from '../auth';
 import { ErrorBox, Loading, PageHeader } from '../components/common';
@@ -101,19 +101,15 @@ export default function FinancePage() {
                 {chart.every((c) => !c.turnover && !c.income) ? <Empty description="За период нет выполненных заказов" style={{ padding: 40 }} /> : (
                   <div style={{ height: 300 }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="gT" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#1FA37A" stopOpacity={0.25} /><stop offset="100%" stopColor="#1FA37A" stopOpacity={0} /></linearGradient>
-                          <linearGradient id="gI" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3B82F6" stopOpacity={0.25} /><stop offset="100%" stopColor="#3B82F6" stopOpacity={0} /></linearGradient>
-                        </defs>
+                      <BarChart data={chart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barGap={2}>
                         <CartesianGrid vertical={false} stroke="#EEF0F3" />
-                        <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} minTickGap={16} />
+                        <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} minTickGap={12} />
                         <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} tickFormatter={short} width={60} />
-                        <Tooltip formatter={(v: number, n: string) => [money(v), n]} labelStyle={{ fontWeight: 600 }} contentStyle={{ borderRadius: 10, border: '1px solid #ECEFF3' }} />
+                        <Tooltip cursor={{ fill: 'rgba(31,163,122,.08)' }} formatter={(v: number, n: string) => [money(v), n]} labelStyle={{ fontWeight: 600 }} contentStyle={{ borderRadius: 10, border: '1px solid #ECEFF3' }} />
                         <Legend iconType="circle" />
-                        <Area type="monotone" dataKey="turnover" name="Оборот" stroke="#1FA37A" strokeWidth={2} fill="url(#gT)" />
-                        <Area type="monotone" dataKey="income" name="Доход платформы" stroke="#3B82F6" strokeWidth={2} fill="url(#gI)" />
-                      </AreaChart>
+                        <Bar dataKey="turnover" name="Оборот" fill="#1FA37A" radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
+                        <Bar dataKey="income" name="Доход платформы" fill="#3B82F6" radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
+                      </BarChart>
                     </ResponsiveContainer>
                   </div>
                 )}

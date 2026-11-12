@@ -2,7 +2,7 @@ import {
   AlertOutlined, AuditOutlined, BarChartOutlined, DashboardOutlined, LogoutOutlined, MenuOutlined, SafetyCertificateOutlined,
   SettingOutlined, ShoppingOutlined, TeamOutlined, UserOutlined, WalletOutlined, FireOutlined,
 } from '@ant-design/icons';
-import { Avatar, Badge, Button, Dropdown, Grid, Layout, Menu, Tooltip, Typography } from 'antd';
+import { Avatar, Badge, Button, Dropdown, Layout, Menu, Tooltip, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -13,6 +13,17 @@ import { useLive, useRealtime } from '../realtime';
 import type { Permission } from '../types';
 
 const { Sider, Header, Content } = Layout;
+
+/** Ширина окна без «мигания» на первом рендере (Grid.useBreakpoint стартует с пустого объекта). */
+function useWidth() {
+  const [w, setW] = useState(() => (typeof window === 'undefined' ? 1440 : window.innerWidth));
+  useEffect(() => {
+    const on = () => setW(window.innerWidth);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  return w;
+}
 
 interface Counts { verifications: number; complaints: number; refresh: () => void }
 const CountsCtx = createContext<Counts>({ verifications: 0, complaints: 0, refresh: () => undefined });
@@ -45,8 +56,9 @@ export default function AppLayout() {
   const { connected } = useRealtime();
   const navigate = useNavigate();
   const loc = useLocation();
-  const screens = Grid.useBreakpoint();
-  const mobile = !screens.lg;
+  const width = useWidth();
+  const mobile = width < 992;
+  const screens = { sm: width >= 576 };
   const [open, setOpen] = useState(false);
   const [counts, setCounts] = useState({ verifications: 0, complaints: 0 });
 
@@ -105,7 +117,7 @@ export default function AppLayout() {
 
   return (
     <CountsCtx.Provider value={{ ...counts, refresh }}>
-      <Layout style={{ minHeight: '100vh' }}>
+      <Layout className="app-root" style={{ minHeight: '100vh' }}>
         {sider}
         {mobile && open && <div className="sider-backdrop" onClick={() => setOpen(false)} />}
         <Layout>

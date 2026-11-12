@@ -5,7 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api, useApi } from '../api';
 import { useAuth } from '../auth';
 import { BlockChefModal, TextPromptModal } from '../components/actions';
-import { ErrorBox, Loading, OrderStatusTag, PageHeader, PayoutStatusTag } from '../components/common';
+import { ErrorBox, Loading, Photo, OrderStatusTag, PageHeader, PayoutStatusTag } from '../components/common';
 import { useCounts } from '../components/AppLayout';
 import { date, dateTime, money, payoutKind, rating, reviewTags, verificationLabels } from '../format';
 import type { AdminOrder, AiVerdict, Payout } from '../types';
@@ -199,7 +199,7 @@ export default function ChefDetailPage() {
                     <Typography.Title level={5}>Фото кухни</Typography.Title>
                     {c.kitchenPhotoUrls?.length ? (
                       <Image.PreviewGroup>
-                        <div className="kitchen-photos">{c.kitchenPhotoUrls.map((u) => <Image key={u} src={u} width={120} height={90} />)}</div>
+                        <div className="kitchen-photos">{c.kitchenPhotoUrls.map((u) => <Photo key={u} src={u} width={120} height={90} />)}</div>
                       </Image.PreviewGroup>
                     ) : <Typography.Text type="secondary">Не загружены</Typography.Text>}
                     <div style={{ marginTop: 12 }}><AiVerdictBox v={c.aiVerdict} /></div>

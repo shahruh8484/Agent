@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, useApi } from '../api';
 import { TextPromptModal } from '../components/actions';
-import { ErrorBox, Loading, PageHeader } from '../components/common';
+import { ErrorBox, Loading, Photo, PageHeader } from '../components/common';
 import { useCounts } from '../components/AppLayout';
 import { dateTime } from '../format';
 import { useLive } from '../realtime';
@@ -72,7 +72,7 @@ export default function VerificationPage() {
               {a.kitchenPhotoUrls?.length ? (
                 <Image.PreviewGroup>
                   <div className="kitchen-photos" style={{ marginBottom: 12 }}>
-                    {a.kitchenPhotoUrls.map((u) => <Image key={u} src={u} width={110} height={82} />)}
+                    {a.kitchenPhotoUrls.map((u) => <Photo key={u} src={u} width={110} height={82} />)}
                   </div>
                 </Image.PreviewGroup>
               ) : <Typography.Paragraph type="secondary">Фото кухни не загружены</Typography.Paragraph>}
