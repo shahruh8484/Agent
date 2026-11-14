@@ -95,3 +95,17 @@ npx expo export --platform web   # бандл собирается
 ```
 
 Скриншоты смоук-теста (Playwright, веб-сборка, вьюпорт телефона) — в `screenshots/`.
+
+## Сборка APK без EAS (локально)
+
+```bash
+npx expo prebuild --platform android
+cd android
+echo "sdk.dir=$ANDROID_HOME" > local.properties
+./gradlew assembleRelease        # нужен JDK 17 и Android SDK (platform 37, build-tools 37, NDK 28)
+# результат: android/app/build/outputs/apk/release/app-release.apk
+```
+
+Такой APK подписан отладочным ключом — он годится для установки на телефоны тестировщиков, но не для Google Play.
+Для магазина используйте `eas build -p android --profile production` (EAS хранит ключ подписи) и выключите поле
+«Адрес сервера» на экране входа: `EXPO_PUBLIC_ALLOW_SERVER_CHANGE=false`, `EXPO_PUBLIC_API_URL=https://api.ваш-домен`.
