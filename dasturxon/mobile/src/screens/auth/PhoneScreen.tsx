@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ALLOW_SERVER_CHANGE, getApiUrl } from '../../config';
+import { saveServerUrl } from '../../lib/server';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { errorMessage } from '../../api/client';
 import { authApi } from '../../api/endpoints';
@@ -58,12 +60,64 @@ export function PhoneScreen() {
         {error ? <Text style={s.error}>{error}</Text> : null}
         <Button title="Получить код" onPress={submit} disabled={!valid} loading={busy} style={{ marginTop: 20 }} testID="get-code" />
         <Text style={[font.tiny, { textAlign: 'center', marginTop: 16 }]}>Нажимая «Получить код», вы соглашаетесь с условиями сервиса и политикой конфиденциальности</Text>
+        {ALLOW_SERVER_CHANGE ? <ServerSetting /> : null}
       </View>
     </KeyboardAvoidingView>
   );
 }
 
+/** Тестовые сборки: адрес сервера можно поменять без пересборки приложения */
+function ServerSetting() {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(getApiUrl());
+  const [current, setCurrent] = useState(getApiUrl());
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const save = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const url = await saveServerUrl(value);
+      setCurrent(url);
+      setValue(url);
+      setOpen(false);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <Pressable onPress={() => setOpen(true)} style={{ marginTop: 28, alignItems: 'center' }} testID="server-open">
+        <Text style={[font.tiny, { color: colors.muted }]}>Сервер: {current} · изменить</Text>
+      </Pressable>
+    );
+  }
+  return (
+    <View style={{ marginTop: 24 }}>
+      <Text style={font.small}>Адрес сервера</Text>
+      <TextInput
+        testID="server-input"
+        style={[s.phoneInput, s.serverInput]}
+        value={value}
+        onChangeText={setValue}
+        placeholder="http://192.168.1.10:4000"
+        placeholderTextColor={colors.muted}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="url"
+      />
+      {msg ? <Text style={s.error}>{msg}</Text> : null}
+      <Button title="Сохранить" onPress={save} loading={busy} style={{ marginTop: 10 }} testID="server-save" />
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
+  serverInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 10, marginTop: 6, fontSize: 15 },
   top: { backgroundColor: colors.primary, paddingBottom: 40, alignItems: 'center', borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
   logo: { color: colors.white, fontSize: 36, fontWeight: '800', letterSpacing: 0.5 },
   tagline: { color: 'rgba(255,255,255,0.85)', fontSize: 15, marginTop: 6 },

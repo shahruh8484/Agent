@@ -25,8 +25,14 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "CAMERA", "POST_NOTIFICATIONS"],
-      "predictiveBackGestureEnabled": false
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "POST_NOTIFICATIONS"
+      ],
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -37,7 +43,9 @@
       "expo-secure-store",
       [
         "expo-location",
-        { "locationWhenInUsePermission": "Нужно, чтобы определить адрес доставки и показать поваров рядом." }
+        {
+          "locationWhenInUsePermission": "Нужно, чтобы определить адрес доставки и показать поваров рядом."
+        }
       ],
       [
         "expo-image-picker",
@@ -47,7 +55,21 @@
           "microphonePermission": false
         }
       ],
-      ["expo-notifications", { "color": "#1FA37A" }]
+      [
+        "expo-notifications",
+        {
+          "color": "#1FA37A"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true,
+            "ndkVersion": "28.2.13676358"
+          }
+        }
+      ]
     ]
   }
 }

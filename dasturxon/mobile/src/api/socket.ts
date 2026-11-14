@@ -1,5 +1,5 @@
 import { io, type Socket } from 'socket.io-client';
-import { API_URL } from '../config';
+import { getApiUrl } from '../config';
 
 let socket: Socket | null = null;
 let tokenGetter: () => string | null = () => null;
@@ -12,7 +12,7 @@ export function setSocketTokenGetter(fn: () => string | null) {
 export function getSocket(): Socket | null {
   if (!tokenGetter()) return null;
   if (!socket) {
-    socket = io(API_URL, {
+    socket = io(getApiUrl(), {
       path: '/socket.io',
       transports: ['websocket'],
       auth: (cb) => cb({ token: tokenGetter() }),

@@ -1,8 +1,22 @@
 // Конфигурация из переменных окружения (EXPO_PUBLIC_* встраиваются в бандл при сборке)
 const trimSlash = (s: string) => s.replace(/\/+$/, '');
 
-export const API_URL = trimSlash(process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000');
-export const API_BASE = `${API_URL}/api`;
+/** Адрес сервера по умолчанию (задаётся при сборке) */
+export const DEFAULT_API_URL = trimSlash(process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000');
+/** Разрешить менять адрес сервера на экране входа (для тестовых сборок; в магазинной сборке выключить) */
+export const ALLOW_SERVER_CHANGE = process.env.EXPO_PUBLIC_ALLOW_SERVER_CHANGE !== 'false';
+
+let apiUrl = DEFAULT_API_URL;
+export const getApiUrl = () => apiUrl;
+export const getApiBase = () => `${apiUrl}/api`;
+export function setApiUrl(url: string) {
+  apiUrl = trimSlash(url.trim()) || DEFAULT_API_URL;
+}
+export function normalizeServerUrl(input: string): string {
+  const v = input.trim();
+  if (!v) return DEFAULT_API_URL;
+  return trimSlash(/^https?:\/\//i.test(v) ? v : `http://${v}`);
+}
 
 export const YANDEX_MAPS_KEY = process.env.EXPO_PUBLIC_YANDEX_MAPS_KEY || '';
 export const YANDEX_GEOCODER_KEY = process.env.EXPO_PUBLIC_YANDEX_GEOCODER_KEY || '';

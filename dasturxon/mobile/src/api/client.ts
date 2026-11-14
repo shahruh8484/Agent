@@ -1,4 +1,4 @@
-import { API_BASE } from '../config';
+import { getApiBase } from '../config';
 import type { Tokens } from './types';
 
 export class ApiError extends Error {
@@ -41,7 +41,7 @@ export function refreshTokens(): Promise<boolean> {
   if (!rt) return Promise.resolve(false);
   refreshing = (async () => {
     try {
-      const r = await fetch(`${API_BASE}/auth/refresh`, {
+      const r = await fetch(`${getApiBase()}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: rt }),
@@ -77,7 +77,7 @@ function buildUrl(path: string, query?: RequestOptions['query']) {
         .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
         .join('&')
     : '';
-  return `${API_BASE}${path}${qs ? `?${qs}` : ''}`;
+  return `${getApiBase()}${path}${qs ? `?${qs}` : ''}`;
 }
 
 export async function request<T>(path: string, opts: RequestOptions = {}, retried = false): Promise<T> {
