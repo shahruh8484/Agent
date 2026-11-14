@@ -10,6 +10,11 @@ import { migrate } from './migrate.js';
 import { loadSettings } from './services/settings.js';
 
 await migrate();
+// Демо-стенд: заполнить базу тестовыми поварами и сотрудниками при запуске (повторно безопасно)
+if (process.env.SEED_ON_START === 'true') {
+  const { seed } = await import('./seed.js');
+  await seed();
+}
 await loadSettings();
 
 const app = createApp();

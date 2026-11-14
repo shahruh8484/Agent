@@ -1,0 +1,32 @@
+# Демо-стенд Dasturxon на Render (https://render.com): Dashboard → New → Blueprint → этот репозиторий.
+# Поднимает API (Docker) и PostgreSQL на бесплатных тарифах. Все интеграции — в тестовом режиме:
+# SMS не отправляются (код показывается в приложении), оплата и курьер имитируются.
+services:
+  - type: web
+    name: dasturxon-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./dasturxon/backend/Dockerfile
+    dockerContext: ./dasturxon/backend
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dasturxon-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DEV_OTP
+        value: "true"
+      - key: SEED_ON_START
+        value: "true"
+      - key: DELIVERY_MOCK_SPEED
+        value: "10"
+      - key: PUSH_ENABLED
+        value: "false"
+
+databases:
+  - name: dasturxon-db
+    plan: free
+    databaseName: dasturxon
+    user: dx
