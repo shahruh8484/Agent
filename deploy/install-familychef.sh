@@ -87,7 +87,7 @@ cp -r "$src/familychef" "$src/Dockerfile.familychef" "$DIR/src/"
 if [ -n "$DOMAIN" ]; then
   DOMAIN="${DOMAIN#https://}"; DOMAIN="${DOMAIN#http://}"; DOMAIN="${DOMAIN%%/*}"
   MY_IP="$(curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null || true)"
-  DNS_IPS="$(getent ahostsv4 "$DOMAIN" 2>/dev/null | awk '{print $1}' | sort -u | tr '\n' ' ')"
+  DNS_IPS="$(getent ahostsv4 "$DOMAIN" 2>/dev/null | awk '{print $1}' | sort -u | tr '\n' ' ' || true)"
   info "DNS: $DOMAIN → ${DNS_IPS:-(не найден)}; IP этого сервера: ${MY_IP:-?}"
   if [ -n "$MY_IP" ] && [ "${FC_SKIP_DNS_CHECK:-}" != "1" ] && ! echo " $DNS_IPS " | grep -q " $MY_IP "; then
     die "домен $DOMAIN пока не указывает на этот сервер ($MY_IP).
