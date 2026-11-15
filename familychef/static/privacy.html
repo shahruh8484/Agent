@@ -15,51 +15,93 @@
 </header>
 <main class="wrap">
   <article class="card">
-    <p class="hint">Действует с 15 ноября 2026 г.</p>
+    <p class="hint">Действует с 15 ноября 2026 г. · Effective 15 November 2026 · <a href="#en">English</a></p>
 
     <h2>Кратко</h2>
-    <p>FamilyChef не требует регистрации, не собирает имена, телефоны, адреса электронной почты или геолокацию,
-      не показывает рекламу и не передаёт данные третьим лицам.</p>
+    <p>FamilyChef можно использовать без регистрации. Если вы создаёте аккаунт, мы храним ваш email, имя,
+      настройки семьи и сохранённые меню — только чтобы показывать их вам на любом устройстве. Мы не показываем
+      рекламу, не продаём и не передаём данные третьим лицам для маркетинга. Удалить аккаунт и все данные можно
+      в любой момент в кабинете: <a href="/account">familychef.pro/account</a>.</p>
 
     <h2>Какие данные обрабатываются</h2>
     <ul>
-      <li><strong>Параметры меню</strong>: страна, город, бюджет, число взрослых и детей, ограничения в питании,
-        исключённые продукты, продукты дома и исправленные вами цены. Они отправляются на наш сервер только для расчёта
-        меню, обрабатываются в момент запроса и <strong>не сохраняются</strong>.</li>
-      <li><strong>Настройки на устройстве</strong>: последние введённые параметры, ваши цены и отметки «куплено»
-        хранятся только в памяти браузера или приложения на вашем устройстве (localStorage). Удалить их можно, очистив
-        данные приложения или сайта.</li>
-      <li><strong>Технические журналы сервера</strong>: IP-адрес, время и адрес запроса. Используются только для
-        обеспечения работы и защиты сервиса и автоматически удаляются.</li>
+      <li><strong>Аккаунт</strong> (если вы вошли): адрес электронной почты, имя, а при входе через Google — также
+        идентификатор Google-аккаунта и ссылка на фото профиля.</li>
+      <li><strong>Данные кабинета</strong>: настройки (страна, город, бюджет, состав семьи, ограничения в питании,
+        исключённые продукты, продукты дома, исправленные вами цены) и до 20 последних составленных меню.</li>
+      <li><strong>Без входа</strong> параметры меню отправляются на сервер только для расчёта и не сохраняются;
+        настройки хранятся только на вашем устройстве (localStorage).</li>
+      <li><strong>Коды входа по почте</strong> хранятся в зашифрованном (хешированном) виде не дольше 10 минут.</li>
+      <li><strong>Технические журналы сервера</strong>: IP-адрес, время и адрес запроса — для работы и защиты
+        сервиса; автоматически перезаписываются.</li>
     </ul>
 
-    <h2>Чего мы не делаем</h2>
+    <h2>Зачем</h2>
+    <p>Чтобы вы могли войти, видеть свои меню и настройки на разных устройствах, и чтобы защищать сервис от
+      злоупотреблений. Основание — исполнение договора с вами (предоставление сервиса) и наш законный интерес
+      в безопасности.</p>
+
+    <h2>Кто ещё участвует</h2>
     <ul>
-      <li>не используем рекламные идентификаторы и трекинговые cookie;</li>
-      <li>не продаём и не передаём данные третьим лицам;</li>
-      <li>не запрашиваем доступ к контактам, камере, микрофону, файлам или местоположению.</li>
+      <li><strong>Google</strong> — если вы выбрали «Войти через Google» (получаем от Google ваш email, имя и фото).</li>
+      <li><strong>Почтовый сервис</strong> — доставляет письма с кодом входа (получает только ваш email и код).</li>
+      <li><strong>Хостинг</strong> — сервер в дата-центре DigitalOcean во Франкфурте (Германия).</li>
     </ul>
+
+    <h2>Сколько храним и как удалить</h2>
+    <p>Данные аккаунта хранятся, пока аккаунт существует. «Удалить аккаунт» в кабинете сразу и безвозвратно
+      удаляет аккаунт, настройки, сохранённые меню и все сеансы входа. Резервные копии сервера перезаписываются
+      не позднее чем через 30 дней. Если войти не получается, напишите на адрес разработчика, указанный на странице
+      FamilyChef в Google Play, — удалим вручную.</p>
+
+    <h2>Ваши права</h2>
+    <p>Вы можете получить копию своих данных, исправить или удалить их, а также возразить против обработки.
+      Жители ЕС вправе обратиться в надзорный орган по защите данных.</p>
 
     <h2>Дети</h2>
     <p>Сервис предназначен для взрослых, планирующих питание семьи. Количество детей используется только для
-      расчёта порций; никакие сведения о детях не сохраняются.</p>
+      расчёта порций; иные сведения о детях не собираются.</p>
+
+    <h2>Чего мы не делаем</h2>
+    <ul>
+      <li>не используем рекламные идентификаторы и трекинговые cookie (только cookie сеанса входа);</li>
+      <li>не продаём данные и не передаём их для рекламы;</li>
+      <li>не запрашиваем доступ к контактам, камере, микрофону, файлам или местоположению.</li>
+    </ul>
 
     <h2>Цены и рецепты</h2>
     <p>Цены ориентировочные и не являются публичной офертой. Рецепты не являются медицинской или диетологической
       рекомендацией; при аллергиях проверяйте состав продуктов самостоятельно.</p>
 
-    <h2>Изменения и контакты</h2>
-    <p>Об изменениях политики мы сообщим на этой странице. Вопросы можно задать по адресу электронной почты
-      разработчика, указанному на странице приложения FamilyChef в Google Play.</p>
-
     <hr>
-    <h2 lang="en">In English</h2>
-    <p lang="en">FamilyChef requires no account and collects no names, phone numbers, emails or location. Menu
-      parameters (country, budget, family size, diet, pantry, your prices) are sent to our server only to compute the
-      plan and are not stored. Your settings stay on your device (localStorage). Server logs (IP address, time, URL)
-      are used solely to operate and protect the service and are deleted automatically. No ads, no tracking, no data
-      sharing with third parties. Prices are estimates; recipes are not medical advice. Contact: the developer email
-      on the FamilyChef Google Play page.</p>
+    <div lang="en" id="en">
+    <h2>Privacy Policy (English)</h2>
+    <p><strong>In short.</strong> FamilyChef works without an account. If you create one, we store your email, name,
+      family settings and saved menus only to show them to you on any device. No ads, no selling or sharing of data
+      for marketing. You can delete your account and all data at any time at
+      <a href="/account">familychef.pro/account</a>.</p>
+    <p><strong>Data we process.</strong> Account: email address, name and, with Google sign-in, your Google account ID
+      and profile photo URL. Account content: settings (country, city, budget, family size, diet, excluded foods,
+      pantry, your prices) and up to 20 recent menus. Without an account, menu parameters are used only to compute
+      the plan and are not stored; settings stay on your device (localStorage). Email sign-in codes are stored
+      hashed for at most 10 minutes. Server logs (IP address, time, URL) are used to operate and protect the
+      service and are rotated automatically.</p>
+    <p><strong>Purpose and legal basis.</strong> Providing the service you asked for (contract) and keeping it secure
+      (legitimate interest).</p>
+    <p><strong>Processors.</strong> Google (if you use Google sign-in), an email delivery provider (receives only your
+      email and the code), DigitalOcean hosting in Frankfurt, Germany.</p>
+    <p><strong>Retention and deletion.</strong> Account data is kept while the account exists. “Delete account” in
+      your account panel immediately and permanently deletes the account, settings, saved menus and sessions; server
+      backups are overwritten within 30 days. If you cannot sign in, email the developer address shown on the
+      FamilyChef Google Play page and we will delete it manually.</p>
+    <p><strong>Your rights.</strong> Access, correction, deletion and objection; EU residents may complain to their
+      data protection authority.</p>
+    <p><strong>Children.</strong> The service is for adults planning family meals; the number of children is used only
+      to size portions.</p>
+    <p><strong>We do not</strong> use advertising IDs or tracking cookies (only a sign-in session cookie), sell data,
+      or request access to contacts, camera, microphone, files or location. Prices are estimates; recipes are not
+      medical advice.</p>
+    </div>
   </article>
 </main>
 </body>

@@ -1,6 +1,7 @@
 fastapi>=0.115
 uvicorn[standard]>=0.30
 pydantic>=2.6
+pyjwt[crypto]>=2.8
 
 # dev
 pytest>=8.0

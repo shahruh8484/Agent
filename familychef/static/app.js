@@ -50,8 +50,9 @@ function esc(s) {
 
 async function api(path, body) {
   const res = await fetch(path, body ? {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  } : undefined);
+    method: "POST", credentials: "same-origin",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  } : { credentials: "same-origin" });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     let msg = data.detail;
@@ -168,10 +169,12 @@ async function submitPlan(extra = {}) {
   btn.disabled = true; btn.textContent = t("form.working");
   try {
     state.plan = await api("/api/plan", req);
+    saveSettings();
     renderPlan();
     $("#result").hidden = false;
     $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) {
+    if (e.message === "login_required") { openSignIn(); return; }
     $("#formError").textContent = e.message;
   } finally {
     btn.disabled = false; btn.textContent = t("form.submit");
@@ -336,6 +339,7 @@ async function setLang(lang) {
   });
   await loadRegions(state.region?.code, $("#city").value);
   renderExclude();
+  refreshAuthTexts();
   if (state.plan) submitPlan();  // dish names, steps and labels come from the server
 }
 
@@ -350,6 +354,8 @@ async function init() {
     const saved = store.get("form", null);
     await loadRegions(saved?.region || guessRegion(), saved?.city);
     restoreForm(saved);
+    updateBudgetHint();
+    await initAuth();
     updateBudgetHint();
   } catch (e) {
     $("#formError").textContent = t("err.load", { msg: e.message });

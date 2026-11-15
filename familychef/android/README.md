@@ -8,7 +8,11 @@
 - Пакет: `pro.familychef.app`, точка входа — `MainActivity`
 - minSdk 24 (Android 7.0), targetSdk 36
 - Ссылки на другие сайты открываются в браузере; `https://familychef.pro/...` — внутри приложения
-- Для страницы доступен `window.FamilyChefAndroid`: `share(text)` (системное меню «Поделиться») и `retry()`
+- Для страницы доступен `window.FamilyChefAndroid`: `share(text)` (системное меню «Поделиться»), `retry()`
+  и `googleSignIn(clientId)` — нативный вход через Google (Credential Manager), т. к. Google не разрешает
+  свою страницу входа внутри WebView. Результат приходит в `window.fcAndroidGoogle(idToken)` /
+  `window.fcAndroidGoogleError(code)`. Для работы нужен Android OAuth-клиент в Google Cloud с SHA-1 ключа
+  подписи (см. `familychef/README.md`, раздел «Вход через Google»).
 
 > Версия 1.0.0 была Trusted Web Activity (запуск через Chrome); на части телефонов она не открывалась,
 > поэтому с 1.0.1 используется встроенный WebView.

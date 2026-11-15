@@ -42,6 +42,21 @@ public class MainActivityTest {
     }
 
     @Test
+    public void googleSignInRejectsForeignClientId() {
+        MainActivity a = launch(new Intent(Intent.ACTION_MAIN));
+        a.startGoogleSignIn("evil.example.com");  // must not crash or start anything
+        assertFalse(a.isFinishing());
+    }
+
+    @Test
+    public void offlinePageFollowsLanguage() {
+        java.util.Locale.setDefault(java.util.Locale.ENGLISH);
+        assertTrue(MainActivity.offlineHtml().contains("No internet connection"));
+        java.util.Locale.setDefault(new java.util.Locale("uz"));
+        assertTrue(MainActivity.offlineHtml().contains("Нет подключения"));
+    }
+
+    @Test
     public void ownSiteStaysInsideOtherLinksGoToBrowser() {
         assertTrue(MainActivity.isOwnSite(Uri.parse("https://familychef.pro/download")));
         assertFalse(MainActivity.isOwnSite(Uri.parse("https://example.com/")));

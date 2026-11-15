@@ -16,6 +16,12 @@
 # Повторный запуск той же команды = обновление до последней версии.
 #
 # Переменные (необязательно): FC_DOMAIN=  FC_PORT=  FC_BRANCH=<ветка>  FC_DIR=/opt/familychef
+#
+# Вход и кабинет (сохраняются в $FC_DIR/familychef.env и действуют при следующих обновлениях):
+#   FC_GOOGLE_CLIENT_ID=...apps.googleusercontent.com   — вход через Google
+#   FC_EMAIL_PROVIDER=resend RESEND_API_KEY=... FC_EMAIL_FROM="FamilyChef <login@домен>" — вход по почте
+#   FC_REQUIRE_LOGIN=1                                   — пользоваться можно только после входа
+# База пользователей хранится в docker-томе familychef_data и не теряется при обновлениях.
 set -euo pipefail
 
 REPO="shahruh8484/Agent"
@@ -118,16 +124,45 @@ docker build -q -t "$NAME:latest" -f "$DIR/src/Dockerfile.familychef" "$DIR/src"
 docker network inspect "$NET" >/dev/null 2>&1 || docker network create "$NET" >/dev/null
 LOGS="--log-opt max-size=10m --log-opt max-file=3"  # журналы не растут бесконечно
 
+# Настройки приложения: файл $DIR/familychef.env (создаётся один раз, дальше только дополняется).
+ENV_FILE="$DIR/familychef.env"
+if [ ! -f "$ENV_FILE" ]; then
+  umask 077
+  cat > "$ENV_FILE" <<ENVEOF
+# FamilyChef settings. Edit and re-run the installer to apply.
+FC_SECRET=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+FC_GOOGLE_CLIENT_ID=
+FC_EMAIL_PROVIDER=
+FC_EMAIL_FROM=FamilyChef <login@${DOMAIN:-familychef.pro}>
+RESEND_API_KEY=
+FC_REQUIRE_LOGIN=0
+ENVEOF
+  umask 022
+fi
+set_env() {  # set_env NAME VALUE — replace or append a line in the env file
+  local name="$1" value="$2" tmpf
+  tmpf="$(mktemp)"
+  grep -v "^${name}=" "$ENV_FILE" > "$tmpf" || true
+  printf '%s=%s\n' "$name" "$value" >> "$tmpf"
+  cat "$tmpf" > "$ENV_FILE"; rm -f "$tmpf"
+}
+for var in FC_GOOGLE_CLIENT_ID FC_EMAIL_PROVIDER FC_EMAIL_FROM RESEND_API_KEY FC_REQUIRE_LOGIN \
+           SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD; do
+  if [ -n "${!var+x}" ]; then set_env "$var" "${!var}"; info "Настройка $var сохранена"; fi
+done
+chmod 600 "$ENV_FILE"
+DATA="-v familychef_data:/app/var --env-file $ENV_FILE"
+
 if [ -n "$DOMAIN" ]; then
   # Снаружи приложение доступно только через Caddy (HTTPS); 127.0.0.1 — для проверки.
   CHECK_PORT=8090
   while port_busy "$CHECK_PORT"; do CHECK_PORT=$((CHECK_PORT + 1)); done
   docker run -d --name "$NAME" --restart unless-stopped --network "$NET" \
-    --memory 384m --cpus 1 $LOGS -p "127.0.0.1:$CHECK_PORT:8080" "$NAME:latest" >/dev/null
+    --memory 384m --cpus 1 $LOGS $DATA -p "127.0.0.1:$CHECK_PORT:8080" "$NAME:latest" >/dev/null
 else
   CHECK_PORT="$PORT"
   docker run -d --name "$NAME" --restart unless-stopped --network "$NET" \
-    --memory 384m --cpus 1 $LOGS -p "$PORT:8080" "$NAME:latest" >/dev/null
+    --memory 384m --cpus 1 $LOGS $DATA -p "$PORT:8080" "$NAME:latest" >/dev/null
 fi
 
 for _ in $(seq 1 30); do

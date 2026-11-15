@@ -9,6 +9,8 @@ def main() -> None:
         host=os.environ.get("HOST", "0.0.0.0"),
         port=int(os.environ.get("PORT", "8080")),
         proxy_headers=True,
+        # Behind Caddy on the docker network: trust X-Forwarded-Proto so cookies get "Secure".
+        forwarded_allow_ips="*",
     )
 
 

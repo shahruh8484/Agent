@@ -1,27 +1,91 @@
 """FastAPI app: JSON API + single-page web UI."""
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
-from familychef import __version__
+from familychef import __version__, mailer
+from familychef.accounts import Accounts, AuthError, verify_google_token
 from familychef.catalog import CatalogError, get_catalog, norm_lang
 from familychef.models import DIETS, FAVORITES, PlanRequest
 from familychef.planner import CATEGORY_NAMES, PlanError, build_plan, pack_label
+
+logger = logging.getLogger("familychef")
+COOKIE = "fc_session"
 
 STATIC_DIR = Path(__file__).parent / "static"
 DATA_DIR = Path(__file__).parent / "data"
 
 
-def create_app() -> FastAPI:
+class GoogleLogin(BaseModel):
+    credential: str = Field(min_length=20, max_length=5000)
+
+
+class EmailStart(BaseModel):
+    email: str = Field(max_length=200)
+    lang: str = "en"
+
+
+class EmailVerify(BaseModel):
+    email: str = Field(max_length=200)
+    code: str = Field(max_length=12)
+    name: str = Field(default="", max_length=60)
+
+
+class ProfileUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=60)
+    settings: dict | None = None
+
+
+def _google_client_id() -> str:
+    return os.environ.get("FC_GOOGLE_CLIENT_ID", "").strip()
+
+
+def _require_login() -> bool:
+    return os.environ.get("FC_REQUIRE_LOGIN", "").strip() in ("1", "true", "yes")
+
+
+def create_app(accounts: Accounts | None = None) -> FastAPI:
     app = FastAPI(title="FamilyChef", version=__version__)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.state.accounts = accounts
+
+    def acc() -> Accounts:
+        if app.state.accounts is None:
+            app.state.accounts = Accounts()
+        return app.state.accounts
+
+    def current_user(request: Request) -> dict | None:
+        return acc().session_user(request.cookies.get(COOKIE))
+
+    def need_user(user: dict | None = Depends(current_user)) -> dict:
+        if user is None:
+            raise HTTPException(401, "login_required")
+        return user
+
+    def start_session(request: Request, response: Response, user_id: int) -> dict:
+        token = acc().create_session(user_id)
+        response.set_cookie(COOKIE, token, max_age=180 * 86400, httponly=True, samesite="lax",
+                            secure=request.url.scheme == "https", path="/")
+        return {"user": acc().get_user(user_id)}
+
+    @app.exception_handler(AuthError)
+    def auth_error(_: Request, exc: AuthError) -> JSONResponse:
+        return JSONResponse({"detail": exc.code}, status_code=exc.status)
 
     @app.get("/", include_in_schema=False)
     def index() -> FileResponse:
+        return FileResponse(STATIC_DIR / "index.html")
+
+    @app.get("/account", include_in_schema=False)
+    def account_page() -> FileResponse:
+        # Same single-page app; the page opens the account panel for this path.
         return FileResponse(STATIC_DIR / "index.html")
 
     @app.get("/privacy", include_in_schema=False)
@@ -92,11 +156,95 @@ def create_app() -> FastAPI:
         return {"diets": list(DIETS), "favorites": list(FAVORITES)}
 
     @app.post("/api/plan")
-    def plan(req: PlanRequest) -> dict:
+    def plan(req: PlanRequest, user: dict | None = Depends(current_user)) -> dict:
+        if user is None and _require_login():
+            raise HTTPException(401, "login_required")
         try:
-            return build_plan(get_catalog(), req)
+            result = build_plan(get_catalog(), req)
         except (PlanError, CatalogError) as exc:
             raise HTTPException(422, str(exc)) from exc
+        if user is not None:
+            result["plan_id"] = acc().save_plan(user["id"], req.model_dump(), result)
+        return result
+
+    # ------------------------------------------------------------ accounts
+    @app.get("/api/auth/config")
+    def auth_config() -> dict:
+        return {
+            "google_client_id": _google_client_id() or None,
+            "email": mailer.enabled(),
+            "email_test_mode": mailer.is_dev(),
+            "require_login": _require_login(),
+        }
+
+    @app.post("/api/auth/google")
+    def login_google(body: GoogleLogin, request: Request, response: Response) -> dict:
+        client_id = _google_client_id()
+        if not client_id:
+            raise HTTPException(404, "google_disabled")
+        claims = verify_google_token(body.credential, client_id)
+        return start_session(request, response, acc().login_google(claims))
+
+    @app.post("/api/auth/email/start")
+    def email_start(body: EmailStart, request: Request) -> dict:
+        if not mailer.enabled():
+            raise HTTPException(404, "email_disabled")
+        ip = request.client.host if request.client else ""
+        code = acc().start_email_code(body.email, ip)
+        try:
+            mailer.send_code(body.email.strip().lower(), code, norm_lang(body.lang))
+        except mailer.MailError as exc:
+            logger.error("email send failed: %s", exc)
+            raise HTTPException(502, "email_failed") from exc
+        out = {"ok": True}
+        if mailer.is_dev():
+            out["test_code"] = code
+        return out
+
+    @app.post("/api/auth/email/verify")
+    def email_verify(body: EmailVerify, request: Request, response: Response) -> dict:
+        user_id = acc().verify_email_code(body.email, body.code, body.name)
+        return start_session(request, response, user_id)
+
+    @app.post("/api/auth/logout")
+    def logout(request: Request, response: Response) -> dict:
+        acc().end_session(request.cookies.get(COOKIE))
+        response.delete_cookie(COOKIE, path="/")
+        return {"ok": True}
+
+    @app.get("/api/me")
+    def me(user: dict = Depends(need_user)) -> dict:
+        return {"user": user, "settings": acc().get_settings(user["id"])}
+
+    @app.put("/api/me")
+    def update_me(body: ProfileUpdate, user: dict = Depends(need_user)) -> dict:
+        if body.name is not None:
+            acc().update_name(user["id"], body.name)
+        if body.settings is not None:
+            acc().save_settings(user["id"], body.settings)
+        return {"user": acc().get_user(user["id"]), "settings": acc().get_settings(user["id"])}
+
+    @app.delete("/api/me")
+    def delete_me(request: Request, response: Response, user: dict = Depends(need_user)) -> dict:
+        acc().delete_user(user["id"])
+        response.delete_cookie(COOKIE, path="/")
+        return {"ok": True}
+
+    @app.get("/api/plans")
+    def list_plans(user: dict = Depends(need_user)) -> list[dict]:
+        return acc().list_plans(user["id"])
+
+    @app.get("/api/plans/{plan_id}")
+    def get_plan(plan_id: int, user: dict = Depends(need_user)) -> dict:
+        found = acc().get_plan(user["id"], plan_id)
+        if not found:
+            raise HTTPException(404, "not_found")
+        return found
+
+    @app.delete("/api/plans/{plan_id}")
+    def delete_plan(plan_id: int, user: dict = Depends(need_user)) -> dict:
+        acc().delete_plan(user["id"], plan_id)
+        return {"ok": True}
 
     return app
 

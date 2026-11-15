@@ -13,16 +13,20 @@
 </head>
 <body>
 <header class="top">
-  <div class="wrap top-row">
-    <div>
+  <div class="wrap">
+    <div class="top-row">
       <h1><img src="/static/icon.svg" alt="" width="28" height="28"> FamilyChef</h1>
-      <p class="sub" data-i18n="app.tagline"></p>
+      <div class="top-actions">
+        <button type="button" id="accountBtn" class="account-btn" hidden></button>
+        <select id="langSelect" class="lang" aria-label="Language"></select>
+      </div>
     </div>
-    <select id="langSelect" class="lang" aria-label="Language"></select>
+    <p class="sub" data-i18n="app.tagline"></p>
   </div>
 </header>
 
 <main class="wrap">
+  <section id="authGate" class="card auth-box" hidden></section>
   <form id="planForm" class="card" autocomplete="off">
     <div class="grid2">
       <label><span data-i18n="form.country"></span>
@@ -132,8 +136,19 @@
   <form method="dialog"><button class="btn primary" data-i18n="recipe.close"></button></form>
 </dialog>
 
+<dialog id="loginDialog" class="auth-dialog">
+  <form method="dialog" class="close-x"><button aria-label="Close">×</button></form>
+  <div id="loginBody" class="auth-box"></div>
+</dialog>
+
+<dialog id="accountDialog" class="auth-dialog">
+  <form method="dialog" class="close-x"><button aria-label="Close">×</button></form>
+  <div id="accountBody"></div>
+</dialog>
+
 <footer class="wrap foot"><span data-i18n="footer.text"></span> · <a href="/privacy" data-i18n="footer.privacy"></a></footer>
 <script src="/static/i18n.js"></script>
+<script src="/static/auth.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

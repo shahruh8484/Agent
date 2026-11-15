@@ -26,6 +26,7 @@
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
@@ -35,7 +36,7 @@ body {
 .top { background: var(--accent); color: #fff; padding: 18px 0 14px; margin-bottom: 16px; }
 .top h1 { margin: 0; font-size: 1.5rem; display: flex; align-items: center; gap: 8px; }
 .top .sub { margin: 4px 0 0; opacity: .9; font-size: .95rem; }
-.top-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.top-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .lang { width: auto; flex: none; background: rgba(255,255,255,.15); color: #fff; border-color: rgba(255,255,255,.4); padding: 6px 8px; }
 .lang option { color: #1f2421; }
 h2 { font-size: 1.25rem; margin: 24px 0 10px; }
@@ -140,3 +141,36 @@ dialog td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
   .card, .day { border-color: #ccc; }
   .item .price input { border: 0; }
 }
+
+/* ---- account & sign-in ---- */
+.top-actions { display: flex; gap: 8px; align-items: center; flex: none; }
+.account-btn { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: .9rem; color: #fff;
+  background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.4); border-radius: 999px; padding: 5px 12px 5px 5px; cursor: pointer; max-width: 160px; }
+.account-btn:not(:has(img, .avatar)) { padding: 6px 14px; }
+.account-btn img, .account-btn .avatar { width: 26px; height: 26px; border-radius: 50%; flex: none; }
+.account-btn .avatar { display: grid; place-items: center; background: #fff; color: var(--accent); font-size: .85rem; }
+.account-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 420px) { .account-btn span { display: none; } .account-btn:not(:has(img, .avatar)) span { display: inline; } }
+.auth-box { max-width: 420px; margin-left: auto; margin-right: auto; }
+.auth-box h2 { margin-top: 0; }
+.auth-box form { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.auth-box .google-slot { display: flex; justify-content: center; margin: 14px 0; min-height: 44px; }
+.btn.google { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--card);
+  color: var(--text); border-color: var(--line); padding: 11px 14px; border-radius: 999px; font-weight: 500; }
+.or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .85rem; margin: 6px 0; }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.linkish { background: none; border: 0; color: var(--accent); font: inherit; font-size: .88rem; cursor: pointer; padding: 0; }
+.linkish:disabled { color: var(--muted); cursor: default; }
+.row.small { justify-content: space-between; }
+.small { font-size: .82rem; }
+.auth-dialog { max-width: 460px; }
+.close-x { position: absolute; right: 8px; top: 6px; }
+.close-x button { background: none; border: 0; font-size: 1.6rem; color: var(--muted); cursor: pointer; }
+.auth-dialog { position: fixed; }
+.name-form { align-items: flex-end; flex-wrap: nowrap; }
+.name-form .grow { flex: 1; }
+.plan-list { list-style: none; padding: 0; margin: 0; }
+.plan-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+.plan-list small { color: var(--muted); }
+.acct-actions { justify-content: space-between; margin-top: 18px; }
+.btn.danger { background: transparent; color: var(--danger); border-color: var(--danger); }

@@ -80,6 +80,46 @@ curl -fsSL https://raw.githubusercontent.com/shahruh8484/Agent/claude/happy-alba
 curl -fsSL https://raw.githubusercontent.com/shahruh8484/Agent/claude/happy-albattani-m08fna/deploy/install-familychef.sh | sudo FC_DOMAIN=familychef.ru bash
 ```
 
+## Вход и личный кабинет
+
+Пользователи могут войти **через Google** или **по коду на email**. В кабинете хранятся имя, настройки семьи,
+свои цены (синхронизируются между устройствами) и 20 последних меню; там же «Выйти» и «Удалить аккаунт»
+(страница `https://familychef.pro/account` — её же указывайте в Google Play как ссылку на удаление аккаунта).
+
+Пока ни один способ входа не настроен, кнопка «Войти» не показывается и сайт работает без регистрации.
+Настройки хранятся на сервере в `/opt/familychef/familychef.env`, база — в docker-томе `familychef_data`.
+
+### Вход через Google (бесплатно)
+
+1. Откройте https://console.cloud.google.com, создайте проект **FamilyChef**.
+2. **Google Auth Platform → Branding**: название FamilyChef, email поддержки, домен `familychef.pro`,
+   политика конфиденциальности `https://familychef.pro/privacy`. **Audience**: External, затем *Publish app*
+   (для имени и email проверка Google не нужна).
+3. **Clients → Create client → Web application**. *Authorized JavaScript origins*: `https://familychef.pro`.
+   Скопируйте **Client ID** (`…apps.googleusercontent.com`).
+4. **Clients → Create client → Android**: package `pro.familychef.app`, SHA-1 ключа загрузки
+   `66:8B:11:F6:C1:23:D4:15:75:BB:D4:4F:54:86:4B:E3:29:5B:5D:23`. После публикации в Google Play создайте ещё один
+   Android-клиент с SHA-1 *ключа подписи приложения* из Play Console (Подпись приложений).
+5. На сервере:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/shahruh8484/Agent/claude/happy-albattani-m08fna/deploy/install-familychef.sh | sudo FC_DOMAIN=familychef.pro FC_GOOGLE_CLIENT_ID=ВАШ_CLIENT_ID bash
+```
+
+### Вход по email (Resend, бесплатно до 3000 писем в месяц)
+
+1. Зарегистрируйтесь на https://resend.com, добавьте домен `familychef.pro` и внесите показанные DNS-записи
+   у регистратора (GoDaddy → DNS). Дождитесь статуса *Verified*.
+2. Создайте API key и запустите установщик с `FC_EMAIL_PROVIDER=resend RESEND_API_KEY=re_...`
+   (ключ сохранится в `familychef.env`; чтобы он не попал в историю команд, можно вписать его в этот файл вручную).
+
+Для проверки без почты: `FC_EMAIL_PROVIDER=dev` — код показывается на экране. **Только для тестов**: в этом
+режиме войти можно в любой адрес.
+
+### Обязательный вход
+
+`FC_REQUIRE_LOGIN=1` — составлять меню могут только вошедшие пользователи (`0` — вход необязателен).
+
 ## API
 
 | Метод | Путь | Что делает |

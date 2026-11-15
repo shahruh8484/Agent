@@ -21,8 +21,26 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
+import android.webkit.CookieManager;
+
 import androidx.activity.ComponentActivity;
 import androidx.activity.OnBackPressedCallback;
+import androidx.core.content.ContextCompat;
+import androidx.credentials.Credential;
+import androidx.credentials.CredentialManager;
+import androidx.credentials.CredentialManagerCallback;
+import androidx.credentials.CustomCredential;
+import androidx.credentials.GetCredentialRequest;
+import androidx.credentials.GetCredentialResponse;
+import androidx.credentials.exceptions.GetCredentialCancellationException;
+import androidx.credentials.exceptions.GetCredentialException;
+
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption;
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
+
+import org.json.JSONObject;
+
+import java.util.Locale;
 
 /**
  * FamilyChef: открывает сайт во встроенном WebView.
@@ -32,13 +50,20 @@ public class MainActivity extends ComponentActivity {
 
     static final String HOST = "familychef.pro";
     static final String START_URL = "https://" + HOST + "/?source=android";
-    static final String OFFLINE_HTML =
-        "<!doctype html><html lang=ru><meta name=viewport content='width=device-width,initial-scale=1'>"
-        + "<body style='margin:0;font-family:sans-serif;background:#f6f5f1;color:#1f2421;display:flex;"
-        + "align-items:center;justify-content:center;height:100vh;text-align:center'><div style='padding:24px'>"
-        + "<h2>Нет подключения к интернету</h2><p>Проверьте Wi-Fi или мобильный интернет и попробуйте снова.</p>"
-        + "<button onclick='FamilyChefAndroid.retry()' style='font-size:17px;padding:12px 28px;border:0;"
-        + "border-radius:8px;background:#2f7d4f;color:#fff'>Повторить</button></div></body></html>";
+    static String offlineHtml() {
+        boolean ru = java.util.Arrays.asList("ru", "uk", "be", "kk", "uz", "ky", "tg", "az", "hy", "ka", "tk")
+            .contains(Locale.getDefault().getLanguage());
+        String title = ru ? "Нет подключения к интернету" : "No internet connection";
+        String text = ru ? "Проверьте Wi-Fi или мобильный интернет и попробуйте снова."
+                         : "Check your Wi-Fi or mobile data and try again.";
+        String button = ru ? "Повторить" : "Try again";
+        return "<!doctype html><html><meta name=viewport content='width=device-width,initial-scale=1'>"
+            + "<body style='margin:0;font-family:sans-serif;background:#f6f5f1;color:#1f2421;display:flex;"
+            + "align-items:center;justify-content:center;height:100vh;text-align:center'><div style='padding:24px'>"
+            + "<h2>" + title + "</h2><p>" + text + "</p>"
+            + "<button onclick='FamilyChefAndroid.retry()' style='font-size:17px;padding:12px 28px;border:0;"
+            + "border-radius:8px;background:#2f7d4f;color:#fff'>" + button + "</button></div></body></html>";
+    }
 
     WebView webView;
     private View splash;
@@ -128,9 +153,49 @@ public class MainActivity extends ComponentActivity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        CookieManager.getInstance().flush();  // keep the sign-in session after the app is closed
+    }
+
+    @Override
     protected void onDestroy() {
         if (webView != null) webView.destroy();
         super.onDestroy();
+    }
+
+    /** Native Google sign-in (Google does not allow its sign-in page inside a WebView). */
+    void startGoogleSignIn(String clientId) {
+        if (clientId == null || !clientId.endsWith(".apps.googleusercontent.com")) {
+            sendToPage("fcAndroidGoogleError", "failed");
+            return;
+        }
+        GetSignInWithGoogleOption option = new GetSignInWithGoogleOption.Builder(clientId).build();
+        GetCredentialRequest request = new GetCredentialRequest.Builder().addCredentialOption(option).build();
+        CredentialManager.create(this).getCredentialAsync(this, request, null,
+            ContextCompat.getMainExecutor(this),
+            new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
+                @Override public void onResult(GetCredentialResponse response) {
+                    Credential c = response.getCredential();
+                    if (c instanceof CustomCredential
+                            && GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL.equals(c.getType())) {
+                        try {
+                            sendToPage("fcAndroidGoogle", GoogleIdTokenCredential.createFrom(c.getData()).getIdToken());
+                            return;
+                        } catch (Exception ignored) { }
+                    }
+                    sendToPage("fcAndroidGoogleError", "failed");
+                }
+                @Override public void onError(GetCredentialException e) {
+                    sendToPage("fcAndroidGoogleError",
+                        e instanceof GetCredentialCancellationException ? "cancelled" : "failed");
+                }
+            });
+    }
+
+    void sendToPage(String function, String arg) {
+        webView.evaluateJavascript("window." + function + " && window." + function + "("
+            + JSONObject.quote(arg) + ")", null);
     }
 
     void hideSplash() {
@@ -172,7 +237,7 @@ public class MainActivity extends ComponentActivity {
         public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
             if (request.isForMainFrame()) {
                 showingOffline = true;
-                view.loadDataWithBaseURL("https://" + HOST + "/offline", OFFLINE_HTML, "text/html", "utf-8", null);
+                view.loadDataWithBaseURL("https://" + HOST + "/offline", offlineHtml(), "text/html", "utf-8", null);
                 hideSplash();
             }
         }
@@ -189,6 +254,11 @@ public class MainActivity extends ComponentActivity {
                 try { startActivity(Intent.createChooser(send, "Список покупок")); }
                 catch (ActivityNotFoundException ignored) { }
             });
+        }
+
+        @JavascriptInterface
+        public void googleSignIn(String clientId) {
+            runOnUiThread(() -> startGoogleSignIn(clientId));
         }
 
         @JavascriptInterface
