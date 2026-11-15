@@ -56,6 +56,8 @@ class PlanRequest(BaseModel):
     avoid: list[MealRef] = Field(default_factory=list, max_length=200)
     # "Don't suggest this dish again".
     exclude_recipes: list[str] = Field(default_factory=list, max_length=200)
+    # Weekday of the first menu day (0 = Monday … 6 = Sunday); the menu starts "today".
+    start_weekday: int = Field(default=0, ge=0, le=6)
     # Month for seasonal prices (1–12); default: current month.
     month: int | None = Field(default=None, ge=1, le=12)
 

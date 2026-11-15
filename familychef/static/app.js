@@ -59,7 +59,9 @@ async function api(path, body) {
   if (!res.ok) {
     let msg = data.detail;
     if (Array.isArray(msg)) msg = msg.map(d => d.msg).join("; ");
-    throw new Error(msg || t("err.http", { status: res.status }));
+    const err = new Error(msg || t("err.http", { status: res.status }));
+    err.status = res.status; err.data = data;
+    throw err;
   }
   return data;
 }
@@ -176,18 +178,25 @@ async function submitPlan(extra = {}, { scroll = true } = {}) {
   if (form.adults + form.children < 1) { $("#formError").textContent = t("err.people"); return; }
   if (!form.meals.length) { $("#formError").textContent = t("err.meals"); return; }
   store.set("form", form);
-  const req = { ...form, price_overrides: store.get(overridesKey(), {}), seed: state.seed, lang: LANG, ...extra };
+  const req = {
+    ...form, lang: LANG, seed: state.seed,
+    days: plus.ent.max_days, start_weekday: (new Date().getDay() + 6) % 7,
+    price_overrides: isFree() ? {} : store.get(overridesKey(), {}),
+    ...extra,
+  };
   state.lastRequest = req;
   const btn = $("#submitBtn");
   btn.disabled = true; btn.textContent = t("form.working");
   try {
     state.plan = await api("/api/plan", req);
+    if (state.plan.entitlements) setEntitlements(state.plan.entitlements);
     saveSettings();
     renderPlan();
     $("#result").hidden = false;
     if (scroll) $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) {
     if (e.message === "login_required") { openSignIn(); return; }
+    if (e.status === 402 && handleLimitError(e)) return;
     $("#formError").textContent = e.message;
   } finally {
     btn.disabled = false; btn.textContent = t("form.submit");
@@ -198,15 +207,19 @@ async function submitPlan(extra = {}, { scroll = true } = {}) {
 
 function renderPlan() {
   const p = state.plan, tot = p.totals;
-  const pct = Math.min(100, Math.round(tot.cost / tot.budget * 100));
+  const daily = tot.basis === "food";
+  const shown = daily ? tot.food_cost : tot.cost;
+  const pct = Math.min(100, Math.round(shown / tot.budget * 100));
+  $("#menuTitle").textContent = t((p.days_count || p.days.length) === 1 ? "menu.titleDay" : "menu.title");
   $("#summary").innerHTML = `
-    <div class="stat"><div class="v">${money(tot.cost)}</div><div class="k">${esc(t("sum.cost"))}</div></div>
-    <div class="stat"><div class="v">${money(tot.budget)}</div><div class="k">${esc(t("sum.budget"))}</div></div>
+    <div class="stat"><div class="v">${money(shown)}</div><div class="k">${esc(t(daily ? "sum.foodDay" : "sum.cost"))}</div></div>
+    <div class="stat"><div class="v">${money(tot.budget)}</div><div class="k">${esc(t(daily ? "sum.budgetDay" : "sum.budget"))}</div></div>
     <div class="stat"><div class="v">${money(tot.remaining)}</div><div class="k">${esc(t(tot.remaining >= 0 ? "sum.left" : "sum.short"))}</div></div>
     <div class="stat"><div class="v">${money(tot.per_person_per_day)}</div><div class="k">${esc(t("sum.perDay"))}</div></div>
     <div class="bar ${tot.within_budget ? "" : "over"}"><span style="width:${pct}%"></span></div>
     <div class="meta">${esc(t("sum.meta", { region: p.region.name, city: p.region.city, adults: p.people.adults,
-      children: p.people.children, portions: p.people.portions, basis: p.region.price_basis, date: p.region.price_date }))}</div>`;
+      children: p.people.children, portions: p.people.portions, basis: p.region.price_basis, date: p.region.price_date }))}</div>
+    ${daily ? `<div class="meta">${esc(t("sum.shopNote", { sum: money(tot.cost) }))}</div>` : ""}`;
 
   $("#warnings").innerHTML = p.warnings.map(w => `<div class="warning">${esc(w)}</div>`).join("");
 
@@ -240,6 +253,7 @@ function renderPlan() {
         </div>`).join("")}
     </div>`).join("");
   $("#recalcBtn").disabled = true;
+  setEntitlements();
 
   $("#pantryUsedCard").innerHTML = `<h3>${esc(t("pantry.used"))}</h3>` + (p.pantry_used.length
     ? `<ul>${p.pantry_used.map(i => `<li>${esc(i.name)}: ${qty(i.quantity, i.unit)}</li>`).join("")}</ul>`
@@ -265,8 +279,9 @@ function showRecipe(id, day, slot) {
     <p>${esc(r.steps)}</p>`;
   $("#recipeDialog").showModal();
   if (!day) return;
-  $("#replaceBtn").addEventListener("click", () => replaceMeal(+day, slot, id, false));
-  $("#banBtn").addEventListener("click", () => replaceMeal(+day, slot, id, true));
+  const gate = fn => () => { if (isFree()) { $("#recipeDialog").close(); openPaywall("replace"); } else fn(); };
+  $("#replaceBtn").addEventListener("click", gate(() => replaceMeal(+day, slot, id, false)));
+  $("#banBtn").addEventListener("click", gate(() => replaceMeal(+day, slot, id, true)));
 }
 
 // Replace one dish: every other cell stays as it is, this cell gets a new dish.
@@ -356,7 +371,13 @@ function wire() {
   });
   $("#recalcBtn").addEventListener("click", () => submitPlan());
   $("#resetPricesBtn").addEventListener("click", () => { store.set(overridesKey(), {}); submitPlan(); });
-  $("#anotherBtn").addEventListener("click", () => { state.seed += 1; state.avoid = []; submitPlan(); });
+  $("#anotherBtn").addEventListener("click", () => {
+    if (isFree()) { openPaywall("another"); return; }
+    state.seed += 1; state.avoid = []; submitPlan();
+  });
+  $("#shopping").addEventListener("focusin", e => {
+    if (isFree() && e.target.matches(".price input")) { e.target.blur(); openPaywall("prices"); }
+  });
   $("#printBtn").addEventListener("click", () => window.print());
   if (window.FamilyChefAndroid) $("#printBtn").hidden = true;  // в Android-приложении печати нет
   $("#shareBtn").addEventListener("click", async () => {
@@ -404,6 +425,7 @@ async function init() {
     restoreForm(saved);
     updateBudgetHint();
     await initAuth();
+    if (!auth.user) await loadEntitlements();
     updateBudgetHint();
   } catch (e) {
     $("#formError").textContent = t("err.load", { msg: e.message });

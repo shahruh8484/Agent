@@ -21,6 +21,7 @@
 #   FC_GOOGLE_CLIENT_ID=...apps.googleusercontent.com   — вход через Google
 #   FC_EMAIL_PROVIDER=resend RESEND_API_KEY=... FC_EMAIL_FROM="FamilyChef <login@домен>" — вход по почте
 #   FC_REQUIRE_LOGIN=1                                   — пользоваться можно только после входа
+#   FC_LIMITS=1                                          — бесплатно: меню на 1 день раз в неделю, остальное в Plus
 # База пользователей хранится в docker-томе familychef_data и не теряется при обновлениях.
 set -euo pipefail
 
@@ -147,6 +148,7 @@ set_env() {  # set_env NAME VALUE — replace or append a line in the env file
   cat "$tmpf" > "$ENV_FILE"; rm -f "$tmpf"
 }
 for var in FC_GOOGLE_CLIENT_ID FC_EMAIL_PROVIDER FC_EMAIL_FROM RESEND_API_KEY FC_REQUIRE_LOGIN \
+           FC_LIMITS FC_FREE_DAYS FC_FREE_PERIOD_DAYS \
            SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASSWORD; do
   if [ -n "${!var+x}" ]; then set_env "$var" "${!var}"; info "Настройка $var сохранена"; fi
 done

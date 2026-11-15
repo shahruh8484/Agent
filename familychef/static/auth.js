@@ -188,6 +188,7 @@ async function onSignedIn(user) {
   auth.user = user;
   const me = await apiJson("GET", "/api/me");
   auth.settings = me.settings || {};
+  setEntitlements(me.entitlements);
   const dlg = $("#loginDialog");
   if (dlg.open) dlg.close();
   await applyServerSettings();
@@ -244,6 +245,10 @@ async function openAccount() {
       <button class="btn ghost" type="submit">${esc(t("acct.save"))}</button>
     </form>
     <p class="hint small">${esc(t("acct.synced"))}</p>
+    <p class="acct-plan"><b>${esc(t("acct.plan"))}:</b> ${plus.ent.plus
+      ? "★ " + esc(t("acct.plus", { date: fmtDate(plus.ent.plus_until, false) }))
+      : esc(t("acct.free"))}${plus.ent.limits && !plus.ent.plus
+      ? ` · <button type="button" class="linkish" id="acctPlusBtn">${esc(t("plan.getPlus"))}</button>` : ""}</p>
     <h3>${esc(t("acct.plans"))}</h3>
     <div class="plans"><p class="hint">…</p></div>
     <div class="row acct-actions">
@@ -252,6 +257,7 @@ async function openAccount() {
     </div>`;
   $("#accountDialog").showModal();
 
+  $("#acctPlusBtn")?.addEventListener("click", () => { $("#accountDialog").close(); openPaywall("history"); });
   $(".name-form", body).addEventListener("submit", async e => {
     e.preventDefault();
     const b = $("button", e.target);
@@ -265,7 +271,7 @@ async function openAccount() {
     await apiJson("POST", "/api/auth/logout").catch(() => {});
     auth.user = null; auth.settings = {};
     $("#accountDialog").close();
-    renderAccountButton(); updateGate();
+    renderAccountButton(); updateGate(); loadEntitlements();
   });
   $(".delete-acct", body).addEventListener("click", async () => {
     if (!confirm(t("acct.deleteConfirm"))) return;
@@ -320,6 +326,7 @@ async function initAuth() {
     try {
       const me = await apiJson("GET", "/api/me");
       auth.user = me.user; auth.settings = me.settings || {};
+      setEntitlements(me.entitlements);
       await applyServerSettings();
     } catch { auth.user = null; }
   }
@@ -334,4 +341,5 @@ async function initAuth() {
 function refreshAuthTexts() {
   renderAccountButton();
   updateGate();
+  renderPlanHint();
 }

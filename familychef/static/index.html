@@ -103,6 +103,7 @@
     </fieldset>
 
     <button type="submit" class="btn primary big" id="submitBtn" data-i18n="form.submit"></button>
+    <div class="plan-hint" id="planHint" hidden></div>
     <p class="error" id="formError" role="alert"></p>
   </form>
 
@@ -110,7 +111,7 @@
     <div class="card summary" id="summary"></div>
     <div id="warnings"></div>
 
-    <h2 data-i18n="menu.title"></h2>
+    <h2 id="menuTitle" data-i18n="menu.title"></h2>
     <div class="week" id="week"></div>
 
     <div class="list-head">
@@ -146,6 +147,11 @@
   <div id="loginBody" class="auth-box"></div>
 </dialog>
 
+<dialog id="paywallDialog" class="auth-dialog">
+  <form method="dialog" class="close-x"><button aria-label="Close">×</button></form>
+  <div id="paywallBody"></div>
+</dialog>
+
 <dialog id="accountDialog" class="auth-dialog">
   <form method="dialog" class="close-x"><button aria-label="Close">×</button></form>
   <div id="accountBody"></div>
@@ -154,6 +160,7 @@
 <footer class="wrap foot"><span data-i18n="footer.text"></span> · <a href="/privacy" data-i18n="footer.privacy"></a></footer>
 <script src="/static/i18n.js"></script>
 <script src="/static/auth.js"></script>
+<script src="/static/plus.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

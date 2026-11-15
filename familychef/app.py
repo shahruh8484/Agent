@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from familychef import __version__, mailer
+from familychef import limits
 from familychef.accounts import Accounts, AuthError, verify_google_token
 from familychef.catalog import CatalogError, get_catalog, norm_lang
 from familychef.models import DIETS, FAVORITES, PlanRequest
@@ -78,6 +79,15 @@ def create_app(accounts: Accounts | None = None) -> FastAPI:
     @app.exception_handler(AuthError)
     def auth_error(_: Request, exc: AuthError) -> JSONResponse:
         return JSONResponse({"detail": exc.code}, status_code=exc.status)
+
+    @app.exception_handler(limits.LimitError)
+    def limit_error(_: Request, exc: limits.LimitError) -> JSONResponse:
+        # 402 Payment Required: the page shows the FamilyChef Plus screen.
+        return JSONResponse({"detail": exc.code, **exc.extra}, status_code=402)
+
+    def entitlements(user: dict | None) -> dict:
+        last = acc().last_free_plan_at(user["id"]) if user else None
+        return limits.entitlements(user, last)
 
     @app.get("/", include_in_schema=False)
     def index() -> FileResponse:
@@ -159,12 +169,16 @@ def create_app(accounts: Accounts | None = None) -> FastAPI:
     def plan(req: PlanRequest, user: dict | None = Depends(current_user)) -> dict:
         if user is None and _require_login():
             raise HTTPException(401, "login_required")
+        ent = entitlements(user)
+        req = limits.check(req, ent)
         try:
             result = build_plan(get_catalog(), req)
         except (PlanError, CatalogError) as exc:
             raise HTTPException(422, str(exc)) from exc
         if user is not None:
-            result["plan_id"] = acc().save_plan(user["id"], req.model_dump(), result)
+            kind = "plus" if ent["unlimited"] else "free"
+            result["plan_id"] = acc().save_plan(user["id"], req.model_dump(), result, kind)
+            result["entitlements"] = entitlements(acc().get_user(user["id"]))
         return result
 
     # ------------------------------------------------------------ accounts
@@ -214,7 +228,12 @@ def create_app(accounts: Accounts | None = None) -> FastAPI:
 
     @app.get("/api/me")
     def me(user: dict = Depends(need_user)) -> dict:
-        return {"user": user, "settings": acc().get_settings(user["id"])}
+        return {"user": user, "settings": acc().get_settings(user["id"]),
+                "entitlements": entitlements(user)}
+
+    @app.get("/api/entitlements")
+    def my_entitlements(user: dict | None = Depends(current_user)) -> dict:
+        return entitlements(user)
 
     @app.put("/api/me")
     def update_me(body: ProfileUpdate, user: dict = Depends(need_user)) -> dict:
@@ -222,7 +241,9 @@ def create_app(accounts: Accounts | None = None) -> FastAPI:
             acc().update_name(user["id"], body.name)
         if body.settings is not None:
             acc().save_settings(user["id"], body.settings)
-        return {"user": acc().get_user(user["id"]), "settings": acc().get_settings(user["id"])}
+        fresh = acc().get_user(user["id"])
+        return {"user": fresh, "settings": acc().get_settings(user["id"]),
+                "entitlements": entitlements(fresh)}
 
     @app.delete("/api/me")
     def delete_me(request: Request, response: Response, user: dict = Depends(need_user)) -> dict:
@@ -232,7 +253,8 @@ def create_app(accounts: Accounts | None = None) -> FastAPI:
 
     @app.get("/api/plans")
     def list_plans(user: dict = Depends(need_user)) -> list[dict]:
-        return acc().list_plans(user["id"])
+        # Menu history is a Plus feature; the free plan keeps the latest menu.
+        return acc().list_plans(user["id"], limit=20 if entitlements(user)["unlimited"] else 1)
 
     @app.get("/api/plans/{plan_id}")
     def get_plan(plan_id: int, user: dict = Depends(need_user)) -> dict:

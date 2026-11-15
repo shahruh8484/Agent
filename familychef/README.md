@@ -120,6 +120,34 @@ curl -fsSL https://raw.githubusercontent.com/shahruh8484/Agent/claude/happy-alba
 
 `FC_REQUIRE_LOGIN=1` — составлять меню могут только вошедшие пользователи (`0` — вход необязателен).
 
+## Бесплатный тариф и FamilyChef Plus
+
+| | Бесплатно | Plus |
+|---|---|---|
+| Меню | на 1 день, раз в неделю | на неделю, сколько угодно |
+| Замена блюд, «больше не предлагать», другой вариант | — | ✅ |
+| Цены своего магазина | — | ✅ |
+| История меню в кабинете | последнее | 20 последних |
+
+Ограничения проверяются на сервере (`familychef/limits.py`) и **включаются** настройкой `FC_LIMITS=1`
+(по умолчанию выключены, пока нет оплаты подписки). Цифры: `FC_FREE_DAYS` (дней в бесплатном меню, 1) и
+`FC_FREE_PERIOD_DAYS` (как часто, 7). Меню короче недели оценивается по стоимости продуктов на эти дни и
+доле недельного бюджета, а не по целым упаковкам.
+
+Выдать или забрать Plus вручную (например, тестировщикам):
+
+```bash
+docker exec familychef python -m familychef.admin plus someone@gmail.com 30
+```
+
+```bash
+docker exec familychef python -m familychef.admin free someone@gmail.com
+```
+
+```bash
+docker exec familychef python -m familychef.admin stats
+```
+
 ## API
 
 | Метод | Путь | Что делает |

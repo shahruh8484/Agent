@@ -71,6 +71,12 @@ CREATE TABLE IF NOT EXISTS plans (
 CREATE INDEX IF NOT EXISTS plans_user ON plans(user_id, created_at DESC);
 """
 
+# Columns added after the first release: (table, column, definition).
+MIGRATIONS = [
+    ("users", "plus_until", "INTEGER NOT NULL DEFAULT 0"),
+    ("plans", "kind", "TEXT NOT NULL DEFAULT 'plus'"),
+]
+
 
 class AuthError(ValueError):
     """User-facing auth problem; .code is a stable key for translations."""
@@ -95,6 +101,10 @@ class Accounts:
         self._ip_hits: dict[str, list[int]] = {}
         with self._db() as db:
             db.executescript(SCHEMA)
+            for table, column, definition in MIGRATIONS:
+                cols = {r["name"] for r in db.execute(f"PRAGMA table_info({table})")}
+                if column not in cols:
+                    db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     # ------------------------------------------------------------ plumbing
     def _load_secret(self) -> bytes:
@@ -126,9 +136,11 @@ class Accounts:
     # ------------------------------------------------------------ users
     @staticmethod
     def _user_dict(row: sqlite3.Row) -> dict:
+        plus_until = row["plus_until"] if "plus_until" in row.keys() else 0
         return {"id": row["id"], "email": row["email"], "name": row["name"],
                 "picture": row["picture"], "google": bool(row["google_sub"]),
-                "created_at": row["created_at"]}
+                "created_at": row["created_at"], "plus_until": plus_until,
+                "plus": plus_until > _now()}
 
     def get_user(self, user_id: int) -> dict | None:
         with self._db() as db:
@@ -265,24 +277,52 @@ class Accounts:
                        " SET settings = excluded.settings, updated_at = excluded.updated_at",
                        (user_id, blob, _now()))
 
-    def save_plan(self, user_id: int, request: dict, result: dict) -> int:
+    # ------------------------------------------------------------ subscription
+    def set_plus(self, user_id: int, until: int) -> None:
+        with self._db() as db:
+            db.execute("UPDATE users SET plus_until = ? WHERE id = ?", (int(until), user_id))
+
+    def find_user_by_email(self, email: str) -> dict | None:
+        with self._db() as db:
+            row = db.execute("SELECT * FROM users WHERE email = ?", (normalize_email(email),)).fetchone()
+        return self._user_dict(row) if row else None
+
+    def last_free_plan_at(self, user_id: int) -> int | None:
+        with self._db() as db:
+            row = db.execute("SELECT MAX(created_at) AS t FROM plans WHERE user_id = ? AND kind = 'free'",
+                             (user_id,)).fetchone()
+        return row["t"] if row and row["t"] else None
+
+    def save_plan(self, user_id: int, request: dict, result: dict, kind: str = "plus") -> int:
         title = f'{result["region"]["name"]}, {result["people"]["adults"]}+{result["people"]["children"]}'
         with self._db() as db:
             cur = db.execute(
-                "INSERT INTO plans (user_id, created_at, title, cost, currency, request, result)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO plans (user_id, created_at, title, cost, currency, request, result, kind)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (user_id, _now(), title, result["totals"]["cost"], result["region"]["currency"],
-                 json.dumps(request, ensure_ascii=False), json.dumps(result, ensure_ascii=False)))
+                 json.dumps(request, ensure_ascii=False), json.dumps(result, ensure_ascii=False), kind))
             db.execute("DELETE FROM plans WHERE user_id = ? AND id NOT IN"
                        " (SELECT id FROM plans WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?)",
                        (user_id, user_id, PLANS_KEPT))
             return cur.lastrowid
 
-    def list_plans(self, user_id: int) -> list[dict]:
+    def list_plans(self, user_id: int, limit: int = PLANS_KEPT) -> list[dict]:
         with self._db() as db:
-            rows = db.execute("SELECT id, created_at, title, cost, currency FROM plans"
-                              " WHERE user_id = ? ORDER BY created_at DESC, id DESC", (user_id,)).fetchall()
+            rows = db.execute("SELECT id, created_at, title, cost, currency, kind FROM plans"
+                              " WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+                              (user_id, limit)).fetchall()
         return [dict(r) for r in rows]
+
+    def stats(self) -> dict:
+        now = _now()
+        with self._db() as db:
+            one = lambda q, *a: db.execute(q, a).fetchone()[0]
+            return {
+                "users": one("SELECT COUNT(*) FROM users"),
+                "plus_users": one("SELECT COUNT(*) FROM users WHERE plus_until > ?", now),
+                "active_7d": one("SELECT COUNT(*) FROM users WHERE last_login_at > ?", now - 7 * 86400),
+                "plans_7d": one("SELECT COUNT(*) FROM plans WHERE created_at > ?", now - 7 * 86400),
+            }
 
     def get_plan(self, user_id: int, plan_id: int) -> dict | None:
         with self._db() as db:

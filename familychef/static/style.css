@@ -180,3 +180,18 @@ dialog td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 .recipe-actions .btn { padding: 7px 12px; font-size: .9rem; }
 .meal.busy { opacity: .45; }
 .meal.changed { background: var(--accent-soft); border-radius: 8px; transition: background .4s; }
+
+/* ---- free plan / Plus ---- */
+.plan-hint { margin-top: 12px; padding: 12px 14px; border-radius: var(--radius); background: var(--accent-soft); font-size: .92rem; }
+.plan-hint p { margin: 0 0 6px; }
+.plan-hint.plus { color: var(--accent); font-weight: 600; }
+.plan-hint .row { margin-top: 8px; }
+.paywall { text-align: center; }
+.paywall .pw-badge { width: 56px; height: 56px; margin: 0 auto 6px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(135deg, #f2c94c, #e0a526); color: #fff; font-size: 1.8rem; }
+.paywall h2 { margin: 6px 0; }
+.paywall .lead { font-weight: 600; }
+.paywall ul { text-align: left; padding-left: 0; list-style: none; margin: 14px 0; }
+.paywall li { padding: 7px 0 7px 28px; position: relative; border-top: 1px solid var(--line); }
+.paywall li::before { content: "✓"; position: absolute; left: 4px; color: var(--accent); font-weight: 700; }
+.acct-plan { margin: 6px 0 0; }

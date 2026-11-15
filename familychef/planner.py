@@ -138,12 +138,18 @@ class _Problem:
     favorites: set[str]
     lang: str = "ru"
     month: int = 1
+    # A full week is judged by the real bill (whole packs). A shorter menu (e.g. one day)
+    # is judged by the food actually eaten: buying a 1 kg bag of rice for one dinner
+    # does not mean the dinner cost the whole bag.
+    whole_packs: bool = True
 
     def ing_cost(self, ing: str, total: float) -> float:
         need = total - self.pantry.get(ing, 0.0)
         if need <= EPS:
             return 0.0
         p = self.prices[ing]
+        if not self.whole_packs:
+            return need / p.pack_size * p.price
         return math.ceil(need / p.pack_size - EPS) * p.price
 
 
@@ -253,10 +259,12 @@ def _build_problem(catalog: Catalog, req: PlanRequest) -> _Problem:
     for item in req.pantry:
         pantry[item.ingredient] = pantry.get(item.ingredient, 0.0) + item.quantity
 
+    # The budget is entered per week; a shorter menu gets its share of it.
+    period_budget = req.budget * min(req.days, 7) / 7
     return _Problem(
         region=region, prices=prices, pantry=pantry, portions=req.portions,
-        budget=req.budget, slots=slots, candidates=candidates, slot_cands=slot_cands, caps=caps,
-        favorites=set(req.favorites), lang=lang, month=month,
+        budget=period_budget, slots=slots, candidates=candidates, slot_cands=slot_cands, caps=caps,
+        favorites=set(req.favorites), lang=lang, month=month, whole_packs=req.days >= 7,
     )
 
 
@@ -439,7 +447,7 @@ def _render(catalog: Catalog, req: PlanRequest, prob: _Problem, st: _State) -> d
                 "minutes": r.minutes,
                 "cost": _money(meal_cost(r), cur),
             })
-        days.append({"day": d + 1, "name": DAY_NAMES[lang][d % 7], "meals": meals})
+        days.append({"day": d + 1, "name": DAY_NAMES[lang][(req.start_weekday + d) % 7], "meals": meals})
 
     used = {r.id: r for r in st.assign if r is not None}
     recipes = {}
@@ -506,10 +514,20 @@ def _render(catalog: Catalog, req: PlanRequest, prob: _Problem, st: _State) -> d
         for c in CATEGORY_ORDER if c in groups
     ]
     total_cost = _money(total_cost, cur)
+    # Cost of the food actually eaten (pantry excluded, packs not rounded).
+    food_cost = 0.0
+    for ing_id, total in st.totals.items():
+        need = total - prob.pantry.get(ing_id, 0.0)
+        if need > EPS:
+            p = prob.prices[ing_id]
+            food_cost += need / p.pack_size * p.price
+    food_cost = _money(food_cost, cur)
+    judged = total_cost if prob.whole_packs else food_cost
+    period_budget = _money(prob.budget, cur)
     people = req.adults + req.children
     warnings = []
-    if total_cost > req.budget:
-        warnings.append(msg(lang, "over_budget", cost=f"{total_cost:g}", budget=f"{req.budget:g}", cur=cur))
+    if judged > period_budget:
+        warnings.append(msg(lang, "over_budget", cost=f"{judged:g}", budget=f"{period_budget:g}", cur=cur))
     city = prob.region.city(req.city)
     return {
         "region": {"code": prob.region.code, "name": prob.region.name_for(lang),
@@ -523,12 +541,16 @@ def _render(catalog: Catalog, req: PlanRequest, prob: _Problem, st: _State) -> d
         "pantry_used": pantry_used,
         "leftovers": leftovers,
         "totals": {
-            "cost": total_cost,
-            "budget": req.budget,
-            "remaining": _money(req.budget - total_cost, cur),
-            "per_person_per_day": _money(total_cost / max(people, 1) / req.days, cur),
-            "within_budget": total_cost <= req.budget,
+            "cost": total_cost,              # shopping list, whole packs
+            "food_cost": food_cost,          # what the menu itself uses
+            "basis": "packs" if prob.whole_packs else "food",
+            "budget": period_budget,         # weekly budget, or its share for a shorter menu
+            "weekly_budget": req.budget,
+            "remaining": _money(period_budget - judged, cur),
+            "per_person_per_day": _money(judged / max(people, 1) / req.days, cur),
+            "within_budget": judged <= period_budget,
         },
+        "days_count": req.days,
         "warnings": warnings,
         "notes": [
             msg(lang, "note_staples"),
