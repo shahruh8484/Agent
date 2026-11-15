@@ -26,7 +26,7 @@ const state = {
   lastRequest: null,
 };
 
-const NO_DECIMALS = new Set(["RUB", "KZT", "UZS"]);
+const NO_DECIMALS = new Set(["RUB", "KZT", "UZS", "KGS"]);
 const CAT_ICONS = { produce: "🥕", meat: "🍗", fish: "🐟", dairy: "🥛", grains: "🌾", bakery: "🍞", pantry: "🧂" };
 
 function money(x) {

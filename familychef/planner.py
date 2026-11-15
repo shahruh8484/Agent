@@ -419,7 +419,7 @@ def _round_qty(q: float, unit: str) -> float:
 
 
 def _money(x: float, currency: str) -> float:
-    return round(x) if currency in ("UZS", "KZT", "RUB") else round(x, 2)
+    return round(x) if currency in ("UZS", "KZT", "RUB", "KGS") else round(x, 2)
 
 
 def _render(catalog: Catalog, req: PlanRequest, prob: _Problem, st: _State) -> dict:
