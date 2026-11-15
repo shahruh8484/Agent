@@ -122,6 +122,7 @@ legend { font-weight: 600; margin-bottom: 6px; padding: 0; }
 .sticky-actions { margin: 8px 0 16px; }
 .notes { color: var(--muted); font-size: .85rem; padding-left: 18px; }
 .foot { color: var(--muted); font-size: .8rem; padding: 24px 16px; }
+.foot a { color: inherit; }
 
 dialog { border: 0; border-radius: var(--radius); padding: 20px; max-width: 560px; width: calc(100% - 32px); background: var(--card); color: var(--text); }
 dialog::backdrop { background: rgba(0,0,0,.45); }

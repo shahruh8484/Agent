@@ -1,0 +1,59 @@
+plugins {
+    id "com.android.application"
+}
+
+// Подпись релиза: android/keystore.properties (не хранится в git) или переменные окружения.
+def ks = new Properties()
+def ksFile = rootProject.file("keystore.properties")
+if (ksFile.exists()) ksFile.withInputStream { ks.load(it) }
+def prop = { String k, String env -> ks.getProperty(k) ?: System.getenv(env) }
+
+android {
+    namespace "pro.familychef.app"
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "pro.familychef.app"
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName "1.0.0"
+
+        // Адрес сайта, который приложение открывает во весь экран.
+        def host = "familychef.pro"
+        resValue "string", "hostName", host
+        resValue "string", "launchUrl", "https://${host}/?source=android"
+        resValue "string", "providerAuthority", "pro.familychef.app.fileprovider"
+        resValue "string", "assetStatements",
+            '[{ "relation": ["delegate_permission/common.handle_all_urls"], ' +
+            '"target": {"namespace": "web", "site": "https://' + host + '"}}]'
+    }
+
+    signingConfigs {
+        release {
+            def store = prop("storeFile", "FC_KEYSTORE")
+            if (store) {
+                storeFile file(store)
+                storePassword prop("storePassword", "FC_KEYSTORE_PASSWORD")
+                keyAlias prop("keyAlias", "FC_KEY_ALIAS") ?: "upload"
+                keyPassword prop("keyPassword", "FC_KEY_PASSWORD") ?: prop("storePassword", "FC_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (signingConfigs.release.storeFile) signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "com.google.androidbrowserhelper:androidbrowserhelper:2.7.4"
+}

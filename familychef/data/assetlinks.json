@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "pro.familychef.app",
+      "sha256_cert_fingerprints": [
+        "EA:94:7A:06:7E:FF:AA:2A:1F:26:65:7B:5F:D6:56:B9:8D:AC:1A:87:BB:1D:62:DA:94:D8:23:0B:67:CE:C6:B9"
+      ]
+    }
+  }
+]

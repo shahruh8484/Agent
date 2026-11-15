@@ -116,17 +116,18 @@ fi
 say "Собираю и запускаю контейнер (1–3 минуты при первом запуске)"
 docker build -q -t "$NAME:latest" -f "$DIR/src/Dockerfile.familychef" "$DIR/src" >/dev/null
 docker network inspect "$NET" >/dev/null 2>&1 || docker network create "$NET" >/dev/null
+LOGS="--log-opt max-size=10m --log-opt max-file=3"  # журналы не растут бесконечно
 
 if [ -n "$DOMAIN" ]; then
   # Снаружи приложение доступно только через Caddy (HTTPS); 127.0.0.1 — для проверки.
   CHECK_PORT=8090
   while port_busy "$CHECK_PORT"; do CHECK_PORT=$((CHECK_PORT + 1)); done
   docker run -d --name "$NAME" --restart unless-stopped --network "$NET" \
-    --memory 384m --cpus 1 -p "127.0.0.1:$CHECK_PORT:8080" "$NAME:latest" >/dev/null
+    --memory 384m --cpus 1 $LOGS -p "127.0.0.1:$CHECK_PORT:8080" "$NAME:latest" >/dev/null
 else
   CHECK_PORT="$PORT"
   docker run -d --name "$NAME" --restart unless-stopped --network "$NET" \
-    --memory 384m --cpus 1 -p "$PORT:8080" "$NAME:latest" >/dev/null
+    --memory 384m --cpus 1 $LOGS -p "$PORT:8080" "$NAME:latest" >/dev/null
 fi
 
 for _ in $(seq 1 30); do
@@ -145,7 +146,7 @@ if [ -n "$DOMAIN" ]; then
     *) # www.домен → домен (сертификат для www выдаётся, если для www есть DNS-запись)
        printf '\nwww.%s {\n\tredir https://%s{uri} permanent\n}\n' "$DOMAIN" "$DOMAIN" >> "$DIR/Caddyfile" ;;
   esac
-  docker run -d --name "$CADDY" --restart unless-stopped --network "$NET" \
+  docker run -d --name "$CADDY" --restart unless-stopped --network "$NET" $LOGS \
     -p 80:80 -p 443:443 -p 443:443/udp \
     -v "$DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
     -v familychef_caddy_data:/data -v familychef_caddy_config:/config \

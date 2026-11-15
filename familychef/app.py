@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from familychef import __version__
@@ -13,6 +13,7 @@ from familychef.models import DIETS, FAVORITES, PlanRequest
 from familychef.planner import CATEGORY_NAMES, PlanError, build_plan
 
 STATIC_DIR = Path(__file__).parent / "static"
+DATA_DIR = Path(__file__).parent / "data"
 
 
 def create_app() -> FastAPI:
@@ -22,6 +23,23 @@ def create_app() -> FastAPI:
     @app.get("/", include_in_schema=False)
     def index() -> FileResponse:
         return FileResponse(STATIC_DIR / "index.html")
+
+    @app.get("/privacy", include_in_schema=False)
+    def privacy() -> FileResponse:
+        return FileResponse(STATIC_DIR / "privacy.html")
+
+    @app.get("/sw.js", include_in_schema=False)
+    def service_worker() -> FileResponse:
+        # Served from the root so its scope covers the whole site.
+        return FileResponse(STATIC_DIR / "sw.js", media_type="text/javascript",
+                            headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
+
+    @app.get("/.well-known/assetlinks.json", include_in_schema=False)
+    def assetlinks() -> JSONResponse:
+        # Digital Asset Links: lets the Android app (Trusted Web Activity) open
+        # this site full-screen without the browser address bar.
+        import json
+        return JSONResponse(json.loads((DATA_DIR / "assetlinks.json").read_text(encoding="utf-8")))
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict:
