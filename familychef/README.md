@@ -70,9 +70,15 @@ docker run -p 8080:8080 familychef
 curl -fsSL https://raw.githubusercontent.com/shahruh8484/Agent/claude/happy-albattani-m08fna/deploy/install-familychef.sh | sudo bash
 ```
 
-Скрипт покажет, что уже есть на сервере, при необходимости поставит Docker, соберёт и запустит контейнер
-на свободном порту (по умолчанию 8090), откроет порт в ufw/firewalld и напечатает ссылку `http://IP:8090`.
-Чтобы обновить приложение, запустите ту же команду ещё раз. Домен с HTTPS можно подключить позже.
+Скрипт покажет, что уже есть на сервере, при необходимости поставит Docker, соберёт и запустит контейнер,
+откроет порт в ufw/firewalld и напечатает ссылку. На чистом сервере приложение будет доступно по `http://IP`,
+а если порт 80 занят, то на свободном порту начиная с 8090. Чтобы обновить приложение, запустите ту же команду ещё раз.
+
+С доменом и HTTPS (A-запись домена должна указывать на IP сервера):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/shahruh8484/Agent/claude/happy-albattani-m08fna/deploy/install-familychef.sh | sudo FC_DOMAIN=familychef.ru bash
+```
 
 ## API
 
