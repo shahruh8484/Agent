@@ -61,6 +61,19 @@ docker build -f Dockerfile.familychef -t familychef .
 docker run -p 8080:8080 familychef
 ```
 
+## Установка на сервер (одна команда)
+
+Подходит для любого Linux-сервера, в том числе если на нём уже работают сайты или Keitaro: порты 80/443
+и чужие контейнеры не затрагиваются. Зайдите на сервер по SSH под root и выполните:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/shahruh8484/Agent/claude/happy-albattani-m08fna/deploy/install-familychef.sh | sudo bash
+```
+
+Скрипт покажет, что уже есть на сервере, при необходимости поставит Docker, соберёт и запустит контейнер
+на свободном порту (по умолчанию 8090), откроет порт в ufw/firewalld и напечатает ссылку `http://IP:8090`.
+Чтобы обновить приложение, запустите ту же команду ещё раз. Домен с HTTPS можно подключить позже.
+
 ## API
 
 | Метод | Путь | Что делает |
