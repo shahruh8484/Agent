@@ -58,11 +58,11 @@ public class MainActivity extends ComponentActivity {
                          : "Check your Wi-Fi or mobile data and try again.";
         String button = ru ? "Повторить" : "Try again";
         return "<!doctype html><html><meta name=viewport content='width=device-width,initial-scale=1'>"
-            + "<body style='margin:0;font-family:sans-serif;background:#f6f5f1;color:#1f2421;display:flex;"
+            + "<body style='margin:0;font-family:sans-serif;background:#f7f3ec;color:#1d2420;display:flex;"
             + "align-items:center;justify-content:center;height:100vh;text-align:center'><div style='padding:24px'>"
             + "<h2>" + title + "</h2><p>" + text + "</p>"
             + "<button onclick='FamilyChefAndroid.retry()' style='font-size:17px;padding:12px 28px;border:0;"
-            + "border-radius:8px;background:#2f7d4f;color:#fff'>" + button + "</button></div></body></html>";
+            + "border-radius:999px;background:#1f6b43;color:#fff'>" + button + "</button></div></body></html>";
     }
 
     WebView webView;
@@ -75,10 +75,10 @@ public class MainActivity extends ComponentActivity {
         super.onCreate(savedInstanceState);
 
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(0xFF2F7D4F);
+        root.setBackgroundColor(0xFF1F6B43);
 
         webView = new WebView(this);
-        webView.setBackgroundColor(0xFFF6F5F1);
+        webView.setBackgroundColor(0xFFF7F3EC);
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);      // localStorage: настройки, свои цены, отметки «куплено»
@@ -94,7 +94,7 @@ public class MainActivity extends ComponentActivity {
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.mipmap.ic_launcher_foreground);
         logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        logo.setBackgroundColor(0xFF2F7D4F);
+        logo.setBackgroundColor(0xFF1F6B43);
         splash = logo;
         root.addView(splash, new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));

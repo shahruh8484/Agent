@@ -53,6 +53,7 @@ class Recipe:
     ingredients: dict[str, float]
     steps: str
     steps_en: str = ""
+    emoji: str = "🍽️"
 
     def name(self, lang: str) -> str:
         return self.en if lang == "en" else self.ru
@@ -175,7 +176,7 @@ def load_catalog(data_dir: Path = DATA_DIR) -> Catalog:
             minutes=int(raw["minutes"]), tags=frozenset(raw["tags"]),
             popular_in=frozenset(raw["popular_in"]),
             ingredients={k: float(v) for k, v in raw["ingredients"].items()},
-            steps=raw["steps"], steps_en=raw.get("steps_en", ""),
+            steps=raw["steps"], steps_en=raw.get("steps_en", ""), emoji=raw.get("emoji", "🍽️"),
         )
 
     regions: dict[str, Region] = {}

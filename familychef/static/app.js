@@ -27,6 +27,7 @@ const state = {
 };
 
 const NO_DECIMALS = new Set(["RUB", "KZT", "UZS"]);
+const CAT_ICONS = { produce: "🥕", meat: "🍗", fish: "🐟", dairy: "🥛", grains: "🌾", bakery: "🍞", pantry: "🧂" };
 
 function money(x) {
   const r = state.region;
@@ -223,21 +224,31 @@ function renderPlan() {
 
   $("#warnings").innerHTML = p.warnings.map(w => `<div class="warning">${esc(w)}</div>`).join("");
 
+  const todayName = new Date().toLocaleDateString(LANG, { weekday: "long" }).toLowerCase();
   $("#week").innerHTML = p.days.map(d => `
-    <div class="day"><h3>${esc(d.name)}</h3>
+    <div class="day ${d.name.toLowerCase() === todayName ? "today" : ""}">
+      <h3 data-today="${esc(t("menu.today"))}">${esc(d.name)}</h3>
       ${d.meals.map(m => `
         <button type="button" class="meal" data-recipe="${m.recipe_id}" data-day="${d.day}" data-slot="${m.slot}">
-          <span class="slot">${esc(m.slot_name)}</span>
-          <span class="name">${esc(m.name)}</span>
-          <span class="meta">${esc(t("menu.min", { n: m.minutes }))} · ≈ ${money(m.cost)}</span>
+          <span class="emoji" aria-hidden="true">${esc(m.emoji || "🍽️")}</span>
+          <span>
+            <span class="slot">${esc(m.slot_name)}</span>
+            <span class="name">${esc(m.name)}</span>
+            <span class="meta">${esc(t("menu.min", { n: m.minutes }))} · ≈ ${money(m.cost)}</span>
+          </span>
         </button>`).join("")}
     </div>`).join("");
+  const today = $("#week .day.today");
+  if (today && window.matchMedia("(max-width: 640px)").matches) {
+    $("#week").scrollLeft = today.offsetLeft - 16;
+  }
 
   const overrides = store.get(overridesKey(), {});
   const done = new Set(store.get("done:" + p.region.code, []));
   $("#shopping").innerHTML = p.shopping_list.map(cat => `
     <div class="card cat">
-      <h3>${esc(cat.name)} <span class="sub">${money(cat.subtotal)}</span></h3>
+      <h3><span class="cat-name"><span class="cat-ico" aria-hidden="true">${CAT_ICONS[cat.category] || "🛒"}</span>${esc(cat.name)}</span>
+        <span class="sub">${money(cat.subtotal)}</span></h3>
       ${cat.items.map(i => `
         <div class="item ${done.has(i.id) ? "done" : ""}" data-id="${i.id}">
           <input type="checkbox" ${done.has(i.id) ? "checked" : ""} aria-label="${esc(t("list.bought"))}">
@@ -269,14 +280,17 @@ function showRecipe(id, day, slot) {
   const r = state.plan.recipes[id];
   if (!r) return;
   $("#recipeBody").innerHTML = `
-    <h3>${esc(r.name)}</h3>
+    <div class="recipe-hero">
+      <div class="big-emoji" aria-hidden="true">${esc(r.emoji || "🍽️")}</div>
+      <div><h3>${esc(r.name)}</h3>
+        <p class="hint">${esc(t("recipe.meta", { min: r.minutes, portions: r.portions, cost: money(r.cost_per_cooking) }))}</p></div>
+    </div>
     ${day ? `<div class="row recipe-actions">
       <button type="button" class="btn ghost" id="replaceBtn">↻ ${esc(t("menu.replace"))}</button>
       <button type="button" class="btn ghost" id="banBtn">⊘ ${esc(t("menu.ban"))}</button>
     </div>` : ""}
-    <p class="hint">${esc(t("recipe.meta", { min: r.minutes, portions: r.portions, cost: money(r.cost_per_cooking) }))}</p>
     <table>${r.ingredients.map(i => `<tr><td>${esc(i.name)}</td><td>${qty(i.quantity, i.unit)}</td></tr>`).join("")}</table>
-    <p>${esc(r.steps)}</p>`;
+    <p class="recipe-steps">${esc(r.steps)}</p>`;
   $("#recipeDialog").showModal();
   if (!day) return;
   const gate = fn => () => { if (isFree()) { $("#recipeDialog").close(); openPaywall("replace"); } else fn(); };
@@ -328,6 +342,12 @@ function wire() {
   });
   $("#city").addEventListener("change", () => { $("#budget").value = ""; updateBudgetHint(); });
   ["#adults", "#children"].forEach(s => $(s).addEventListener("input", updateBudgetHint));
+  $$("[data-step]").forEach(b => b.addEventListener("click", () => {
+    const [id, delta] = b.dataset.step.split(":");
+    const inp = $("#" + id);
+    inp.value = Math.max(+inp.min || 0, Math.min(+inp.max || 20, (parseInt(inp.value, 10) || 0) + +delta));
+    inp.dispatchEvent(new Event("input"));
+  }));
 
   $("#excludeAdd").addEventListener("click", () => {
     const v = $("#excludeSelect").value;

@@ -1,7 +1,7 @@
 // FamilyChef service worker: app shell offline, API always from network.
-const CACHE = "familychef-v7";
+const CACHE = "familychef-v8";
 const SHELL = [
-  "/", "/static/style.css", "/static/i18n.js", "/static/auth.js", "/static/plus.js", "/static/app.js", "/static/icon.svg",
+  "/", "/static/style.css", "/static/i18n.js", "/static/auth.js", "/static/plus.js", "/static/app.js", "/static/icon.svg", "/static/fonts/manrope-cyrillic-wght-normal.woff2", "/static/fonts/manrope-latin-wght-normal.woff2",
   "/static/icon-192.png", "/static/manifest.webmanifest", "/privacy",
 ];
 

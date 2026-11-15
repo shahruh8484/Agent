@@ -24,7 +24,8 @@
     "butter": 5
    },
    "steps": "Довести молоко до кипения, всыпать хлопья и варить 5–7 минут. Добавить нарезанное яблоко, сахар и масло.",
-   "steps_en": "Bring the milk to a boil, stir in the oats and simmer for 5–7 minutes. Add the diced apple, sugar and butter."
+   "steps_en": "Bring the milk to a boil, stir in the oats and simmer for 5–7 minutes. Add the diced apple, sugar and butter.",
+   "emoji": "🥣"
   },
   {
    "id": "oatmeal_banana_vegan",
@@ -47,7 +48,8 @@
     "sugar": 5
    },
    "steps": "Сварить хлопья на воде 5 минут, добавить сахар и нарезанный банан.",
-   "steps_en": "Cook the oats in water for 5 minutes, then add sugar and sliced banana."
+   "steps_en": "Cook the oats in water for 5 minutes, then add sugar and sliced banana.",
+   "emoji": "🥣"
   },
   {
    "id": "buckwheat_milk",
@@ -72,7 +74,8 @@
     "sugar": 5
    },
    "steps": "Сварить гречку в подсоленной воде (1:2) 15 минут. Подать с горячим молоком, маслом и сахаром.",
-   "steps_en": "Boil the buckwheat in salted water (1:2) for 15 minutes. Serve with hot milk, butter and sugar."
+   "steps_en": "Boil the buckwheat in salted water (1:2) for 15 minutes. Serve with hot milk, butter and sugar.",
+   "emoji": "🥣"
   },
   {
    "id": "rice_milk_porridge",
@@ -98,7 +101,8 @@
     "butter": 5
    },
    "steps": "Отварить рис в небольшом количестве воды 7 минут, влить молоко и варить ещё 15 минут на слабом огне, добавить сахар и масло.",
-   "steps_en": "Boil the rice in a little water for 7 minutes, pour in the milk and simmer for another 15 minutes on low heat. Add sugar and butter."
+   "steps_en": "Boil the rice in a little water for 7 minutes, pour in the milk and simmer for another 15 minutes on low heat. Add sugar and butter.",
+   "emoji": "🥣"
   },
   {
    "id": "omelet_tomato",
@@ -122,7 +126,8 @@
     "bread": 50
    },
    "steps": "Взбить яйца с молоком, обжарить нарезанные помидоры на масле, залить яйцами и готовить под крышкой 5–7 минут.",
-   "steps_en": "Whisk the eggs with the milk. Fry the sliced tomatoes in butter, pour over the eggs and cook covered for 5–7 minutes. Serve with bread."
+   "steps_en": "Whisk the eggs with the milk. Fry the sliced tomatoes in butter, pour over the eggs and cook covered for 5–7 minutes. Serve with bread.",
+   "emoji": "🍳"
   },
   {
    "id": "fried_eggs_cucumber",
@@ -145,7 +150,8 @@
     "oil": 5
    },
    "steps": "Пожарить яйца на масле, подать с хлебом и нарезанным огурцом.",
-   "steps_en": "Fry the eggs in oil and serve with bread and sliced cucumber."
+   "steps_en": "Fry the eggs in oil and serve with bread and sliced cucumber.",
+   "emoji": "🍳"
   },
   {
    "id": "syrniki",
@@ -172,7 +178,8 @@
     "sour_cream": 30
    },
    "steps": "Смешать творог, яйцо, сахар и муку. Сформировать сырники, обвалять в муке и обжарить по 3–4 минуты с каждой стороны.",
-   "steps_en": "Mix the quark, egg, sugar and flour. Shape small patties, dust with flour and fry for 3–4 minutes on each side. Serve with sour cream."
+   "steps_en": "Mix the quark, egg, sugar and flour. Shape small patties, dust with flour and fry for 3–4 minutes on each side. Serve with sour cream.",
+   "emoji": "🥞"
   },
   {
    "id": "bliny",
@@ -199,7 +206,8 @@
     "sour_cream": 30
    },
    "steps": "Смешать яйца, сахар, молоко и муку до жидкого теста, добавить масло. Жарить тонкие блины на разогретой сковороде.",
-   "steps_en": "Whisk the eggs, sugar, milk and flour into a thin batter and add the oil. Fry thin crepes in a hot pan. Serve with sour cream."
+   "steps_en": "Whisk the eggs, sugar, milk and flour into a thin batter and add the oil. Fry thin crepes in a hot pan. Serve with sour cream.",
+   "emoji": "🥞"
   },
   {
    "id": "tvorog_banana",
@@ -225,7 +233,8 @@
     "sour_cream": 30
    },
    "steps": "Размять творог со сметаной, добавить нарезанный банан.",
-   "steps_en": "Mash the quark with the sour cream and top with sliced banana."
+   "steps_en": "Mash the quark with the sour cream and top with sliced banana.",
+   "emoji": "🍌"
   },
   {
    "id": "cheese_toast_egg",
@@ -249,7 +258,8 @@
     "tomato": 60
    },
    "steps": "Сварить яйца 8 минут. Хлеб с маслом и сыром подрумянить на сковороде или в духовке, подать с яйцом и помидором.",
-   "steps_en": "Boil the eggs for 8 minutes. Toast the bread with butter and cheese in a pan or oven. Serve with the egg and tomato."
+   "steps_en": "Boil the eggs for 8 minutes. Toast the bread with butter and cheese in a pan or oven. Serve with the egg and tomato.",
+   "emoji": "🥪"
   },
   {
    "id": "bean_toast",
@@ -274,7 +284,8 @@
     "oil": 5
    },
    "steps": "Фасоль заранее замочить и отварить (можно сварить сразу на несколько дней). Обжарить лук, добавить томатную пасту, фасоль и немного воды, потушить 5 минут, выложить на поджаренный хлеб.",
-   "steps_en": "Soak and boil the beans in advance (a batch for several days). Fry the onion, add tomato paste, the beans and a splash of water, simmer for 5 minutes and spoon onto toast."
+   "steps_en": "Soak and boil the beans in advance (a batch for several days). Fry the onion, add tomato paste, the beans and a splash of water, simmer for 5 minutes and spoon onto toast.",
+   "emoji": "🥪"
   },
   {
    "id": "borscht",
@@ -306,7 +317,8 @@
     "greens": 3
    },
    "steps": "Сварить бульон из говядины (1 час). Добавить картофель и капусту. Отдельно обжарить лук, морковь и свёклу с томатной пастой, добавить в суп и варить 15 минут. Подавать со сметаной и зеленью.",
-   "steps_en": "Make a broth from the beef (1 hour). Add potatoes and cabbage. Separately fry the onion, carrot and beet with the tomato paste, add to the soup and simmer for 15 minutes. Serve with sour cream and herbs."
+   "steps_en": "Make a broth from the beef (1 hour). Add potatoes and cabbage. Separately fry the onion, carrot and beet with the tomato paste, add to the soup and simmer for 15 minutes. Serve with sour cream and herbs.",
+   "emoji": "🍲"
   },
   {
    "id": "shchi",
@@ -335,7 +347,8 @@
     "sour_cream": 20
    },
    "steps": "Сварить куриный бульон 30 минут, добавить картофель и капусту. Обжарить лук и морковь с томатной пастой, добавить в суп и варить 10 минут.",
-   "steps_en": "Make a chicken broth (30 minutes), add potatoes and cabbage. Fry the onion and carrot with the tomato paste, add to the soup and simmer for 10 minutes. Serve with sour cream."
+   "steps_en": "Make a chicken broth (30 minutes), add potatoes and cabbage. Fry the onion and carrot with the tomato paste, add to the soup and simmer for 10 minutes. Serve with sour cream.",
+   "emoji": "🍲"
   },
   {
    "id": "chicken_noodle_soup",
@@ -362,7 +375,8 @@
     "greens": 3
    },
    "steps": "Сварить бульон из курицы 30 минут, добавить картофель, морковь и лук, через 10 минут — макароны. Варить до готовности, посыпать зеленью.",
-   "steps_en": "Simmer the chicken for 30 minutes to make a broth. Add the potatoes, carrot and onion; after 10 minutes add the pasta. Cook until tender and sprinkle with herbs."
+   "steps_en": "Simmer the chicken for 30 minutes to make a broth. Add the potatoes, carrot and onion; after 10 minutes add the pasta. Cook until tender and sprinkle with herbs.",
+   "emoji": "🍜"
   },
   {
    "id": "lentil_soup",
@@ -389,7 +403,8 @@
     "garlic": 3
    },
    "steps": "Обжарить лук, морковь и чеснок, добавить томатную пасту. Всыпать промытую чечевицу и картофель, залить водой и варить 20 минут. По желанию пробить блендером.",
-   "steps_en": "Fry the onion, carrot and garlic, stir in the tomato paste. Add the rinsed lentils and potatoes, cover with water and simmer for 20 minutes. Blend if you like."
+   "steps_en": "Fry the onion, carrot and garlic, stir in the tomato paste. Add the rinsed lentils and potatoes, cover with water and simmer for 20 minutes. Blend if you like.",
+   "emoji": "🍲"
   },
   {
    "id": "potato_soup",
@@ -418,7 +433,8 @@
     "greens": 3
    },
    "steps": "Обжарить лук и морковь на масле, добавить картофель и воду, варить 20 минут. Часть картофеля размять, заправить сметаной и зеленью.",
-   "steps_en": "Fry the onion and carrot in butter, add the potatoes and water and simmer for 20 minutes. Mash some of the potatoes, stir in sour cream and herbs."
+   "steps_en": "Fry the onion and carrot in butter, add the potatoes and water and simmer for 20 minutes. Mash some of the potatoes, stir in sour cream and herbs.",
+   "emoji": "🍲"
   },
   {
    "id": "plov",
@@ -445,7 +461,8 @@
     "chickpeas": 15
    },
    "steps": "Обжарить мясо в разогретом масле, добавить лук и морковь соломкой, затем замоченный нут, залить водой и тушить 40 минут (зирвак). Выложить промытый рис, долить воду на 1 см выше, вложить головку чеснока и готовить под крышкой 25 минут.",
-   "steps_en": "Brown the meat in hot oil, add onion and carrot cut into strips, then the soaked chickpeas. Cover with water and stew for 40 minutes. Spread the rinsed rice on top, add water to 1 cm above the rice, push in a whole head of garlic and cook covered for 25 minutes."
+   "steps_en": "Brown the meat in hot oil, add onion and carrot cut into strips, then the soaked chickpeas. Cover with water and stew for 40 minutes. Spread the rinsed rice on top, add water to 1 cm above the rice, push in a whole head of garlic and cook covered for 25 minutes.",
+   "emoji": "🍚"
   },
   {
    "id": "lagman",
@@ -473,7 +490,8 @@
     "oil": 15
    },
    "steps": "Обжарить мясо, добавить лук, морковь, перец, помидоры и картофель, залить водой и тушить 30 минут. Отдельно отварить лапшу, полить соусом.",
-   "steps_en": "Brown the meat, add the onion, carrot, pepper, tomatoes and potatoes, cover with water and stew for 30 minutes. Boil the noodles separately and pour the sauce over them."
+   "steps_en": "Brown the meat, add the onion, carrot, pepper, tomatoes and potatoes, cover with water and stew for 30 minutes. Boil the noodles separately and pour the sauce over them.",
+   "emoji": "🍜"
   },
   {
    "id": "buckwheat_chicken",
@@ -500,7 +518,8 @@
     "oil": 10
    },
    "steps": "Обжарить курицу, добавить лук и морковь, тушить 25 минут. Всыпать гречку, залить водой (1:2) и готовить под крышкой ещё 20 минут.",
-   "steps_en": "Brown the chicken, add onion and carrot and stew for 25 minutes. Add the buckwheat, cover with water (1:2) and cook covered for another 20 minutes."
+   "steps_en": "Brown the chicken, add onion and carrot and stew for 25 minutes. Add the buckwheat, cover with water (1:2) and cook covered for another 20 minutes.",
+   "emoji": "🍗"
   },
   {
    "id": "mushroom_buckwheat",
@@ -524,7 +543,8 @@
     "oil": 15
    },
    "steps": "Сварить гречку. Обжарить лук, морковь и грибы до золотистого цвета, смешать с гречкой.",
-   "steps_en": "Boil the buckwheat. Fry the onion, carrot and mushrooms until golden and mix with the buckwheat."
+   "steps_en": "Boil the buckwheat. Fry the onion, carrot and mushrooms until golden and mix with the buckwheat.",
+   "emoji": "🍄"
   },
   {
    "id": "makarony_po_flotski",
@@ -551,7 +571,8 @@
     "oil": 5
    },
    "steps": "Обжарить лук и фарш до готовности. Отварить макароны и смешать с фаршем.",
-   "steps_en": "Fry the onion and ground beef until cooked. Boil the pasta and mix with the meat."
+   "steps_en": "Fry the onion and ground beef until cooked. Boil the pasta and mix with the meat.",
+   "emoji": "🍝"
   },
   {
    "id": "cutlets_mash",
@@ -583,7 +604,8 @@
     "cucumber": 70
    },
    "steps": "Смешать фарш с размоченным хлебом, яйцом и тёртым луком, сформировать котлеты и обжарить по 5 минут с каждой стороны, затем довести под крышкой. Сварить картофель и размять с горячим молоком и маслом.",
-   "steps_en": "Mix the ground beef with soaked bread, egg and grated onion, shape patties and fry for 5 minutes on each side, then finish covered. Boil the potatoes and mash with hot milk and butter. Serve with cucumber."
+   "steps_en": "Mix the ground beef with soaked bread, egg and grated onion, shape patties and fry for 5 minutes on each side, then finish covered. Boil the potatoes and mash with hot milk and butter. Serve with cucumber.",
+   "emoji": "🍖"
   },
   {
    "id": "lazy_cabbage_rolls",
@@ -612,7 +634,8 @@
     "sour_cream": 30
    },
    "steps": "Смешать фарш, отваренный до полуготовности рис и нашинкованную капусту, сформировать тефтели. Залить соусом из обжаренных лука и моркови, томатной пасты, сметаны и воды, тушить 40 минут.",
-   "steps_en": "Mix the ground beef, half-cooked rice and shredded cabbage and shape meatballs. Cover with a sauce of fried onion and carrot, tomato paste, sour cream and water, and stew for 40 minutes."
+   "steps_en": "Mix the ground beef, half-cooked rice and shredded cabbage and shape meatballs. Cover with a sauce of fried onion and carrot, tomato paste, sour cream and water, and stew for 40 minutes.",
+   "emoji": "🥬"
   },
   {
    "id": "stuffed_peppers",
@@ -640,7 +663,8 @@
     "sour_cream": 20
    },
    "steps": "Смешать фарш с полуготовым рисом, начинить перцы. Уложить в кастрюлю, залить соусом из обжаренных лука и моркови, томатной пасты и воды, тушить 45 минут. Подать со сметаной.",
-   "steps_en": "Mix the ground beef with half-cooked rice and stuff the peppers. Place in a pot, cover with a sauce of fried onion and carrot, tomato paste and water, and stew for 45 minutes. Serve with sour cream."
+   "steps_en": "Mix the ground beef with half-cooked rice and stuff the peppers. Place in a pot, cover with a sauce of fried onion and carrot, tomato paste and water, and stew for 45 minutes. Serve with sour cream.",
+   "emoji": "🫑"
   },
   {
    "id": "chili_beans",
@@ -667,7 +691,8 @@
     "rice": 60
    },
    "steps": "Фасоль замочить на ночь и отварить. Обжарить лук, чеснок и фарш, добавить перец, томаты и фасоль, тушить 30 минут. Подать с рисом.",
-   "steps_en": "Soak the beans overnight and boil them. Fry the onion, garlic and ground beef, add the pepper, tomatoes and beans and simmer for 30 minutes. Serve with rice."
+   "steps_en": "Soak the beans overnight and boil them. Fry the onion, garlic and ground beef, add the pepper, tomatoes and beans and simmer for 30 minutes. Serve with rice.",
+   "emoji": "🌶️"
   },
   {
    "id": "goulash_pasta",
@@ -694,7 +719,8 @@
     "pasta": 90
    },
    "steps": "Обжарить говядину кубиками, добавить лук и перец, томатную пасту и муку, залить водой и тушить 1,5 часа. Подать с отварными макаронами.",
-   "steps_en": "Brown the diced beef, add onion and pepper, then tomato paste and flour. Cover with water and stew for 1.5 hours. Serve with boiled pasta."
+   "steps_en": "Brown the diced beef, add onion and pepper, then tomato paste and flour. Cover with water and stew for 1.5 hours. Serve with boiled pasta.",
+   "emoji": "🍝"
   },
   {
    "id": "baked_chicken_veg",
@@ -720,7 +746,8 @@
     "oil": 10
    },
    "steps": "Натереть курицу чесноком и солью. Выложить на противень с нарезанными овощами, сбрызнуть маслом и запекать 45–50 минут при 200 °C.",
-   "steps_en": "Rub the chicken with garlic and salt. Place on a baking tray with the chopped vegetables, drizzle with oil and roast for 45–50 minutes at 200 °C (400 °F)."
+   "steps_en": "Rub the chicken with garlic and salt. Place on a baking tray with the chopped vegetables, drizzle with oil and roast for 45–50 minutes at 200 °C (400 °F).",
+   "emoji": "🍗"
   },
   {
    "id": "chicken_rice_veg",
@@ -747,7 +774,8 @@
     "oil": 10
    },
    "steps": "Обжарить филе кусочками, добавить овощи, затем рис, залить водой (1:2) и тушить под крышкой 20 минут.",
-   "steps_en": "Brown the chicken pieces, add the vegetables and then the rice, cover with water (1:2) and cook covered for 20 minutes."
+   "steps_en": "Brown the chicken pieces, add the vegetables and then the rice, cover with water (1:2) and cook covered for 20 minutes.",
+   "emoji": "🍛"
   },
   {
    "id": "braised_cabbage_chicken",
@@ -773,7 +801,8 @@
     "oil": 10
    },
    "steps": "Обжарить курицу, добавить лук, морковь и нашинкованную капусту, томатную пасту и немного воды. Тушить 35–40 минут.",
-   "steps_en": "Brown the chicken, add onion, carrot and shredded cabbage, tomato paste and a little water. Stew for 35–40 minutes."
+   "steps_en": "Brown the chicken, add onion, carrot and shredded cabbage, tomato paste and a little water. Stew for 35–40 minutes.",
+   "emoji": "🥬"
   },
   {
    "id": "baked_fish_potato",
@@ -799,7 +828,8 @@
     "greens": 3
    },
    "steps": "Картофель нарезать тонко, выложить в форму, сверху лук и рыбу. Смазать сметаной, запекать 35 минут при 190 °C.",
-   "steps_en": "Slice the potatoes thinly and lay them in a baking dish, top with onion and fish. Spread with sour cream and bake for 35 minutes at 190 °C (375 °F)."
+   "steps_en": "Slice the potatoes thinly and lay them in a baking dish, top with onion and fish. Spread with sour cream and bake for 35 minutes at 190 °C (375 °F).",
+   "emoji": "🐟"
   },
   {
    "id": "fish_rice",
@@ -828,7 +858,8 @@
     "oil": 10
    },
    "steps": "Обжарить лук и морковь, добавить томатную пасту и немного воды, выложить рыбу и тушить 15 минут. Подать с отварным рисом.",
-   "steps_en": "Fry the onion and carrot, add tomato paste and a little water, lay the fish on top and stew for 15 minutes. Serve with boiled rice."
+   "steps_en": "Fry the onion and carrot, add tomato paste and a little water, lay the fish on top and stew for 15 minutes. Serve with boiled rice.",
+   "emoji": "🐟"
   },
   {
    "id": "pork_potato_stew",
@@ -854,7 +885,8 @@
     "oil": 5
    },
    "steps": "Обжарить свинину, добавить лук и морковь, затем картофель. Залить водой наполовину и тушить 45 минут.",
-   "steps_en": "Brown the pork, add onion and carrot, then the potatoes. Half-cover with water and stew for 45 minutes."
+   "steps_en": "Brown the pork, add onion and carrot, then the potatoes. Half-cover with water and stew for 45 minutes.",
+   "emoji": "🥘"
   },
   {
    "id": "veg_stew",
@@ -880,7 +912,8 @@
     "garlic": 5
    },
    "steps": "Обжарить лук и морковь, добавить картофель, через 10 минут — кабачки, перец и помидоры. Тушить под крышкой 25 минут, в конце добавить чеснок.",
-   "steps_en": "Fry the onion and carrot, add the potatoes; after 10 minutes add zucchini, pepper and tomatoes. Stew covered for 25 minutes and add garlic at the end."
+   "steps_en": "Fry the onion and carrot, add the potatoes; after 10 minutes add zucchini, pepper and tomatoes. Stew covered for 25 minutes and add garlic at the end.",
+   "emoji": "🥘"
   },
   {
    "id": "pasta_tomato",
@@ -907,7 +940,8 @@
     "cheese": 20
    },
    "steps": "Обжарить лук и чеснок, добавить томаты и тушить 10 минут. Смешать с отварной пастой и посыпать тёртым сыром.",
-   "steps_en": "Fry the onion and garlic, add the tomatoes and simmer for 10 minutes. Toss with boiled pasta and sprinkle with grated cheese."
+   "steps_en": "Fry the onion and garlic, add the tomatoes and simmer for 10 minutes. Toss with boiled pasta and sprinkle with grated cheese.",
+   "emoji": "🍝"
   },
   {
    "id": "chickpea_stew",
@@ -935,7 +969,8 @@
     "rice": 60
    },
    "steps": "Нут замочить на ночь и отварить до мягкости. Обжарить лук, морковь и чеснок, добавить томаты и нут, тушить 20 минут. Подать с рисом.",
-   "steps_en": "Soak the chickpeas overnight and boil until soft. Fry the onion, carrot and garlic, add the tomatoes and chickpeas and simmer for 20 minutes. Serve with rice."
+   "steps_en": "Soak the chickpeas overnight and boil until soft. Fry the onion, carrot and garlic, add the tomatoes and chickpeas and simmer for 20 minutes. Serve with rice.",
+   "emoji": "🥘"
   },
   {
    "id": "fried_potato_mushrooms",
@@ -959,7 +994,8 @@
     "greens": 3
    },
    "steps": "Обжарить картофель соломкой до корочки. Отдельно обжарить грибы с луком, смешать и посыпать зеленью.",
-   "steps_en": "Fry the potatoes cut into strips until crisp. Separately fry the mushrooms with onion, mix together and sprinkle with herbs."
+   "steps_en": "Fry the potatoes cut into strips until crisp. Separately fry the mushrooms with onion, mix together and sprinkle with herbs.",
+   "emoji": "🥔"
   },
   {
    "id": "draniki",
@@ -987,7 +1023,8 @@
     "sour_cream": 40
    },
    "steps": "Натереть картофель и лук, отжать, смешать с яйцом и мукой. Жарить небольшие оладьи по 3–4 минуты с каждой стороны.",
-   "steps_en": "Grate the potatoes and onion, squeeze out the liquid, mix with the egg and flour. Fry small pancakes for 3–4 minutes on each side. Serve with sour cream."
+   "steps_en": "Grate the potatoes and onion, squeeze out the liquid, mix with the egg and flour. Fry small pancakes for 3–4 minutes on each side. Serve with sour cream.",
+   "emoji": "🥔"
   },
   {
    "id": "zucchini_fritters",
@@ -1016,7 +1053,8 @@
     "bread": 40
    },
    "steps": "Натереть кабачки, отжать, смешать с яйцом, мукой и чесноком. Жарить оладьи на масле по 3 минуты с каждой стороны.",
-   "steps_en": "Grate the zucchini, squeeze out the liquid, mix with egg, flour and garlic. Fry fritters in oil for 3 minutes on each side. Serve with sour cream and bread."
+   "steps_en": "Grate the zucchini, squeeze out the liquid, mix with egg, flour and garlic. Fry fritters in oil for 3 minutes on each side. Serve with sour cream and bread.",
+   "emoji": "🥒"
   },
   {
    "id": "tvorog_casserole",
@@ -1044,7 +1082,8 @@
     "butter": 5
    },
    "steps": "Смешать творог, яйца, сахар и муку, выложить в смазанную маслом форму. Запекать 35 минут при 180 °C, подать со сметаной.",
-   "steps_en": "Mix the quark, eggs, sugar and flour and spread in a buttered dish. Bake for 35 minutes at 180 °C (350 °F) and serve with sour cream."
+   "steps_en": "Mix the quark, eggs, sugar and flour and spread in a buttered dish. Bake for 35 minutes at 180 °C (350 °F) and serve with sour cream.",
+   "emoji": "🍰"
   },
   {
    "id": "shurpa",
@@ -1073,7 +1112,8 @@
     "greens": 3
    },
    "steps": "Нут замочить на ночь. Баранину залить холодной водой, довести до кипения, снять пену, добавить нут и варить 1 час. Добавить крупно нарезанные морковь, лук, картофель, перец и помидоры, варить ещё 30 минут. Подавать с зеленью.",
-   "steps_en": "Soak the chickpeas overnight. Cover the lamb with cold water, bring to a boil, skim, add the chickpeas and simmer for 1 hour. Add coarsely chopped carrot, onion, potatoes, pepper and tomatoes and cook for another 30 minutes. Serve with herbs."
+   "steps_en": "Soak the chickpeas overnight. Cover the lamb with cold water, bring to a boil, skim, add the chickpeas and simmer for 1 hour. Add coarsely chopped carrot, onion, potatoes, pepper and tomatoes and cook for another 30 minutes. Serve with herbs.",
+   "emoji": "🍲"
   },
   {
    "id": "mastava",
@@ -1104,7 +1144,8 @@
     "greens": 3
    },
    "steps": "Обжарить мелко нарезанное мясо, лук и морковь, добавить томатную пасту. Залить водой, варить 20 минут, добавить картофель и промытый рис, варить ещё 20 минут. Подавать с кефиром (катыком) и зеленью.",
-   "steps_en": "Fry the finely chopped meat, onion and carrot, add the tomato paste. Cover with water and simmer for 20 minutes, add the potatoes and rinsed rice and cook for another 20 minutes. Serve with kefir (qatiq) and herbs."
+   "steps_en": "Fry the finely chopped meat, onion and carrot, add the tomato paste. Cover with water and simmer for 20 minutes, add the potatoes and rinsed rice and cook for another 20 minutes. Serve with kefir (qatiq) and herbs.",
+   "emoji": "🍲"
   },
   {
    "id": "mashkhurda",
@@ -1133,7 +1174,8 @@
     "greens": 3
    },
    "steps": "Маш промыть и варить 30 минут. Отдельно обжарить мясо, лук и морковь с томатной пастой, переложить к машу. Добавить картофель и рис, варить до готовности 20–25 минут.",
-   "steps_en": "Rinse the mung beans and simmer for 30 minutes. Separately fry the meat, onion and carrot with tomato paste and add to the beans. Add potatoes and rice and cook until tender, 20–25 minutes."
+   "steps_en": "Rinse the mung beans and simmer for 30 minutes. Separately fry the meat, onion and carrot with tomato paste and add to the beans. Add potatoes and rice and cook until tender, 20–25 minutes.",
+   "emoji": "🍲"
   },
   {
    "id": "dimlama",
@@ -1161,7 +1203,8 @@
     "oil": 10
    },
    "steps": "В казан на масло выложить слоями мясо, лук, морковь, картофель, перец, помидоры и чеснок, сверху — крупные листья капусты. Плотно закрыть крышкой и томить на слабом огне 1–1,5 часа без воды.",
-   "steps_en": "Layer the meat, onion, carrot, potatoes, pepper, tomatoes and garlic in an oiled pot and cover with large cabbage leaves. Close the lid tightly and braise on low heat for 1–1.5 hours without water."
+   "steps_en": "Layer the meat, onion, carrot, potatoes, pepper, tomatoes and garlic in an oiled pot and cover with large cabbage leaves. Close the lid tightly and braise on low heat for 1–1.5 hours without water.",
+   "emoji": "🥘"
   },
   {
    "id": "manti_meat",
@@ -1187,7 +1230,8 @@
     "sour_cream": 30
    },
    "steps": "Замесить тугое тесто из муки, яйца, воды и соли, дать отдохнуть 30 минут. Мясо и лук мелко нарубить, посолить, поперчить. Раскатать тесто, нарезать квадраты, выложить начинку и защипнуть. Готовить в мантоварке 40–45 минут. Подавать со сметаной.",
-   "steps_en": "Knead a firm dough from flour, egg, water and salt and let it rest for 30 minutes. Finely chop the meat and onion and season. Roll out the dough, cut squares, add the filling and pinch closed. Steam for 40–45 minutes and serve with sour cream."
+   "steps_en": "Knead a firm dough from flour, egg, water and salt and let it rest for 30 minutes. Finely chop the meat and onion and season. Roll out the dough, cut squares, add the filling and pinch closed. Steam for 40–45 minutes and serve with sour cream.",
+   "emoji": "🥟"
   },
   {
    "id": "manti_pumpkin",
@@ -1213,7 +1257,8 @@
     "sour_cream": 30
    },
    "steps": "Замесить тесто и дать отдохнуть. Тыкву нарезать мелким кубиком, смешать с рубленым луком, маслом, солью и щепоткой сахара. Сформировать манты и готовить на пару 40 минут. Подавать со сметаной.",
-   "steps_en": "Make the dough and let it rest. Dice the pumpkin finely and mix with chopped onion, oil, salt and a pinch of sugar. Shape the manti and steam for 40 minutes. Serve with sour cream."
+   "steps_en": "Make the dough and let it rest. Dice the pumpkin finely and mix with chopped onion, oil, salt and a pinch of sugar. Shape the manti and steam for 40 minutes. Serve with sour cream.",
+   "emoji": "🥟"
   },
   {
    "id": "chuchvara",
@@ -1240,7 +1285,8 @@
     "greens": 3
    },
    "steps": "Замесить тесто из муки, яйца и воды. Фарш смешать с мелко нарезанным луком, солью и перцем. Раскатать тесто тонко, нарезать квадратики 3×3 см, выложить фарш и слепить. Варить в подсоленной воде или бульоне 7–8 минут после всплытия. Подавать со сметаной и зеленью.",
-   "steps_en": "Knead a dough from flour, egg and water. Mix the ground beef with finely chopped onion, salt and pepper. Roll the dough thin, cut 3×3 cm squares, add filling and seal. Boil in salted water or broth for 7–8 minutes after they float. Serve with sour cream and herbs."
+   "steps_en": "Knead a dough from flour, egg and water. Mix the ground beef with finely chopped onion, salt and pepper. Roll the dough thin, cut 3×3 cm squares, add filling and seal. Boil in salted water or broth for 7–8 minutes after they float. Serve with sour cream and herbs.",
+   "emoji": "🥟"
   },
   {
    "id": "beshbarmak",
@@ -1263,7 +1309,8 @@
     "potato": 80
    },
    "steps": "Отварить мясо 2 часа, в конце добавить картофель. Замесить тесто, тонко раскатать и нарезать ромбами, отварить в бульоне 3–4 минуты. Лук нарезать кольцами и залить горячим бульоном. Выложить тесто, сверху мясо и лук. Бульон (сорпа) подать отдельно.",
-   "steps_en": "Simmer the meat for 2 hours, adding the potatoes at the end. Knead a dough, roll it thin, cut into diamonds and boil in the broth for 3–4 minutes. Slice the onion into rings and pour hot broth over it. Serve the dough topped with meat and onion, with the broth (sorpa) on the side."
+   "steps_en": "Simmer the meat for 2 hours, adding the potatoes at the end. Knead a dough, roll it thin, cut into diamonds and boil in the broth for 3–4 minutes. Slice the onion into rings and pour hot broth over it. Serve the dough topped with meat and onion, with the broth (sorpa) on the side.",
+   "emoji": "🍖"
   }
  ]
 }

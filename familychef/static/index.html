@@ -2,119 +2,140 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>FamilyChef</title>
   <meta name="description" content="Weekly family meal plan at local prices, ingredient amounts and a shopping list. Меню на неделю для семьи по местным ценам.">
-  <meta name="theme-color" content="#2f7d4f">
+  <meta name="theme-color" content="#1f6b43">
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="preload" href="/static/fonts/manrope-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<header class="top">
+<header class="hero">
   <div class="wrap">
     <div class="top-row">
-      <h1><img src="/static/icon.svg" alt="" width="28" height="28"> FamilyChef</h1>
+      <a class="brand" href="/"><img src="/static/icon.svg" alt="" width="36" height="36"><span>FamilyChef</span></a>
       <div class="top-actions">
         <button type="button" id="accountBtn" class="account-btn" hidden></button>
         <select id="langSelect" class="lang" aria-label="Language"></select>
       </div>
     </div>
-    <p class="sub" data-i18n="app.tagline"></p>
+    <p class="tagline" data-i18n="app.tagline"></p>
+    <div class="hero-food" aria-hidden="true">🥕 🍅 🥔 🧅 🍗 🥦 🍋 🧄 🥬 🍚</div>
   </div>
 </header>
 
 <main class="wrap">
   <section id="authGate" class="card auth-box" hidden></section>
-  <form id="planForm" class="card" autocomplete="off">
-    <div class="grid2">
-      <label><span data-i18n="form.country"></span>
-        <select id="region" name="region"></select>
-      </label>
-      <label><span data-i18n="form.city"></span>
-        <select id="city" name="city"></select>
-      </label>
-    </div>
 
-    <div class="grid3">
-      <label><span data-i18n="form.adults"></span>
-        <input id="adults" type="number" min="0" max="20" value="2" inputmode="numeric">
-      </label>
-      <label><span data-i18n="form.children"></span>
-        <input id="children" type="number" min="0" max="20" value="1" inputmode="numeric">
-      </label>
-      <label><span id="budgetLabel"></span>
-        <input id="budget" type="number" min="1" step="any" required inputmode="decimal">
-      </label>
-    </div>
-    <p class="hint" id="budgetHint"></p>
-
-    <fieldset>
-      <legend data-i18n="form.meals"></legend>
-      <div class="chips" id="meals">
-        <label class="chip"><input type="checkbox" value="breakfast" checked> <span data-i18n="slot.breakfast"></span></label>
-        <label class="chip"><input type="checkbox" value="lunch" checked> <span data-i18n="slot.lunch"></span></label>
-        <label class="chip"><input type="checkbox" value="dinner" checked> <span data-i18n="slot.dinner"></span></label>
+  <form id="planForm" class="card form-card" autocomplete="off">
+    <section class="step">
+      <h2 class="step-title"><span class="step-num">1</span><span data-i18n="form.stepFamily"></span></h2>
+      <div class="grid2">
+        <label class="field"><span data-i18n="form.country"></span>
+          <select id="region" name="region"></select>
+        </label>
+        <label class="field"><span data-i18n="form.city"></span>
+          <select id="city" name="city"></select>
+        </label>
       </div>
-    </fieldset>
-
-    <fieldset>
-      <legend data-i18n="form.diet"></legend>
-      <div class="chips" id="diets">
-        <label class="chip"><input type="checkbox" value="vegetarian"> <span data-i18n="diet.vegetarian"></span></label>
-        <label class="chip"><input type="checkbox" value="vegan"> <span data-i18n="diet.vegan"></span></label>
-        <label class="chip"><input type="checkbox" value="pescatarian"> <span data-i18n="diet.pescatarian"></span></label>
-        <label class="chip"><input type="checkbox" value="no_pork"> <span data-i18n="diet.no_pork"></span></label>
-        <label class="chip"><input type="checkbox" value="no_fish"> <span data-i18n="diet.no_fish"></span></label>
-        <label class="chip"><input type="checkbox" value="gluten_free"> <span data-i18n="diet.gluten_free"></span></label>
-        <label class="chip"><input type="checkbox" value="lactose_free"> <span data-i18n="diet.lactose_free"></span></label>
+      <div class="grid3">
+        <div class="field">
+          <span data-i18n="form.adults"></span>
+          <div class="stepper">
+            <button type="button" data-step="adults:-1" aria-label="−">−</button>
+            <input id="adults" type="number" min="0" max="20" value="2" inputmode="numeric">
+            <button type="button" data-step="adults:1" aria-label="+">+</button>
+          </div>
+        </div>
+        <div class="field">
+          <span data-i18n="form.children"></span>
+          <div class="stepper">
+            <button type="button" data-step="children:-1" aria-label="−">−</button>
+            <input id="children" type="number" min="0" max="20" value="1" inputmode="numeric">
+            <button type="button" data-step="children:1" aria-label="+">+</button>
+          </div>
+        </div>
+        <label class="field"><span id="budgetLabel"></span>
+          <input id="budget" type="number" min="1" step="any" required inputmode="decimal">
+        </label>
       </div>
-    </fieldset>
+      <p class="hint" id="budgetHint"></p>
+    </section>
 
-    <fieldset>
-      <legend data-i18n="form.favorites"></legend>
-      <div class="chips" id="favorites">
-        <label class="chip"><input type="checkbox" value="quick"> <span data-i18n="fav.quick"></span></label>
-        <label class="chip"><input type="checkbox" value="soup"> <span data-i18n="fav.soup"></span></label>
-        <label class="chip"><input type="checkbox" value="fish"> <span data-i18n="fav.fish"></span></label>
-        <label class="chip"><input type="checkbox" value="kids"> <span data-i18n="fav.kids"></span></label>
-      </div>
-    </fieldset>
+    <section class="step">
+      <h2 class="step-title"><span class="step-num">2</span><span data-i18n="form.stepFood"></span></h2>
+      <fieldset>
+        <legend data-i18n="form.meals"></legend>
+        <div class="chips" id="meals">
+          <label class="chip"><input type="checkbox" value="breakfast" checked><span class="ico">☀️</span><span data-i18n="slot.breakfast"></span></label>
+          <label class="chip"><input type="checkbox" value="lunch" checked><span class="ico">🍲</span><span data-i18n="slot.lunch"></span></label>
+          <label class="chip"><input type="checkbox" value="dinner" checked><span class="ico">🌙</span><span data-i18n="slot.dinner"></span></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend data-i18n="form.diet"></legend>
+        <div class="chips" id="diets">
+          <label class="chip"><input type="checkbox" value="vegetarian"><span class="ico">🥦</span><span data-i18n="diet.vegetarian"></span></label>
+          <label class="chip"><input type="checkbox" value="vegan"><span class="ico">🌱</span><span data-i18n="diet.vegan"></span></label>
+          <label class="chip"><input type="checkbox" value="pescatarian"><span class="ico">🐟</span><span data-i18n="diet.pescatarian"></span></label>
+          <label class="chip"><input type="checkbox" value="no_pork"><span class="ico">🚫</span><span data-i18n="diet.no_pork"></span></label>
+          <label class="chip"><input type="checkbox" value="no_fish"><span class="ico">🚫</span><span data-i18n="diet.no_fish"></span></label>
+          <label class="chip"><input type="checkbox" value="gluten_free"><span class="ico">🌾</span><span data-i18n="diet.gluten_free"></span></label>
+          <label class="chip"><input type="checkbox" value="lactose_free"><span class="ico">🥛</span><span data-i18n="diet.lactose_free"></span></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend data-i18n="form.favorites"></legend>
+        <div class="chips" id="favorites">
+          <label class="chip"><input type="checkbox" value="quick"><span class="ico">⚡</span><span data-i18n="fav.quick"></span></label>
+          <label class="chip"><input type="checkbox" value="soup"><span class="ico">🍲</span><span data-i18n="fav.soup"></span></label>
+          <label class="chip"><input type="checkbox" value="fish"><span class="ico">🐟</span><span data-i18n="fav.fish"></span></label>
+          <label class="chip"><input type="checkbox" value="kids"><span class="ico">🧒</span><span data-i18n="fav.kids"></span></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend data-i18n="form.exclude"></legend>
+        <div class="row add-row">
+          <select id="excludeSelect"></select>
+          <button type="button" class="btn ghost" id="excludeAdd" data-i18n="form.add"></button>
+        </div>
+        <div class="chips removable" id="excludeList"></div>
+      </fieldset>
+      <fieldset id="bannedBox" hidden>
+        <legend data-i18n="form.bannedDishes"></legend>
+        <div class="chips removable" id="bannedList"></div>
+      </fieldset>
+    </section>
 
-    <fieldset>
-      <legend data-i18n="form.exclude"></legend>
-      <div class="row">
-        <select id="excludeSelect"></select>
-        <button type="button" class="btn ghost" id="excludeAdd" data-i18n="form.add"></button>
-      </div>
-      <div class="chips removable" id="excludeList"></div>
-    </fieldset>
-
-    <fieldset id="bannedBox" hidden>
-      <legend data-i18n="form.bannedDishes"></legend>
-      <div class="chips removable" id="bannedList"></div>
-    </fieldset>
-
-    <fieldset>
-      <legend data-i18n="form.pantry"></legend>
+    <section class="step">
+      <h2 class="step-title"><span class="step-num">3</span><span data-i18n="form.pantry"></span></h2>
+      <p class="hint" data-i18n="form.pantryHint"></p>
       <div id="pantryRows"></div>
-      <button type="button" class="btn ghost" id="pantryAdd" data-i18n="form.pantryAdd"></button>
-    </fieldset>
+      <button type="button" class="btn ghost small-btn" id="pantryAdd" data-i18n="form.pantryAdd"></button>
+    </section>
 
-    <button type="submit" class="btn primary big" id="submitBtn" data-i18n="form.submit"></button>
-    <div class="plan-hint" id="planHint" hidden></div>
-    <p class="error" id="formError" role="alert"></p>
+    <div class="submit-bar">
+      <button type="submit" class="btn primary big" id="submitBtn" data-i18n="form.submit"></button>
+      <div class="plan-hint" id="planHint" hidden></div>
+      <p class="error" id="formError" role="alert"></p>
+    </div>
   </form>
 
   <section id="result" hidden>
     <div class="card summary" id="summary"></div>
     <div id="warnings"></div>
 
-    <h2 id="menuTitle" data-i18n="menu.title"></h2>
+    <div class="section-head">
+      <h2 id="menuTitle" data-i18n="menu.title"></h2>
+      <span class="swipe-hint" data-i18n="menu.swipe"></span>
+    </div>
     <div class="week" id="week"></div>
 
-    <div class="list-head">
+    <div class="section-head list-head">
       <h2 data-i18n="list.title"></h2>
       <div class="actions">
         <button class="btn ghost" id="shareBtn" type="button" data-i18n="list.share"></button>
@@ -123,41 +144,43 @@
     </div>
     <p class="hint" data-i18n="list.hint"></p>
     <div id="shopping"></div>
-    <div class="row sticky-actions">
+    <div class="row result-actions">
       <button class="btn primary" id="recalcBtn" type="button" disabled data-i18n="list.recalc"></button>
       <button class="btn ghost" id="resetPricesBtn" type="button" data-i18n="list.resetPrices"></button>
       <button class="btn ghost" id="anotherBtn" type="button" data-i18n="list.another"></button>
     </div>
 
     <div class="grid2">
-      <div class="card" id="pantryUsedCard"></div>
-      <div class="card" id="leftoversCard"></div>
+      <div class="card soft" id="pantryUsedCard"></div>
+      <div class="card soft" id="leftoversCard"></div>
     </div>
     <ul class="notes" id="notes"></ul>
   </section>
 </main>
 
-<dialog id="recipeDialog">
+<dialog id="recipeDialog" class="sheet">
   <article id="recipeBody"></article>
-  <form method="dialog"><button class="btn primary" data-i18n="recipe.close"></button></form>
+  <form method="dialog"><button class="btn primary big" data-i18n="recipe.close"></button></form>
 </dialog>
 
-<dialog id="loginDialog" class="auth-dialog">
+<dialog id="loginDialog" class="auth-dialog sheet">
   <form method="dialog" class="close-x"><button aria-label="Close">×</button></form>
   <div id="loginBody" class="auth-box"></div>
 </dialog>
 
-<dialog id="paywallDialog" class="auth-dialog">
+<dialog id="paywallDialog" class="auth-dialog sheet">
   <form method="dialog" class="close-x"><button aria-label="Close">×</button></form>
   <div id="paywallBody"></div>
 </dialog>
 
-<dialog id="accountDialog" class="auth-dialog">
+<dialog id="accountDialog" class="auth-dialog sheet">
   <form method="dialog" class="close-x"><button aria-label="Close">×</button></form>
   <div id="accountBody"></div>
 </dialog>
 
-<footer class="wrap foot"><span data-i18n="footer.text"></span> · <a href="/privacy" data-i18n="footer.privacy"></a></footer>
+<footer class="foot">
+  <div class="wrap"><span data-i18n="footer.text"></span> · <a href="/privacy" data-i18n="footer.privacy"></a></div>
+</footer>
 <script src="/static/i18n.js"></script>
 <script src="/static/auth.js"></script>
 <script src="/static/plus.js"></script>

@@ -443,6 +443,7 @@ def _render(catalog: Catalog, req: PlanRequest, prob: _Problem, st: _State) -> d
                 "slot": slot,
                 "slot_name": SLOT_NAMES[lang][slot],
                 "recipe_id": r.id,
+                "emoji": r.emoji,
                 "name": r.name(lang),
                 "minutes": r.minutes,
                 "cost": _money(meal_cost(r), cur),
@@ -454,6 +455,7 @@ def _render(catalog: Catalog, req: PlanRequest, prob: _Problem, st: _State) -> d
     for r in used.values():
         recipes[r.id] = {
             "id": r.id,
+            "emoji": r.emoji,
             "name": r.name(lang),
             "minutes": r.minutes,
             "tags": sorted(r.tags),
