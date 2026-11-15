@@ -19,6 +19,8 @@ const state = {
   ingredients: [],
   ingById: {},
   exclude: [],
+  banned: [],   // [{id, name}] — dishes the family doesn't want suggested
+  avoid: [],    // [{day, slot, recipe}] — replaced dishes, not to be put back into the same cell
   plan: null,
   seed: 0,
   lastRequest: null,
@@ -101,6 +103,13 @@ function updateBudgetHint() {
   if (!$("#budget").value && hint > 0) $("#budget").value = Math.round(hint);
 }
 
+function renderBanned() {
+  $("#bannedBox").hidden = !state.banned.length;
+  $("#bannedList").innerHTML = state.banned.map(b =>
+    `<span class="chip">${esc(b.name)}<button type="button" data-id="${b.id}" aria-label="${esc(t("form.remove"))}">×</button></span>`
+  ).join("");
+}
+
 function renderExclude() {
   $("#excludeList").innerHTML = state.exclude.map(id =>
     `<span class="chip">${esc(state.ingById[id]?.name || id)}<button type="button" data-id="${id}" aria-label="${esc(t("form.remove"))}">×</button></span>`
@@ -139,6 +148,8 @@ function readForm() {
     diets: checked("diets"),
     favorites: checked("favorites"),
     exclude: [...state.exclude],
+    exclude_recipes: state.banned.map(b => b.id),
+    banned: state.banned,
     pantry,
   };
 }
@@ -153,10 +164,12 @@ function restoreForm(f) {
   }
   state.exclude = f.exclude || [];
   renderExclude();
+  state.banned = f.banned || [];
+  renderBanned();
   (f.pantry || []).forEach(addPantryRow);
 }
 
-async function submitPlan(extra = {}) {
+async function submitPlan(extra = {}, { scroll = true } = {}) {
   const form = readForm();
   $("#formError").textContent = "";
   if (!(form.budget > 0)) { $("#formError").textContent = t("err.budget"); return; }
@@ -172,7 +185,7 @@ async function submitPlan(extra = {}) {
     saveSettings();
     renderPlan();
     $("#result").hidden = false;
-    $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
+    if (scroll) $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) {
     if (e.message === "login_required") { openSignIn(); return; }
     $("#formError").textContent = e.message;
@@ -200,7 +213,7 @@ function renderPlan() {
   $("#week").innerHTML = p.days.map(d => `
     <div class="day"><h3>${esc(d.name)}</h3>
       ${d.meals.map(m => `
-        <button type="button" class="meal" data-recipe="${m.recipe_id}">
+        <button type="button" class="meal" data-recipe="${m.recipe_id}" data-day="${d.day}" data-slot="${m.slot}">
           <span class="slot">${esc(m.slot_name)}</span>
           <span class="name">${esc(m.name)}</span>
           <span class="meta">${esc(t("menu.min", { n: m.minutes }))} · ≈ ${money(m.cost)}</span>
@@ -238,15 +251,46 @@ function renderPlan() {
   $("#notes").innerHTML = p.notes.map(n => `<li>${esc(n)}</li>`).join("");
 }
 
-function showRecipe(id) {
+function showRecipe(id, day, slot) {
   const r = state.plan.recipes[id];
   if (!r) return;
   $("#recipeBody").innerHTML = `
     <h3>${esc(r.name)}</h3>
+    ${day ? `<div class="row recipe-actions">
+      <button type="button" class="btn ghost" id="replaceBtn">↻ ${esc(t("menu.replace"))}</button>
+      <button type="button" class="btn ghost" id="banBtn">⊘ ${esc(t("menu.ban"))}</button>
+    </div>` : ""}
     <p class="hint">${esc(t("recipe.meta", { min: r.minutes, portions: r.portions, cost: money(r.cost_per_cooking) }))}</p>
     <table>${r.ingredients.map(i => `<tr><td>${esc(i.name)}</td><td>${qty(i.quantity, i.unit)}</td></tr>`).join("")}</table>
     <p>${esc(r.steps)}</p>`;
   $("#recipeDialog").showModal();
+  if (!day) return;
+  $("#replaceBtn").addEventListener("click", () => replaceMeal(+day, slot, id, false));
+  $("#banBtn").addEventListener("click", () => replaceMeal(+day, slot, id, true));
+}
+
+// Replace one dish: every other cell stays as it is, this cell gets a new dish.
+async function replaceMeal(day, slot, recipeId, ban) {
+  const name = state.plan.recipes[recipeId]?.name || recipeId;
+  $("#recipeDialog").close();
+  if (ban && !state.banned.some(b => b.id === recipeId)) {
+    state.banned.push({ id: recipeId, name });
+    renderBanned();
+  }
+  state.avoid.push({ day, slot, recipe: recipeId });
+  const fixed = [];
+  for (const d of state.plan.days) {
+    for (const m of d.meals) {
+      if (d.day === day && m.slot === slot) continue;
+      if (ban && m.recipe_id === recipeId) continue;  // banned everywhere: replace other cells too
+      fixed.push({ day: d.day, slot: m.slot, recipe: m.recipe_id });
+    }
+  }
+  const cell = () => $(`.meal[data-day="${day}"][data-slot="${slot}"]`);
+  cell()?.classList.add("busy");
+  await submitPlan({ fixed, avoid: state.avoid }, { scroll: false });
+  const el = cell();
+  if (el) { el.classList.add("changed"); setTimeout(() => el.classList.remove("changed"), 2000); }
 }
 
 function shoppingText() {
@@ -280,11 +324,15 @@ function wire() {
     if (id) { state.exclude = state.exclude.filter(x => x !== id); renderExclude(); }
   });
   $("#pantryAdd").addEventListener("click", () => addPantryRow());
-  $("#planForm").addEventListener("submit", e => { e.preventDefault(); state.seed = 0; submitPlan(); });
+  $("#planForm").addEventListener("submit", e => { e.preventDefault(); state.seed = 0; state.avoid = []; submitPlan(); });
+  $("#bannedList").addEventListener("click", e => {
+    const id = e.target.dataset?.id;
+    if (id) { state.banned = state.banned.filter(b => b.id !== id); renderBanned(); store.set("form", readForm()); saveSettings(); }
+  });
 
   $("#week").addEventListener("click", e => {
     const b = e.target.closest(".meal");
-    if (b) showRecipe(b.dataset.recipe);
+    if (b) showRecipe(b.dataset.recipe, b.dataset.day, b.dataset.slot);
   });
 
   $("#shopping").addEventListener("change", e => {
@@ -308,7 +356,7 @@ function wire() {
   });
   $("#recalcBtn").addEventListener("click", () => submitPlan());
   $("#resetPricesBtn").addEventListener("click", () => { store.set(overridesKey(), {}); submitPlan(); });
-  $("#anotherBtn").addEventListener("click", () => { state.seed += 1; submitPlan(); });
+  $("#anotherBtn").addEventListener("click", () => { state.seed += 1; state.avoid = []; submitPlan(); });
   $("#printBtn").addEventListener("click", () => window.print());
   if (window.FamilyChefAndroid) $("#printBtn").hidden = true;  // в Android-приложении печати нет
   $("#shareBtn").addEventListener("click", async () => {

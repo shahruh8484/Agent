@@ -174,3 +174,9 @@ dialog td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 .plan-list small { color: var(--muted); }
 .acct-actions { justify-content: space-between; margin-top: 18px; }
 .btn.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+
+/* ---- replace dish ---- */
+.recipe-actions { margin: 4px 0 10px; gap: 8px; }
+.recipe-actions .btn { padding: 7px 12px; font-size: .9rem; }
+.meal.busy { opacity: .45; }
+.meal.changed { background: var(--accent-soft); border-radius: 8px; transition: background .4s; }

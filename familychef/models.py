@@ -21,6 +21,20 @@ class PriceOverride(BaseModel):
     pack_label: str | None = None
 
 
+class MealRef(BaseModel):
+    """A dish in a particular cell of the menu: day (1-based) and meal."""
+    day: int = Field(ge=1, le=14)
+    slot: str
+    recipe: str
+
+    @field_validator("slot")
+    @classmethod
+    def _check_slot(cls, v: str) -> str:
+        if v not in SLOTS:
+            raise ValueError(f"slot должен быть из {SLOTS}")
+        return v
+
+
 class PlanRequest(BaseModel):
     region: str = "RU"
     city: str | None = None
@@ -36,6 +50,14 @@ class PlanRequest(BaseModel):
     days: int = Field(default=7, ge=1, le=14)
     lang: str = "ru"
     seed: int = 0
+    # Replacing one dish: keep these cells as they are...
+    fixed: list[MealRef] = Field(default_factory=list, max_length=60)
+    # ...and do not put these dishes back into these cells.
+    avoid: list[MealRef] = Field(default_factory=list, max_length=200)
+    # "Don't suggest this dish again".
+    exclude_recipes: list[str] = Field(default_factory=list, max_length=200)
+    # Month for seasonal prices (1–12); default: current month.
+    month: int | None = Field(default=None, ge=1, le=12)
 
     @field_validator("meals")
     @classmethod

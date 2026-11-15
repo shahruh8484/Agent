@@ -150,3 +150,55 @@ def test_pack_label_localization():
     assert pack_label(p, "g", "ru", "en") == "1,36 кг"
     assert pack_label(Price(930, "930 мл", 95), "ml", "en", "ru") == "930 ml"
     assert pack_label(Price(10, "десяток", 110), "pcs", "en", "ru") == "10 pcs"
+
+
+def cells(p):
+    return {(d["day"], m["slot"]): m["recipe_id"] for d in p["days"] for m in d["meals"]}
+
+
+def test_replace_one_dish_keeps_the_rest():
+    base = plan(adults=2)
+    before = cells(base)
+    target = (3, "dinner")
+    fixed = [{"day": d, "slot": s, "recipe": r} for (d, s), r in before.items() if (d, s) != target]
+    avoid = [{"day": 3, "slot": "dinner", "recipe": before[target]}]
+    after = cells(plan(adults=2, fixed=fixed, avoid=avoid))
+    assert after[target] != before[target]
+    assert {k: v for k, v in after.items() if k != target} == {k: v for k, v in before.items() if k != target}
+
+
+def test_replacing_twice_does_not_bring_back_the_first_dish():
+    before = cells(plan(adults=2))
+    target = (2, "lunch")
+    fixed = [{"day": d, "slot": s, "recipe": r} for (d, s), r in before.items() if (d, s) != target]
+    avoid = [{"day": 2, "slot": "lunch", "recipe": before[target]}]
+    second = cells(plan(adults=2, fixed=fixed, avoid=avoid))[target]
+    avoid.append({"day": 2, "slot": "lunch", "recipe": second})
+    third = cells(plan(adults=2, fixed=fixed, avoid=avoid))[target]
+    assert third not in (before[target], second)
+
+
+def test_excluded_recipes_never_appear():
+    first = plan(adults=2)
+    banned = sorted({m["recipe_id"] for d in first["days"] for m in d["meals"]})[:5]
+    again = plan(adults=2, exclude_recipes=banned)
+    assert not set(banned) & {m["recipe_id"] for d in again["days"] for m in d["meals"]}
+
+
+def test_seasonal_prices():
+    def price(p, ing):
+        return next(i["pack_price"] for c in p["shopping_list"] for i in c["items"] if i["id"] == ing)
+    from familychef.catalog import get_catalog
+    cat = get_catalog()
+    uz = cat.regions["UZ"]
+    assert cat.season_factor(uz, "tomato", uz.base_month) == 1.0
+    assert cat.season_factor(uz, "tomato", 8) < 0.5            # summer tomatoes
+    assert cat.season_factor(uz, "potato", 5) > 1.3            # potatoes before the new harvest
+    assert cat.season_factor(uz, "rice", 8) == 1.0             # staples are not seasonal
+    assert 0.75 < cat.season_factor(cat.regions["US"], "tomato", 8) < 1.0  # imports smooth it out
+    nov = plan(region="UZ", adults=2, month=11)
+    aug = plan(region="UZ", adults=2, month=8, price_overrides={"potato": {"price": 7777}})
+    assert aug["region"]["month"] == 8 and any("август" in n for n in aug["notes"])
+    if any(i["id"] == "potato" for c in aug["shopping_list"] for i in c["items"]):
+        assert price(aug, "potato") == 7777                    # the user's own price wins
+    assert aug["totals"]["cost"] <= nov["totals"]["cost"]

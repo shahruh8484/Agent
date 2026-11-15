@@ -96,7 +96,16 @@ class Region:
     name_en: str = ""
     price_basis_en: str = ""
     label_lang: str = "ru"  # language of pack labels in the price table
+    seasonality: str = ""  # profile name in data/seasonality.json
     prices: dict[str, Price] = field(default_factory=dict)
+
+    @property
+    def base_month(self) -> int:
+        """Month the price table was collected in (from price_date "YYYY-MM")."""
+        try:
+            return int(self.price_date.split("-")[1])
+        except (IndexError, ValueError):
+            return 1
 
     def name_for(self, lang: str) -> str:
         return self.name_en if lang == "en" and self.name_en else self.name
@@ -116,6 +125,17 @@ class Catalog:
     ingredients: dict[str, Ingredient]
     recipes: dict[str, Recipe]
     regions: dict[str, Region]
+    # ingredient -> profile -> 12 monthly factors
+    seasonal: dict[str, dict[str, list[float]]] = field(default_factory=dict)
+
+    def season_factor(self, region: Region, ingredient: str, month: int | None) -> float:
+        """Price multiplier for `month` relative to the month of the region's price table."""
+        if not month or not region.seasonality:
+            return 1.0
+        curve = self.seasonal.get(ingredient, {}).get(region.seasonality)
+        if not curve:
+            return 1.0
+        return curve[month - 1] / curve[region.base_month - 1]
 
     def region(self, code: str) -> Region:
         try:
@@ -169,11 +189,29 @@ def load_catalog(data_dir: Path = DATA_DIR) -> Catalog:
             budget_hint=float(raw.get("budget_hint_per_adult_week", 0)),
             name_en=raw.get("name_en", ""), price_basis_en=raw.get("price_basis_en", ""),
             label_lang=raw.get("label_lang", raw.get("lang", "ru")),
+            seasonality=raw.get("seasonality", ""),
         )
         region.prices = _load_prices(data_dir / "prices" / f"{region.code}.csv", ingredients)
         regions[region.code] = region
 
-    return Catalog(ingredients=ingredients, recipes=recipes, regions=regions)
+    seasonal: dict[str, dict[str, list[float]]] = {}
+    season_file = data_dir / "seasonality.json"
+    if season_file.exists():
+        raw = _load_json(season_file)
+        for group, members in raw["groups"].items():
+            for ing in members:
+                if ing not in ingredients:
+                    raise CatalogError(f"seasonality.json: неизвестный продукт {ing}")
+                seasonal[ing] = {name: prof[group] for name, prof in raw["profiles"].items()}
+        for name, prof in raw["profiles"].items():
+            for group, curve in prof.items():
+                if len(curve) != 12 or min(curve) <= 0:
+                    raise CatalogError(f"seasonality.json: {name}/{group} — нужно 12 положительных чисел")
+    for r in regions.values():
+        if r.seasonality and r.seasonality not in {p for v in seasonal.values() for p in v}:
+            raise CatalogError(f"{r.code}: неизвестный сезонный профиль {r.seasonality}")
+
+    return Catalog(ingredients=ingredients, recipes=recipes, regions=regions, seasonal=seasonal)
 
 
 def _load_prices(path: Path, ingredients: dict[str, Ingredient]) -> dict[str, Price]:

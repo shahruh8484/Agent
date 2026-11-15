@@ -184,11 +184,17 @@ public class MainActivity extends ComponentActivity {
                             return;
                         } catch (Exception ignored) { }
                     }
-                    sendToPage("fcAndroidGoogleError", "failed");
+                    sendToPage("fcAndroidGoogleError", "failed|unexpected credential type");
                 }
                 @Override public void onError(GetCredentialException e) {
-                    sendToPage("fcAndroidGoogleError",
-                        e instanceof GetCredentialCancellationException ? "cancelled" : "failed");
+                    if (e instanceof GetCredentialCancellationException) {
+                        sendToPage("fcAndroidGoogleError", "cancelled");
+                        return;
+                    }
+                    // Short reason for the screen, e.g. "NoCredentialException: no Google account".
+                    String why = e.getClass().getSimpleName()
+                        + (e.getMessage() != null ? ": " + e.getMessage() : "");
+                    sendToPage("fcAndroidGoogleError", "failed|" + (why.length() > 160 ? why.substring(0, 160) : why));
                 }
             });
     }

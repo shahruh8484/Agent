@@ -19,6 +19,7 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from familychef.catalog import SLOTS, Catalog, Price, Recipe, Region, norm_lang
 from familychef.models import PlanRequest
@@ -81,11 +82,19 @@ MESSAGES = {
               "при бюджете {budget} {cur}. Увеличьте бюджет, добавьте продукты из дома или ослабьте ограничения.",
         "en": "The budget is not enough: the cheapest menu we could build costs {cost} {cur} with a budget "
               "of {budget} {cur}. Increase the budget, add what you have at home or relax the restrictions."},
+    "note_season": {"ru": "Цены овощей, фруктов и зелени — с учётом сезона ({month}).",
+                    "en": "Vegetable, fruit and herb prices are adjusted for the season ({month})."},
     "note_staples": {"ru": "Соль, перец и специи считаются домашним запасом и не входят в список покупок.",
                      "en": "Salt, pepper and spices are assumed to be at home and are not on the shopping list."},
     "note_prices": {
         "ru": "Цены — ориентир ({basis}, {date}). Исправьте цену любой позиции на цену своего магазина — меню пересчитается.",
         "en": "Prices are estimates ({basis}, {date}). Change any price to what your store charges and the menu will be recalculated."},
+}
+MONTHS = {
+    "ru": ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь",
+           "октябрь", "ноябрь", "декабрь"],
+    "en": ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+           "October", "November", "December"],
 }
 UNIT_LABELS = {"ru": {"g": "г", "kg": "кг", "ml": "мл", "l": "л", "pcs": "шт"},
                "en": {"g": "g", "kg": "kg", "ml": "ml", "l": "l", "pcs": "pcs"}}
@@ -124,9 +133,11 @@ class _Problem:
     budget: float
     slots: list[tuple[int, str]]  # (day index, slot)
     candidates: dict[str, list[Recipe]]  # slot -> eligible recipes
+    slot_cands: list[list[Recipe]]  # per menu cell: allowed recipes (fixed / avoided applied)
     caps: dict[str, int]  # recipe id -> max uses
     favorites: set[str]
     lang: str = "ru"
+    month: int = 1
 
     def ing_cost(self, ing: str, total: float) -> float:
         need = total - self.pantry.get(ing, 0.0)
@@ -137,10 +148,13 @@ class _Problem:
 
 
 def effective_prices(region: Region, city_id: str | None, overrides: dict,
-                     lang: str = "ru") -> dict[str, Price]:
+                     lang: str = "ru", catalog: Catalog | None = None,
+                     month: int | None = None) -> dict[str, Price]:
+    """Shelf prices: base table × city index × seasonal factor; the user's own prices win."""
     index = region.city(city_id).index
+    season = (lambda ing: catalog.season_factor(region, ing, month)) if catalog else (lambda ing: 1.0)
     prices = {
-        ing: Price(p.pack_size, p.pack_label, round(p.price * index, 2))
+        ing: Price(p.pack_size, p.pack_label, round(p.price * index * season(ing), 2))
         for ing, p in region.prices.items()
     }
     for ing, ov in overrides.items():
@@ -158,8 +172,11 @@ def eligible_recipes(catalog: Catalog, req: PlanRequest, prices: dict[str, Price
     for d in req.diets:
         forbidden |= DIET_FORBIDS[d]
     excluded = set(req.exclude)
+    excluded_recipes = set(req.exclude_recipes)
     result = []
     for r in catalog.recipes.values():
+        if r.id in excluded_recipes:
+            continue
         if not set(r.slots) & set(req.meals):
             continue
         if any(ing not in prices for ing in r.ingredients):
@@ -184,7 +201,8 @@ def _build_problem(catalog: Catalog, req: PlanRequest) -> _Problem:
     if req.portions <= 0:
         raise PlanError(msg(lang, "no_people"))
 
-    prices = effective_prices(region, req.city, req.price_overrides, lang)
+    month = req.month or datetime.now(timezone.utc).month
+    prices = effective_prices(region, req.city, req.price_overrides, lang, catalog, month)
     pool = eligible_recipes(catalog, req, prices)
     slots = [(d, s) for d in range(req.days) for s in req.meals]
     candidates = {s: [r for r in pool if s in r.slots] for s in req.meals}
@@ -214,14 +232,31 @@ def _build_problem(catalog: Catalog, req: PlanRequest) -> _Problem:
         for rid in mains:
             caps[rid] = max(caps[rid], min_cap)
 
+    # Per-cell candidates: a fixed cell keeps its dish, an avoided dish is left out of its cell.
+    by_id = {r.id: r for r in pool}
+    fixed = {(m.day - 1, m.slot): by_id[m.recipe] for m in req.fixed
+             if m.recipe in by_id and m.slot in by_id[m.recipe].slots}
+    avoid: dict[tuple[int, str], set[str]] = {}
+    for m in req.avoid:
+        avoid.setdefault((m.day - 1, m.slot), set()).add(m.recipe)
+    slot_cands: list[list[Recipe]] = []
+    for cell in slots:
+        if cell in fixed:
+            slot_cands.append([fixed[cell]])
+            continue
+        allowed = [r for r in candidates[cell[1]] if r.id not in avoid.get(cell, ())]
+        slot_cands.append(allowed or candidates[cell[1]])
+    for r in fixed.values():
+        caps[r.id] = max(caps[r.id], sum(1 for f in fixed.values() if f.id == r.id))
+
     pantry: dict[str, float] = {}
     for item in req.pantry:
         pantry[item.ingredient] = pantry.get(item.ingredient, 0.0) + item.quantity
 
     return _Problem(
         region=region, prices=prices, pantry=pantry, portions=req.portions,
-        budget=req.budget, slots=slots, candidates=candidates, caps=caps,
-        favorites=set(req.favorites), lang=lang,
+        budget=req.budget, slots=slots, candidates=candidates, slot_cands=slot_cands, caps=caps,
+        favorites=set(req.favorites), lang=lang, month=month,
     )
 
 
@@ -315,10 +350,9 @@ class _State:
 def _solve_once(prob: _Problem, rng: random.Random) -> _State:
     st = _State(prob)
     order = list(range(len(prob.slots)))
-    # Greedy construction
-    for k in order:
-        slot = prob.slots[k][1]
-        cands = list(prob.candidates[slot])
+    # Greedy construction; fixed cells first so the rest of the menu fits around them.
+    for k in sorted(order, key=lambda i: len(prob.slot_cands[i]) != 1):
+        cands = list(prob.slot_cands[k])
         rng.shuffle(cands)
         best, best_val = None, math.inf
         for r in cands:
@@ -340,9 +374,8 @@ def _solve_once(prob: _Problem, rng: random.Random) -> _State:
         rng.shuffle(order)
         for k in order:
             current = st.objective()
-            slot = prob.slots[k][1]
             best, best_val = None, current - 1e-6
-            for r in prob.candidates[slot]:
+            for r in prob.slot_cands[k]:
                 if r is st.assign[k]:
                     continue
                 val = st.try_move(k, r)
@@ -481,7 +514,7 @@ def _render(catalog: Catalog, req: PlanRequest, prob: _Problem, st: _State) -> d
     return {
         "region": {"code": prob.region.code, "name": prob.region.name_for(lang),
                    "city": city.name_for(lang), "currency": cur, "locale": prob.region.locale,
-                   "price_date": prob.region.price_date,
+                   "price_date": prob.region.price_date, "month": prob.month,
                    "price_basis": prob.region.price_basis_for(lang)},
         "people": {"adults": req.adults, "children": req.children, "portions": round(portions, 2)},
         "days": days,
@@ -499,6 +532,8 @@ def _render(catalog: Catalog, req: PlanRequest, prob: _Problem, st: _State) -> d
         "warnings": warnings,
         "notes": [
             msg(lang, "note_staples"),
+            *([msg(lang, "note_season", month=MONTHS[lang][prob.month - 1])]
+              if prob.region.seasonality else []),
             msg(lang, "note_prices", basis=prob.region.price_basis_for(lang),
                 date=prob.region.price_date),
         ],
