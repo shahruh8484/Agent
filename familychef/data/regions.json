@@ -13,20 +13,26 @@
         {
           "id": "default",
           "name": "Другие города",
-          "index": 1.0
+          "index": 1.0,
+          "name_en": "Other cities"
         },
         {
           "id": "msk",
           "name": "Москва",
-          "index": 1.15
+          "index": 1.15,
+          "name_en": "Moscow"
         },
         {
           "id": "spb",
           "name": "Санкт-Петербург",
-          "index": 1.08
+          "index": 1.08,
+          "name_en": "Saint Petersburg"
         }
       ],
-      "budget_hint_per_adult_week": 2200
+      "budget_hint_per_adult_week": 2200,
+      "name_en": "Russia",
+      "price_basis_en": "chain supermarkets, budget/mid range (Pyaterochka, Magnit, Lenta)",
+      "label_lang": "ru"
     },
     {
       "code": "BY",
@@ -40,15 +46,20 @@
         {
           "id": "default",
           "name": "Другие города",
-          "index": 1.0
+          "index": 1.0,
+          "name_en": "Other cities"
         },
         {
           "id": "minsk",
           "name": "Минск",
-          "index": 1.05
+          "index": 1.05,
+          "name_en": "Minsk"
         }
       ],
-      "budget_hint_per_adult_week": 60
+      "budget_hint_per_adult_week": 60,
+      "name_en": "Belarus",
+      "price_basis_en": "Euroopt, Santa, Hippo",
+      "label_lang": "ru"
     },
     {
       "code": "KZ",
@@ -62,20 +73,26 @@
         {
           "id": "default",
           "name": "Другие города",
-          "index": 1.0
+          "index": 1.0,
+          "name_en": "Other cities"
         },
         {
           "id": "ala",
           "name": "Алматы",
-          "index": 1.07
+          "index": 1.07,
+          "name_en": "Almaty"
         },
         {
           "id": "ast",
           "name": "Астана",
-          "index": 1.1
+          "index": 1.1,
+          "name_en": "Astana"
         }
       ],
-      "budget_hint_per_adult_week": 10000
+      "budget_hint_per_adult_week": 10000,
+      "name_en": "Kazakhstan",
+      "price_basis_en": "Magnum, Small, markets",
+      "label_lang": "ru"
     },
     {
       "code": "UZ",
@@ -89,15 +106,20 @@
         {
           "id": "default",
           "name": "Другие города",
-          "index": 1.0
+          "index": 1.0,
+          "name_en": "Other cities"
         },
         {
           "id": "tas",
           "name": "Ташкент",
-          "index": 1.1
+          "index": 1.1,
+          "name_en": "Tashkent"
         }
       ],
-      "budget_hint_per_adult_week": 250000
+      "budget_hint_per_adult_week": 250000,
+      "name_en": "Uzbekistan",
+      "price_basis_en": "Korzinka, Makro, bazaars",
+      "label_lang": "ru"
     },
     {
       "code": "DE",
@@ -111,15 +133,20 @@
         {
           "id": "default",
           "name": "Средний уровень",
-          "index": 1.0
+          "index": 1.0,
+          "name_en": "National average"
         },
         {
           "id": "muc",
           "name": "Мюнхен",
-          "index": 1.06
+          "index": 1.06,
+          "name_en": "Munich"
         }
       ],
-      "budget_hint_per_adult_week": 25
+      "budget_hint_per_adult_week": 25,
+      "name_en": "Germany",
+      "price_basis_en": "discounters (Aldi, Lidl), store brands",
+      "label_lang": "de"
     },
     {
       "code": "US",
@@ -133,20 +160,26 @@
         {
           "id": "default",
           "name": "Средний уровень",
-          "index": 1.0
+          "index": 1.0,
+          "name_en": "National average"
         },
         {
           "id": "nyc",
           "name": "Нью-Йорк",
-          "index": 1.2
+          "index": 1.2,
+          "name_en": "New York"
         },
         {
           "id": "sf",
           "name": "Сан-Франциско",
-          "index": 1.22
+          "index": 1.22,
+          "name_en": "San Francisco"
         }
       ],
-      "budget_hint_per_adult_week": 40
+      "budget_hint_per_adult_week": 40,
+      "name_en": "United States",
+      "price_basis_en": "Walmart / Kroger, store brand",
+      "label_lang": "en"
     }
   ]
 }

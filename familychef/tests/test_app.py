@@ -52,3 +52,14 @@ def test_apk_download():
     assert res.status_code == 200
     assert res.headers["content-type"] == "application/vnd.android.package-archive"
     assert res.content[:2] == b"PK"
+
+
+def test_regions_and_ingredients_in_english():
+    regions = {r["code"]: r for r in client.get("/api/regions", params={"lang": "en"}).json()}
+    assert regions["RU"]["name"] == "Russia"
+    assert regions["UZ"]["cities"][1]["name"] == "Tashkent"
+    items = client.get("/api/ingredients", params={"region": "RU", "lang": "en"}).json()["items"]
+    milk = next(i for i in items if i["id"] == "milk")
+    assert milk["name"] == "Milk" and milk["pack_label"] == "930 ml"
+    # unknown languages fall back to English
+    assert client.get("/api/regions", params={"lang": "fr"}).json()[0]["name"] == "Russia"

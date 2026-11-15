@@ -11,17 +11,17 @@ chickpeas,454,1 lb,1.99
 potato,2268,5 lb bag,3.99
 onion,1361,3 lb bag,3.49
 carrot,908,2 lb bag,1.69
-cabbage,454,per lb,0.89
-beet,454,per lb,1.59
-tomato,454,per lb (roma),1.59
-cucumber,300,each (~300 g),0.79
-bell_pepper,200,each (~200 g),1.19
+cabbage,454,1 lb,0.89
+beet,454,1 lb,1.59
+tomato,454,1 lb (roma),1.59
+cucumber,300,1 cucumber (~300 g),0.79
+bell_pepper,200,1 pepper (~200 g),1.19
 garlic,150,3 ct (150 g),1.49
-zucchini,454,per lb,1.79
+zucchini,454,1 lb,1.79
 greens,50,bunch,1.29
 mushrooms,227,8 oz,2.29
 apple,1361,3 lb bag,4.49
-banana,454,per lb,0.59
+banana,454,1 lb,0.59
 chicken_legs,1361,3 lb family pack,5.49
 chicken_breast,1134,2.5 lb,8.99
 ground_beef,454,1 lb (80/20),5.99
@@ -41,4 +41,4 @@ tomato_paste,170,6 oz can,0.79
 canned_tomatoes,411,14.5 oz can,0.99
 lamb,454,1 lb (stew),9.99
 mung_beans,454,1 lb,2.79
-pumpkin,454,per lb,1.29
+pumpkin,454,1 lb,1.29

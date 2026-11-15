@@ -120,3 +120,33 @@ def test_impossible_filters_raise():
 def test_deterministic_for_same_seed():
     a, b = plan(adults=2, seed=3), plan(adults=2, seed=3)
     assert [m["recipe_id"] for m in all_meals(a)] == [m["recipe_id"] for m in all_meals(b)]
+
+
+def test_english_plan_is_fully_translated():
+    import re
+    p = plan(region="UZ", adults=2, lang="en")
+    assert p["region"]["name"] == "Uzbekistan"
+    texts = [d["name"] for d in p["days"]]
+    texts += [m["name"] + m["slot_name"] for d in p["days"] for m in d["meals"]]
+    texts += [r["steps"] + r["name"] + "".join(i["name"] for i in r["ingredients"]) for r in p["recipes"].values()]
+    texts += [c["name"] + "".join(i["name"] + i["pack_label"] for i in c["items"]) for c in p["shopping_list"]]
+    texts += p["notes"] + p["warnings"]
+    cyrillic = [s for s in texts if re.search("[А-Яа-яЁё]", s)]
+    assert not cyrillic, cyrillic[:3]
+
+
+def test_errors_follow_language():
+    with pytest.raises(PlanError, match="No suitable dishes"):
+        plan(adults=2, diets=["vegan"], exclude=["oats", "bread"], meals=["breakfast"], lang="en")
+    with pytest.raises(PlanError, match="Нет подходящих блюд"):
+        plan(adults=2, diets=["vegan"], exclude=["oats", "bread"], meals=["breakfast"], lang="ru")
+
+
+def test_pack_label_localization():
+    from familychef.catalog import Price
+    from familychef.planner import pack_label
+    p = Price(1361, "3 lb bag", 4.49)
+    assert pack_label(p, "g", "en", "en") == "3 lb bag"
+    assert pack_label(p, "g", "ru", "en") == "1,36 кг"
+    assert pack_label(Price(930, "930 мл", 95), "ml", "en", "ru") == "930 ml"
+    assert pack_label(Price(10, "десяток", 110), "pcs", "en", "ru") == "10 pcs"

@@ -35,6 +35,9 @@ body {
 .top { background: var(--accent); color: #fff; padding: 18px 0 14px; margin-bottom: 16px; }
 .top h1 { margin: 0; font-size: 1.5rem; display: flex; align-items: center; gap: 8px; }
 .top .sub { margin: 4px 0 0; opacity: .9; font-size: .95rem; }
+.top-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.lang { width: auto; flex: none; background: rgba(255,255,255,.15); color: #fff; border-color: rgba(255,255,255,.4); padding: 6px 8px; }
+.lang option { color: #1f2421; }
 h2 { font-size: 1.25rem; margin: 24px 0 10px; }
 .card {
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);

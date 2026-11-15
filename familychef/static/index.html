@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>FamilyChef</title>
-  <meta name="description" content="Меню на неделю для семьи по местным ценам, расчёт ингредиентов и список покупок.">
+  <meta name="description" content="Weekly family meal plan at local prices, ingredient amounts and a shopping list. Меню на неделю для семьи по местным ценам.">
   <meta name="theme-color" content="#2f7d4f">
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
@@ -13,84 +13,87 @@
 </head>
 <body>
 <header class="top">
-  <div class="wrap">
-    <h1><img src="/static/icon.svg" alt="" width="28" height="28"> FamilyChef</h1>
-    <p class="sub">Меню на неделю, расчёт продуктов и список покупок по ценам вашего региона</p>
+  <div class="wrap top-row">
+    <div>
+      <h1><img src="/static/icon.svg" alt="" width="28" height="28"> FamilyChef</h1>
+      <p class="sub" data-i18n="app.tagline"></p>
+    </div>
+    <select id="langSelect" class="lang" aria-label="Language"></select>
   </div>
 </header>
 
 <main class="wrap">
   <form id="planForm" class="card" autocomplete="off">
     <div class="grid2">
-      <label>Страна
+      <label><span data-i18n="form.country"></span>
         <select id="region" name="region"></select>
       </label>
-      <label>Город
+      <label><span data-i18n="form.city"></span>
         <select id="city" name="city"></select>
       </label>
     </div>
 
     <div class="grid3">
-      <label>Взрослые
+      <label><span data-i18n="form.adults"></span>
         <input id="adults" type="number" min="0" max="20" value="2" inputmode="numeric">
       </label>
-      <label>Дети (3–12 лет)
+      <label><span data-i18n="form.children"></span>
         <input id="children" type="number" min="0" max="20" value="1" inputmode="numeric">
       </label>
-      <label>Бюджет на неделю, <span id="currencyLabel">RUB</span>
+      <label><span id="budgetLabel"></span>
         <input id="budget" type="number" min="1" step="any" required inputmode="decimal">
       </label>
     </div>
     <p class="hint" id="budgetHint"></p>
 
     <fieldset>
-      <legend>Какие приёмы пищи планировать</legend>
+      <legend data-i18n="form.meals"></legend>
       <div class="chips" id="meals">
-        <label class="chip"><input type="checkbox" value="breakfast" checked> Завтрак</label>
-        <label class="chip"><input type="checkbox" value="lunch" checked> Обед</label>
-        <label class="chip"><input type="checkbox" value="dinner" checked> Ужин</label>
+        <label class="chip"><input type="checkbox" value="breakfast" checked> <span data-i18n="slot.breakfast"></span></label>
+        <label class="chip"><input type="checkbox" value="lunch" checked> <span data-i18n="slot.lunch"></span></label>
+        <label class="chip"><input type="checkbox" value="dinner" checked> <span data-i18n="slot.dinner"></span></label>
       </div>
     </fieldset>
 
     <fieldset>
-      <legend>Питание</legend>
+      <legend data-i18n="form.diet"></legend>
       <div class="chips" id="diets">
-        <label class="chip"><input type="checkbox" value="vegetarian"> Вегетарианское</label>
-        <label class="chip"><input type="checkbox" value="vegan"> Веганское</label>
-        <label class="chip"><input type="checkbox" value="pescatarian"> Без мяса, рыба можно</label>
-        <label class="chip"><input type="checkbox" value="no_pork"> Без свинины</label>
-        <label class="chip"><input type="checkbox" value="no_fish"> Без рыбы</label>
-        <label class="chip"><input type="checkbox" value="gluten_free"> Без глютена</label>
-        <label class="chip"><input type="checkbox" value="lactose_free"> Без молочного</label>
+        <label class="chip"><input type="checkbox" value="vegetarian"> <span data-i18n="diet.vegetarian"></span></label>
+        <label class="chip"><input type="checkbox" value="vegan"> <span data-i18n="diet.vegan"></span></label>
+        <label class="chip"><input type="checkbox" value="pescatarian"> <span data-i18n="diet.pescatarian"></span></label>
+        <label class="chip"><input type="checkbox" value="no_pork"> <span data-i18n="diet.no_pork"></span></label>
+        <label class="chip"><input type="checkbox" value="no_fish"> <span data-i18n="diet.no_fish"></span></label>
+        <label class="chip"><input type="checkbox" value="gluten_free"> <span data-i18n="diet.gluten_free"></span></label>
+        <label class="chip"><input type="checkbox" value="lactose_free"> <span data-i18n="diet.lactose_free"></span></label>
       </div>
     </fieldset>
 
     <fieldset>
-      <legend>Хотим чаще</legend>
+      <legend data-i18n="form.favorites"></legend>
       <div class="chips" id="favorites">
-        <label class="chip"><input type="checkbox" value="quick"> Быстрые блюда</label>
-        <label class="chip"><input type="checkbox" value="soup"> Супы</label>
-        <label class="chip"><input type="checkbox" value="fish"> Рыбу</label>
-        <label class="chip"><input type="checkbox" value="kids"> Детские блюда</label>
+        <label class="chip"><input type="checkbox" value="quick"> <span data-i18n="fav.quick"></span></label>
+        <label class="chip"><input type="checkbox" value="soup"> <span data-i18n="fav.soup"></span></label>
+        <label class="chip"><input type="checkbox" value="fish"> <span data-i18n="fav.fish"></span></label>
+        <label class="chip"><input type="checkbox" value="kids"> <span data-i18n="fav.kids"></span></label>
       </div>
     </fieldset>
 
     <fieldset>
-      <legend>Не используем (аллергия или не любим)</legend>
+      <legend data-i18n="form.exclude"></legend>
       <div class="row">
-        <select id="excludeSelect"><option value="">— выберите продукт —</option></select>
-        <button type="button" class="btn ghost" id="excludeAdd">Добавить</button>
+        <select id="excludeSelect"></select>
+        <button type="button" class="btn ghost" id="excludeAdd" data-i18n="form.add"></button>
       </div>
       <div class="chips removable" id="excludeList"></div>
     </fieldset>
 
     <fieldset>
-      <legend>Уже есть дома</legend>
+      <legend data-i18n="form.pantry"></legend>
       <div id="pantryRows"></div>
-      <button type="button" class="btn ghost" id="pantryAdd">+ Добавить продукт</button>
+      <button type="button" class="btn ghost" id="pantryAdd" data-i18n="form.pantryAdd"></button>
     </fieldset>
 
-    <button type="submit" class="btn primary big" id="submitBtn">Составить меню</button>
+    <button type="submit" class="btn primary big" id="submitBtn" data-i18n="form.submit"></button>
     <p class="error" id="formError" role="alert"></p>
   </form>
 
@@ -98,22 +101,22 @@
     <div class="card summary" id="summary"></div>
     <div id="warnings"></div>
 
-    <h2>Меню на неделю</h2>
+    <h2 data-i18n="menu.title"></h2>
     <div class="week" id="week"></div>
 
     <div class="list-head">
-      <h2>Список покупок</h2>
+      <h2 data-i18n="list.title"></h2>
       <div class="actions">
-        <button class="btn ghost" id="shareBtn" type="button">Поделиться</button>
-        <button class="btn ghost" id="printBtn" type="button">Печать</button>
+        <button class="btn ghost" id="shareBtn" type="button" data-i18n="list.share"></button>
+        <button class="btn ghost" id="printBtn" type="button" data-i18n="list.print"></button>
       </div>
     </div>
-    <p class="hint">Цена отличается от вашего магазина? Исправьте цену за упаковку и нажмите «Пересчитать» — меню подстроится под ваши цены.</p>
+    <p class="hint" data-i18n="list.hint"></p>
     <div id="shopping"></div>
     <div class="row sticky-actions">
-      <button class="btn primary" id="recalcBtn" type="button" disabled>Пересчитать с моими ценами</button>
-      <button class="btn ghost" id="resetPricesBtn" type="button">Сбросить мои цены</button>
-      <button class="btn ghost" id="anotherBtn" type="button">Другой вариант меню</button>
+      <button class="btn primary" id="recalcBtn" type="button" disabled data-i18n="list.recalc"></button>
+      <button class="btn ghost" id="resetPricesBtn" type="button" data-i18n="list.resetPrices"></button>
+      <button class="btn ghost" id="anotherBtn" type="button" data-i18n="list.another"></button>
     </div>
 
     <div class="grid2">
@@ -126,10 +129,11 @@
 
 <dialog id="recipeDialog">
   <article id="recipeBody"></article>
-  <form method="dialog"><button class="btn primary">Закрыть</button></form>
+  <form method="dialog"><button class="btn primary" data-i18n="recipe.close"></button></form>
 </dialog>
 
-<footer class="wrap foot">FamilyChef · цены ориентировочные, обновляются по регионам · <a href="/privacy">Конфиденциальность</a></footer>
+<footer class="wrap foot"><span data-i18n="footer.text"></span> · <a href="/privacy" data-i18n="footer.privacy"></a></footer>
+<script src="/static/i18n.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

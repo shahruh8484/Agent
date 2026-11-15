@@ -15,6 +15,15 @@ SLOTS = ("breakfast", "lunch", "dinner")
 DIET_FLAGS = ("meat", "pork", "poultry", "fish", "dairy", "egg", "gluten")
 
 
+LANGS = ("ru", "en")
+
+
+def norm_lang(lang: str | None) -> str:
+    """Supported UI language; anything else falls back to English."""
+    lang = (lang or "").lower()[:2]
+    return lang if lang in LANGS else "en"
+
+
 class CatalogError(ValueError):
     pass
 
@@ -43,9 +52,13 @@ class Recipe:
     popular_in: frozenset[str]
     ingredients: dict[str, float]
     steps: str
+    steps_en: str = ""
 
     def name(self, lang: str) -> str:
         return self.en if lang == "en" else self.ru
+
+    def steps_for(self, lang: str) -> str:
+        return self.steps_en if lang == "en" and self.steps_en else self.steps
 
     def is_local(self, region: str) -> bool:
         return "*" in self.popular_in or region in self.popular_in
@@ -63,6 +76,10 @@ class City:
     id: str
     name: str
     index: float
+    name_en: str = ""
+
+    def name_for(self, lang: str) -> str:
+        return self.name_en if lang == "en" and self.name_en else self.name
 
 
 @dataclass
@@ -76,7 +93,16 @@ class Region:
     price_basis: str
     cities: list[City]
     budget_hint: float = 0.0
+    name_en: str = ""
+    price_basis_en: str = ""
+    label_lang: str = "ru"  # language of pack labels in the price table
     prices: dict[str, Price] = field(default_factory=dict)
+
+    def name_for(self, lang: str) -> str:
+        return self.name_en if lang == "en" and self.name_en else self.name
+
+    def price_basis_for(self, lang: str) -> str:
+        return self.price_basis_en if lang == "en" and self.price_basis_en else self.price_basis
 
     def city(self, city_id: str | None) -> City:
         for c in self.cities:
@@ -129,7 +155,7 @@ def load_catalog(data_dir: Path = DATA_DIR) -> Catalog:
             minutes=int(raw["minutes"]), tags=frozenset(raw["tags"]),
             popular_in=frozenset(raw["popular_in"]),
             ingredients={k: float(v) for k, v in raw["ingredients"].items()},
-            steps=raw["steps"],
+            steps=raw["steps"], steps_en=raw.get("steps_en", ""),
         )
 
     regions: dict[str, Region] = {}
@@ -138,8 +164,11 @@ def load_catalog(data_dir: Path = DATA_DIR) -> Catalog:
             code=raw["code"], name=raw["name"], currency=raw["currency"],
             locale=raw["locale"], lang=raw.get("lang", "ru"),
             price_date=raw["price_date"], price_basis=raw["price_basis"],
-            cities=[City(c["id"], c["name"], float(c["index"])) for c in raw["cities"]],
+            cities=[City(c["id"], c["name"], float(c["index"]), c.get("name_en", ""))
+                    for c in raw["cities"]],
             budget_hint=float(raw.get("budget_hint_per_adult_week", 0)),
+            name_en=raw.get("name_en", ""), price_basis_en=raw.get("price_basis_en", ""),
+            label_lang=raw.get("label_lang", raw.get("lang", "ru")),
         )
         region.prices = _load_prices(data_dir / "prices" / f"{region.code}.csv", ingredients)
         regions[region.code] = region

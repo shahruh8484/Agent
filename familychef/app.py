@@ -8,9 +8,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from familychef import __version__
-from familychef.catalog import CatalogError, get_catalog
+from familychef.catalog import CatalogError, get_catalog, norm_lang
 from familychef.models import DIETS, FAVORITES, PlanRequest
-from familychef.planner import CATEGORY_NAMES, PlanError, build_plan
+from familychef.planner import CATEGORY_NAMES, PlanError, build_plan, pack_label
 
 STATIC_DIR = Path(__file__).parent / "static"
 DATA_DIR = Path(__file__).parent / "data"
@@ -53,14 +53,15 @@ def create_app() -> FastAPI:
         return {"ok": True, "version": __version__}
 
     @app.get("/api/regions")
-    def regions() -> list[dict]:
+    def regions(lang: str = Query("ru")) -> list[dict]:
         cat = get_catalog()
+        lang = norm_lang(lang)
         return [
             {
-                "code": r.code, "name": r.name, "currency": r.currency, "locale": r.locale,
-                "lang": r.lang, "price_date": r.price_date, "price_basis": r.price_basis,
+                "code": r.code, "name": r.name_for(lang), "currency": r.currency, "locale": r.locale,
+                "lang": r.lang, "price_date": r.price_date, "price_basis": r.price_basis_for(lang),
                 "budget_hint_per_adult_week": r.budget_hint,
-                "cities": [{"id": c.id, "name": c.name, "index": c.index} for c in r.cities],
+                "cities": [{"id": c.id, "name": c.name_for(lang), "index": c.index} for c in r.cities],
             }
             for r in cat.regions.values()
         ]
@@ -72,7 +73,7 @@ def create_app() -> FastAPI:
             reg = cat.region(region)
         except CatalogError as exc:
             raise HTTPException(404, str(exc)) from exc
-        lang = "en" if lang == "en" else "ru"
+        lang = norm_lang(lang)
         items = []
         for ing in cat.ingredients.values():
             p = reg.prices.get(ing.id)
@@ -81,7 +82,7 @@ def create_app() -> FastAPI:
                 "category": ing.category, "category_name": CATEGORY_NAMES[lang][ing.category],
                 "available": p is not None,
                 "pack_size": p.pack_size if p else None,
-                "pack_label": p.pack_label if p else None,
+                "pack_label": pack_label(p, ing.unit, lang, reg.label_lang) if p else None,
                 "price": p.price if p else None,
             })
         return {"currency": reg.currency, "items": items}

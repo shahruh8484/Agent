@@ -20,7 +20,7 @@ import math
 import random
 from dataclasses import dataclass
 
-from familychef.catalog import SLOTS, Catalog, Price, Recipe, Region
+from familychef.catalog import SLOTS, Catalog, Price, Recipe, Region, norm_lang
 from familychef.models import PlanRequest
 
 DIET_FORBIDS: dict[str, set[str]] = {
@@ -66,6 +66,51 @@ MAX_PASSES = 25
 EPS = 1e-9
 
 
+MESSAGES = {
+    "no_pack": {"ru": "Для {ing} нужна фасовка (pack_size): в регионе нет базовой цены",
+                "en": "{ing} needs a pack size: there is no base price for it in this region"},
+    "bad_pantry": {"ru": "Неизвестный продукт в запасах: {ing}", "en": "Unknown pantry item: {ing}"},
+    "bad_ingredient": {"ru": "Неизвестный продукт: {ing}", "en": "Unknown ingredient: {ing}"},
+    "no_people": {"ru": "Укажите хотя бы одного человека", "en": "Add at least one person"},
+    "no_dishes": {"ru": "Нет подходящих блюд на {slot}: ослабьте ограничения или исключения",
+                  "en": "No suitable dishes for {slot}: relax the diet filters or exclusions"},
+    "no_plan": {"ru": "Не удалось составить меню с такими ограничениями",
+                "en": "Could not build a menu with these restrictions"},
+    "over_budget": {
+        "ru": "Бюджета не хватает: самое экономное меню, которое удалось составить, стоит {cost} {cur} "
+              "при бюджете {budget} {cur}. Увеличьте бюджет, добавьте продукты из дома или ослабьте ограничения.",
+        "en": "The budget is not enough: the cheapest menu we could build costs {cost} {cur} with a budget "
+              "of {budget} {cur}. Increase the budget, add what you have at home or relax the restrictions."},
+    "note_staples": {"ru": "Соль, перец и специи считаются домашним запасом и не входят в список покупок.",
+                     "en": "Salt, pepper and spices are assumed to be at home and are not on the shopping list."},
+    "note_prices": {
+        "ru": "Цены — ориентир ({basis}, {date}). Исправьте цену любой позиции на цену своего магазина — меню пересчитается.",
+        "en": "Prices are estimates ({basis}, {date}). Change any price to what your store charges and the menu will be recalculated."},
+}
+UNIT_LABELS = {"ru": {"g": "г", "kg": "кг", "ml": "мл", "l": "л", "pcs": "шт"},
+               "en": {"g": "g", "kg": "kg", "ml": "ml", "l": "l", "pcs": "pcs"}}
+
+
+def msg(lang: str, key: str, **kw) -> str:
+    texts = MESSAGES[key]
+    return texts.get(lang, texts["en"]).format(**kw)
+
+
+def pack_label(price: Price, unit: str, lang: str, label_lang: str) -> str:
+    """The store's own label when it is in the UI language, else a neutral size label."""
+    if lang == label_lang:
+        return price.pack_label
+    u = UNIT_LABELS.get(lang, UNIT_LABELS["en"])
+    size = price.pack_size
+    if unit in ("g", "ml") and size >= 1000:
+        num, word = f"{round(size / 1000, 2):g}", u["kg" if unit == "g" else "l"]
+    else:
+        num, word = f"{size:g}", u[unit]
+    if lang == "ru":
+        num = num.replace(".", ",")
+    return f"{num} {word}"
+
+
 class PlanError(ValueError):
     pass
 
@@ -81,6 +126,7 @@ class _Problem:
     candidates: dict[str, list[Recipe]]  # slot -> eligible recipes
     caps: dict[str, int]  # recipe id -> max uses
     favorites: set[str]
+    lang: str = "ru"
 
     def ing_cost(self, ing: str, total: float) -> float:
         need = total - self.pantry.get(ing, 0.0)
@@ -90,7 +136,8 @@ class _Problem:
         return math.ceil(need / p.pack_size - EPS) * p.price
 
 
-def effective_prices(region: Region, city_id: str | None, overrides: dict) -> dict[str, Price]:
+def effective_prices(region: Region, city_id: str | None, overrides: dict,
+                     lang: str = "ru") -> dict[str, Price]:
     index = region.city(city_id).index
     prices = {
         ing: Price(p.pack_size, p.pack_label, round(p.price * index, 2))
@@ -100,7 +147,7 @@ def effective_prices(region: Region, city_id: str | None, overrides: dict) -> di
         base = prices.get(ing)
         pack_size = ov.pack_size or (base.pack_size if base else None)
         if pack_size is None:
-            raise PlanError(f"Для {ing} нужна фасовка (pack_size): в регионе нет базовой цены")
+            raise PlanError(msg(lang, "no_pack", ing=ing))
         label = ov.pack_label or (base.pack_label if base and not ov.pack_size else f"{pack_size:g}")
         prices[ing] = Price(pack_size, label, ov.price)
     return prices
@@ -126,26 +173,24 @@ def eligible_recipes(catalog: Catalog, req: PlanRequest, prices: dict[str, Price
 
 
 def _build_problem(catalog: Catalog, req: PlanRequest) -> _Problem:
+    lang = norm_lang(req.lang)
     region = catalog.region(req.region)
     for item in req.pantry:
         if item.ingredient not in catalog.ingredients:
-            raise PlanError(f"Неизвестный продукт в запасах: {item.ingredient}")
+            raise PlanError(msg(lang, "bad_pantry", ing=item.ingredient))
     for ing in list(req.exclude) + list(req.price_overrides):
         if ing not in catalog.ingredients:
-            raise PlanError(f"Неизвестный продукт: {ing}")
+            raise PlanError(msg(lang, "bad_ingredient", ing=ing))
     if req.portions <= 0:
-        raise PlanError("Укажите хотя бы одного человека")
+        raise PlanError(msg(lang, "no_people"))
 
-    prices = effective_prices(region, req.city, req.price_overrides)
+    prices = effective_prices(region, req.city, req.price_overrides, lang)
     pool = eligible_recipes(catalog, req, prices)
     slots = [(d, s) for d in range(req.days) for s in req.meals]
     candidates = {s: [r for r in pool if s in r.slots] for s in req.meals}
     for s, cands in candidates.items():
         if not cands:
-            name = SLOT_NAMES["ru"][s].lower()
-            raise PlanError(
-                f"Нет подходящих блюд на {name}: ослабьте ограничения или исключения"
-            )
+            raise PlanError(msg(lang, "no_dishes", slot=SLOT_NAMES[lang][s].lower()))
 
     # Variety caps: a breakfast may repeat up to 3x a week, a main dish 2x.
     # If filters leave too few recipes, relax the cap so a plan still exists.
@@ -176,7 +221,7 @@ def _build_problem(catalog: Catalog, req: PlanRequest) -> _Problem:
     return _Problem(
         region=region, prices=prices, pantry=pantry, portions=req.portions,
         budget=req.budget, slots=slots, candidates=candidates, caps=caps,
-        favorites=set(req.favorites),
+        favorites=set(req.favorites), lang=lang,
     )
 
 
@@ -287,7 +332,7 @@ def _solve_once(prob: _Problem, rng: random.Random) -> _State:
         st.apply(k, best)
 
     if st.soft_penalty(st.assign) is None:
-        raise PlanError("Не удалось составить меню с такими ограничениями")
+        raise PlanError(msg(prob.lang, "no_plan"))
 
     # Local search
     for _ in range(MAX_PASSES):
@@ -337,7 +382,7 @@ def _money(x: float, currency: str) -> float:
 
 
 def _render(catalog: Catalog, req: PlanRequest, prob: _Problem, st: _State) -> dict:
-    lang = "en" if req.lang == "en" else "ru"
+    lang = norm_lang(req.lang)
     cur = prob.region.currency
     portions = prob.portions
 
@@ -372,7 +417,7 @@ def _render(catalog: Catalog, req: PlanRequest, prob: _Problem, st: _State) -> d
             "minutes": r.minutes,
             "tags": sorted(r.tags),
             "portions": round(portions, 1),
-            "steps": r.steps,
+            "steps": r.steps_for(lang),
             "cost_per_cooking": _money(meal_cost(r), cur),
             "ingredients": [
                 {
@@ -417,7 +462,7 @@ def _render(catalog: Catalog, req: PlanRequest, prob: _Problem, st: _State) -> d
             "to_buy": _round_qty(to_buy, ing.unit),
             "packs": packs,
             "pack_size": p.pack_size,
-            "pack_label": p.pack_label,
+            "pack_label": pack_label(p, ing.unit, lang, prob.region.label_lang),
             "pack_price": p.price,
             "cost": _money(line, cur),
         })
@@ -431,16 +476,13 @@ def _render(catalog: Catalog, req: PlanRequest, prob: _Problem, st: _State) -> d
     people = req.adults + req.children
     warnings = []
     if total_cost > req.budget:
-        warnings.append(
-            f"Бюджета не хватает: самое экономное меню, которое удалось составить, стоит "
-            f"{total_cost:g} {cur} при бюджете {req.budget:g} {cur}. Увеличьте бюджет, "
-            f"добавьте продукты из дома или ослабьте ограничения."
-        )
+        warnings.append(msg(lang, "over_budget", cost=f"{total_cost:g}", budget=f"{req.budget:g}", cur=cur))
     city = prob.region.city(req.city)
     return {
-        "region": {"code": prob.region.code, "name": prob.region.name, "city": city.name,
-                   "currency": cur, "locale": prob.region.locale,
-                   "price_date": prob.region.price_date, "price_basis": prob.region.price_basis},
+        "region": {"code": prob.region.code, "name": prob.region.name_for(lang),
+                   "city": city.name_for(lang), "currency": cur, "locale": prob.region.locale,
+                   "price_date": prob.region.price_date,
+                   "price_basis": prob.region.price_basis_for(lang)},
         "people": {"adults": req.adults, "children": req.children, "portions": round(portions, 2)},
         "days": days,
         "recipes": recipes,
@@ -456,8 +498,8 @@ def _render(catalog: Catalog, req: PlanRequest, prob: _Problem, st: _State) -> d
         },
         "warnings": warnings,
         "notes": [
-            "Соль, перец и специи считаются домашним запасом и не входят в список покупок.",
-            f"Цены — ориентир ({prob.region.price_basis}, {prob.region.price_date}). "
-            "Исправьте цену любой позиции на цену своего магазина — меню пересчитается.",
+            msg(lang, "note_staples"),
+            msg(lang, "note_prices", basis=prob.region.price_basis_for(lang),
+                date=prob.region.price_date),
         ],
     }

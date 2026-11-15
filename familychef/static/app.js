@@ -24,7 +24,6 @@ const state = {
   lastRequest: null,
 };
 
-const UNIT = { g: "г", ml: "мл", pcs: "шт" };
 const NO_DECIMALS = new Set(["RUB", "KZT", "UZS"]);
 
 function money(x) {
@@ -39,10 +38,10 @@ function money(x) {
 }
 
 function qty(q, unit) {
-  const nf = (n, d = 0) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: d }).format(n);
-  if (unit === "g" && q >= 1000) return `${nf(q / 1000, 2)} кг`;
-  if (unit === "ml" && q >= 1000) return `${nf(q / 1000, 2)} л`;
-  return `${nf(q, unit === "pcs" ? 1 : 0)} ${UNIT[unit] || unit}`;
+  const nf = (n, d = 0) => new Intl.NumberFormat(LANG, { maximumFractionDigits: d }).format(n);
+  if (unit === "g" && q >= 1000) return `${nf(q / 1000, 2)} ${t("unit.kg")}`;
+  if (unit === "ml" && q >= 1000) return `${nf(q / 1000, 2)} ${t("unit.l")}`;
+  return `${nf(q, unit === "pcs" ? 1 : 0)} ${t("unit." + unit)}`;
 }
 
 function esc(s) {
@@ -57,7 +56,7 @@ async function api(path, body) {
   if (!res.ok) {
     let msg = data.detail;
     if (Array.isArray(msg)) msg = msg.map(d => d.msg).join("; ");
-    throw new Error(msg || `Ошибка ${res.status}`);
+    throw new Error(msg || t("err.http", { status: res.status }));
   }
   return data;
 }
@@ -72,12 +71,12 @@ async function selectRegion(code, keepCity) {
   $("#region").value = r.code;
   $("#city").innerHTML = r.cities.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
   if (keepCity && r.cities.some(c => c.id === keepCity)) $("#city").value = keepCity;
-  $("#currencyLabel").textContent = r.currency;
-  const data = await api(`/api/ingredients?region=${r.code}`);
+  $("#budgetLabel").textContent = t("form.budget", { cur: r.currency });
+  const data = await api(`/api/ingredients?region=${r.code}&lang=${LANG}`);
   state.ingredients = data.items.filter(i => i.available);
   state.ingById = Object.fromEntries(data.items.map(i => [i.id, i]));
   const opts = groupedOptions();
-  $("#excludeSelect").innerHTML = `<option value="">— выберите продукт —</option>` + opts;
+  $("#excludeSelect").innerHTML = `<option value="">${esc(t("form.pickProduct"))}</option>` + opts;
   $$("#pantryRows select").forEach(sel => { const v = sel.value; sel.innerHTML = opts; sel.value = v; });
   updateBudgetHint();
 }
@@ -97,15 +96,13 @@ function updateBudgetHint() {
   const adults = +$("#adults").value || 0, kids = +$("#children").value || 0;
   const city = r.cities.find(c => c.id === $("#city").value) || { index: 1 };
   const hint = r.budget_hint_per_adult_week * (adults + 0.6 * kids) * city.index;
-  $("#budgetHint").textContent = hint > 0
-    ? `Ориентир для экономного меню в регионе: около ${money(Math.round(hint))} в неделю на вашу семью.`
-    : "";
+  $("#budgetHint").textContent = hint > 0 ? t("form.budgetHint", { sum: money(Math.round(hint)) }) : "";
   if (!$("#budget").value && hint > 0) $("#budget").value = Math.round(hint);
 }
 
 function renderExclude() {
   $("#excludeList").innerHTML = state.exclude.map(id =>
-    `<span class="chip">${esc(state.ingById[id]?.name || id)}<button type="button" data-id="${id}" aria-label="Убрать">×</button></span>`
+    `<span class="chip">${esc(state.ingById[id]?.name || id)}<button type="button" data-id="${id}" aria-label="${esc(t("form.remove"))}">×</button></span>`
   ).join("");
 }
 
@@ -113,12 +110,12 @@ function addPantryRow(item) {
   const row = document.createElement("div");
   row.className = "pantry-row";
   row.innerHTML = `
-    <select aria-label="Продукт">${groupedOptions()}</select>
-    <input type="number" min="0" step="any" inputmode="decimal" placeholder="Сколько" aria-label="Количество">
+    <select aria-label="${esc(t("form.product"))}">${groupedOptions()}</select>
+    <input type="number" min="0" step="any" inputmode="decimal" placeholder="${esc(t("form.howMuch"))}" aria-label="${esc(t("form.howMuch"))}">
     <span class="unit"></span>
-    <button type="button" class="btn icon" aria-label="Удалить">×</button>`;
+    <button type="button" class="btn icon" aria-label="${esc(t("form.remove"))}">×</button>`;
   const sel = $("select", row), inp = $("input", row), unit = $(".unit", row);
-  const syncUnit = () => { unit.textContent = UNIT[state.ingById[sel.value]?.unit] || ""; };
+  const syncUnit = () => { const u = state.ingById[sel.value]?.unit; unit.textContent = u ? t("unit." + u) : ""; };
   sel.addEventListener("change", syncUnit);
   $("button", row).addEventListener("click", () => row.remove());
   if (item) { sel.value = item.ingredient; inp.value = item.quantity; }
@@ -161,14 +158,14 @@ function restoreForm(f) {
 async function submitPlan(extra = {}) {
   const form = readForm();
   $("#formError").textContent = "";
-  if (!(form.budget > 0)) { $("#formError").textContent = "Укажите бюджет на неделю."; return; }
-  if (form.adults + form.children < 1) { $("#formError").textContent = "Укажите хотя бы одного человека."; return; }
-  if (!form.meals.length) { $("#formError").textContent = "Выберите хотя бы один приём пищи."; return; }
+  if (!(form.budget > 0)) { $("#formError").textContent = t("err.budget"); return; }
+  if (form.adults + form.children < 1) { $("#formError").textContent = t("err.people"); return; }
+  if (!form.meals.length) { $("#formError").textContent = t("err.meals"); return; }
   store.set("form", form);
-  const req = { ...form, price_overrides: store.get(overridesKey(), {}), seed: state.seed, ...extra };
+  const req = { ...form, price_overrides: store.get(overridesKey(), {}), seed: state.seed, lang: LANG, ...extra };
   state.lastRequest = req;
   const btn = $("#submitBtn");
-  btn.disabled = true; btn.textContent = "Считаем…";
+  btn.disabled = true; btn.textContent = t("form.working");
   try {
     state.plan = await api("/api/plan", req);
     renderPlan();
@@ -177,22 +174,23 @@ async function submitPlan(extra = {}) {
   } catch (e) {
     $("#formError").textContent = e.message;
   } finally {
-    btn.disabled = false; btn.textContent = "Составить меню";
+    btn.disabled = false; btn.textContent = t("form.submit");
   }
 }
 
 // -------------------------------------------------------------- result ----
 
 function renderPlan() {
-  const p = state.plan, t = p.totals;
-  const pct = Math.min(100, Math.round(t.cost / t.budget * 100));
+  const p = state.plan, tot = p.totals;
+  const pct = Math.min(100, Math.round(tot.cost / tot.budget * 100));
   $("#summary").innerHTML = `
-    <div class="stat"><div class="v">${money(t.cost)}</div><div class="k">список покупок</div></div>
-    <div class="stat"><div class="v">${money(t.budget)}</div><div class="k">бюджет</div></div>
-    <div class="stat"><div class="v">${money(t.remaining)}</div><div class="k">${t.remaining >= 0 ? "останется" : "не хватает"}</div></div>
-    <div class="stat"><div class="v">${money(t.per_person_per_day)}</div><div class="k">на человека в день</div></div>
-    <div class="bar ${t.within_budget ? "" : "over"}"><span style="width:${pct}%"></span></div>
-    <div class="meta">${esc(p.region.name)}, ${esc(p.region.city)} · ${p.people.adults} взр. + ${p.people.children} дет. (${p.people.portions} порции) · цены: ${esc(p.region.price_basis)}, ${esc(p.region.price_date)}</div>`;
+    <div class="stat"><div class="v">${money(tot.cost)}</div><div class="k">${esc(t("sum.cost"))}</div></div>
+    <div class="stat"><div class="v">${money(tot.budget)}</div><div class="k">${esc(t("sum.budget"))}</div></div>
+    <div class="stat"><div class="v">${money(tot.remaining)}</div><div class="k">${esc(t(tot.remaining >= 0 ? "sum.left" : "sum.short"))}</div></div>
+    <div class="stat"><div class="v">${money(tot.per_person_per_day)}</div><div class="k">${esc(t("sum.perDay"))}</div></div>
+    <div class="bar ${tot.within_budget ? "" : "over"}"><span style="width:${pct}%"></span></div>
+    <div class="meta">${esc(t("sum.meta", { region: p.region.name, city: p.region.city, adults: p.people.adults,
+      children: p.people.children, portions: p.people.portions, basis: p.region.price_basis, date: p.region.price_date }))}</div>`;
 
   $("#warnings").innerHTML = p.warnings.map(w => `<div class="warning">${esc(w)}</div>`).join("");
 
@@ -202,7 +200,7 @@ function renderPlan() {
         <button type="button" class="meal" data-recipe="${m.recipe_id}">
           <span class="slot">${esc(m.slot_name)}</span>
           <span class="name">${esc(m.name)}</span>
-          <span class="meta">${m.minutes} мин · ≈ ${money(m.cost)}</span>
+          <span class="meta">${esc(t("menu.min", { n: m.minutes }))} · ≈ ${money(m.cost)}</span>
         </button>`).join("")}
     </div>`).join("");
 
@@ -213,27 +211,27 @@ function renderPlan() {
       <h3>${esc(cat.name)} <span class="sub">${money(cat.subtotal)}</span></h3>
       ${cat.items.map(i => `
         <div class="item ${done.has(i.id) ? "done" : ""}" data-id="${i.id}">
-          <input type="checkbox" ${done.has(i.id) ? "checked" : ""} aria-label="Куплено">
+          <input type="checkbox" ${done.has(i.id) ? "checked" : ""} aria-label="${esc(t("list.bought"))}">
           <div class="what">
             <strong>${esc(i.name)}</strong> — ${i.packs} × ${esc(i.pack_label)}
-            <small>нужно ${qty(i.to_buy, i.unit)}${i.from_pantry > 0 ? ` (ещё ${qty(i.from_pantry, i.unit)} есть дома)` : ""}</small>
+            <small>${esc(t("list.need", { qty: qty(i.to_buy, i.unit) }))}${i.from_pantry > 0 ? esc(t("list.atHome", { qty: qty(i.from_pantry, i.unit) })) : ""}</small>
           </div>
           <div class="price">
             <span class="line">${money(i.cost)}</span>
             <input type="number" min="0" step="any" inputmode="decimal" value="${i.pack_price}"
-              class="${overrides[i.id] ? "changed" : ""}" title="Цена за упаковку" aria-label="Цена за упаковку ${esc(i.name)}">
+              class="${overrides[i.id] ? "changed" : ""}" title="${esc(t("list.packPrice"))}" aria-label="${esc(t("list.packPrice"))} ${esc(i.name)}">
           </div>
         </div>`).join("")}
     </div>`).join("");
   $("#recalcBtn").disabled = true;
 
-  $("#pantryUsedCard").innerHTML = `<h3>Используем из дома</h3>` + (p.pantry_used.length
+  $("#pantryUsedCard").innerHTML = `<h3>${esc(t("pantry.used"))}</h3>` + (p.pantry_used.length
     ? `<ul>${p.pantry_used.map(i => `<li>${esc(i.name)}: ${qty(i.quantity, i.unit)}</li>`).join("")}</ul>`
-    : `<p class="hint">Ничего не указано.</p>`);
-  $("#leftoversCard").innerHTML = `<h3>Останется скоропортящегося</h3>` + (p.leftovers.length
+    : `<p class="hint">${esc(t("pantry.none"))}</p>`);
+  $("#leftoversCard").innerHTML = `<h3>${esc(t("left.title"))}</h3>` + (p.leftovers.length
     ? `<ul>${p.leftovers.map(i => `<li>${esc(i.name)}: ${qty(i.quantity, i.unit)}</li>`).join("")}</ul>
-       <p class="hint">Используйте в перекусах или внесите в «Уже есть дома» на следующую неделю. Крупы и бакалея останутся в запасе.</p>`
-    : `<p class="hint">Почти без остатков.</p>`);
+       <p class="hint">${esc(t("left.hint"))}</p>`
+    : `<p class="hint">${esc(t("left.none"))}</p>`);
   $("#notes").innerHTML = p.notes.map(n => `<li>${esc(n)}</li>`).join("");
 }
 
@@ -242,7 +240,7 @@ function showRecipe(id) {
   if (!r) return;
   $("#recipeBody").innerHTML = `
     <h3>${esc(r.name)}</h3>
-    <p class="hint">${r.minutes} мин · на ${r.portions} порции · ≈ ${money(r.cost_per_cooking)}</p>
+    <p class="hint">${esc(t("recipe.meta", { min: r.minutes, portions: r.portions, cost: money(r.cost_per_cooking) }))}</p>
     <table>${r.ingredients.map(i => `<tr><td>${esc(i.name)}</td><td>${qty(i.quantity, i.unit)}</td></tr>`).join("")}</table>
     <p>${esc(r.steps)}</p>`;
   $("#recipeDialog").showModal();
@@ -250,7 +248,7 @@ function showRecipe(id) {
 
 function shoppingText() {
   const p = state.plan;
-  const lines = [`FamilyChef — покупки на неделю (${p.region.name}), итого ${money(p.totals.cost)}`];
+  const lines = [t("list.shareHead", { region: p.region.name, sum: money(p.totals.cost) })];
   for (const cat of p.shopping_list) {
     lines.push("", cat.name + ":");
     for (const i of cat.items) lines.push(`☐ ${i.name} — ${i.packs} × ${i.pack_label} (${money(i.cost)})`);
@@ -314,35 +312,62 @@ function wire() {
     const text = shoppingText();
     if (window.FamilyChefAndroid) { window.FamilyChefAndroid.share(text); return; }
     try {
-      if (navigator.share) await navigator.share({ title: "Список покупок", text });
-      else { await navigator.clipboard.writeText(text); $("#shareBtn").textContent = "Скопировано"; }
+      if (navigator.share) await navigator.share({ title: t("list.shareTitle"), text });
+      else { await navigator.clipboard.writeText(text); $("#shareBtn").textContent = t("list.copied"); }
     } catch { /* cancelled */ }
   });
 }
 
+async function loadRegions(keepRegion, keepCity) {
+  state.regions = await api(`/api/regions?lang=${LANG}`);
+  $("#region").innerHTML = state.regions.map(r => `<option value="${r.code}">${esc(r.name)} (${r.currency})</option>`).join("");
+  await selectRegion(keepRegion, keepCity);
+}
+
+async function setLang(lang) {
+  if (!I18N[lang] || lang === LANG) return;
+  LANG = lang;
+  store.set("lang", lang);
+  applyStaticTranslations();
+  renderExclude();
+  $$("#pantryRows .pantry-row").forEach(row => {
+    const u = state.ingById[$("select", row).value]?.unit;
+    $(".unit", row).textContent = u ? t("unit." + u) : "";
+  });
+  await loadRegions(state.region?.code, $("#city").value);
+  renderExclude();
+  if (state.plan) submitPlan();  // dish names, steps and labels come from the server
+}
+
 async function init() {
+  applyStaticTranslations();
+  $("#langSelect").innerHTML = Object.entries(LANGS)
+    .map(([code, name]) => `<option value="${code}">${name}</option>`).join("");
+  $("#langSelect").value = LANG;
+  $("#langSelect").addEventListener("change", e => setLang(e.target.value));
   wire();
   try {
-    state.regions = await api("/api/regions");
-    $("#region").innerHTML = state.regions.map(r => `<option value="${r.code}">${esc(r.name)} (${r.currency})</option>`).join("");
     const saved = store.get("form", null);
-    await selectRegion(saved?.region || guessRegion(), saved?.city);
+    await loadRegions(saved?.region || guessRegion(), saved?.city);
     restoreForm(saved);
     updateBudgetHint();
   } catch (e) {
-    $("#formError").textContent = "Не удалось загрузить данные: " + e.message;
+    $("#formError").textContent = t("err.load", { msg: e.message });
   }
 }
 
 function guessRegion() {
-  const lang = (navigator.language || "ru-RU").toUpperCase();
+  const lang = (navigator.language || "en-US").toUpperCase();
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
-  if (tz.startsWith("Asia/Almaty") || tz.startsWith("Asia/Qostanay") || lang.endsWith("-KZ")) return "KZ";
+  const RU_TZ = ["Europe/Moscow", "Europe/Samara", "Europe/Volgograd", "Europe/Kaliningrad", "Europe/Kirov",
+    "Europe/Ulyanovsk", "Europe/Astrakhan", "Europe/Saratov"];
+  if (tz.startsWith("Asia/Almaty") || tz.startsWith("Asia/Qostanay") || tz.startsWith("Asia/Aqtobe") || lang.endsWith("-KZ")) return "KZ";
   if (tz === "Asia/Tashkent" || tz === "Asia/Samarkand" || lang.endsWith("-UZ")) return "UZ";
   if (tz === "Europe/Minsk" || lang.endsWith("-BY")) return "BY";
-  if (tz === "Europe/Berlin" || lang.startsWith("DE")) return "DE";
-  if (tz.startsWith("America/") && lang.startsWith("EN")) return "US";
-  return "RU";
+  if (RU_TZ.includes(tz) || lang.endsWith("-RU") || ["Asia/Yekaterinburg", "Asia/Omsk", "Asia/Novosibirsk",
+    "Asia/Krasnoyarsk", "Asia/Irkutsk", "Asia/Yakutsk", "Asia/Vladivostok"].includes(tz)) return "RU";
+  if (tz.startsWith("Europe/")) return "DE";  // nearest available price table: euro area
+  return "US";
 }
 
 init();
