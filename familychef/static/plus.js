@@ -52,8 +52,7 @@ async function openLastPlan() {
     if (saved.result.region.code !== state.region?.code) await selectRegion(saved.result.region.code, saved.request.city);
     state.plan = saved.result;
     renderPlan();
-    $("#result").hidden = false;
-    $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
+    showResult();
   } catch { /* ignore */ }
 }
 

@@ -18,6 +18,9 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.content.res.Configuration;
+import android.view.Gravity;
+import android.view.WindowInsetsController;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
@@ -77,8 +80,11 @@ public class MainActivity extends ComponentActivity {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(0xFF1F6B43);
 
+        boolean night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+            == Configuration.UI_MODE_NIGHT_YES;
         webView = new WebView(this);
-        webView.setBackgroundColor(0xFFF7F3EC);
+        webView.setBackgroundColor(night ? 0xFF121614 : 0xFFF7F3EC);
+        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);  // no web-page "bounce" at the edges
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);      // localStorage: настройки, свои цены, отметки «куплено»
@@ -90,6 +96,13 @@ public class MainActivity extends ComponentActivity {
         webView.setWebViewClient(new Client());
         root.addView(webView, new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        // The strip under the bottom tab bar (gesture area) takes the tab bar colour, not the brand green.
+        View navStrip = new View(this);
+        navStrip.setBackgroundColor(night ? 0xFF1C2320 : 0xFFFFFFFF);
+        FrameLayout.LayoutParams stripLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0);
+        stripLp.gravity = Gravity.BOTTOM;
+        root.addView(navStrip, stripLp);
 
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.mipmap.ic_launcher_foreground);
@@ -112,10 +125,20 @@ public class MainActivity extends ComponentActivity {
             FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) webView.getLayoutParams();
             lp.topMargin = top; lp.bottomMargin = bottom;
             webView.setLayoutParams(lp);
+            FrameLayout.LayoutParams sl = (FrameLayout.LayoutParams) navStrip.getLayoutParams();
+            sl.height = bottom;
+            navStrip.setLayoutParams(sl);
             return insets;
         });
 
         setContentView(root);
+        if (Build.VERSION.SDK_INT >= 30 && !night) {
+            // dark navigation-bar icons on the light strip; status bar stays light-on-green
+            WindowInsetsController c = getWindow().getInsetsController();
+            if (c != null) c.setSystemBarsAppearance(
+                WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+        }
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override public void handleOnBackPressed() {

@@ -190,11 +190,11 @@ async function submitPlan(extra = {}, { scroll = true } = {}) {
   btn.disabled = true; btn.textContent = t("form.working");
   try {
     state.plan = await api("/api/plan", req);
+    store.set("lastPlan", state.plan);  // reopen it next time, like an app
     if (state.plan.entitlements) setEntitlements(state.plan.entitlements);
     saveSettings();
     renderPlan();
-    $("#result").hidden = false;
-    if (scroll) $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
+    showResult({ scroll });
   } catch (e) {
     if (e.message === "login_required") { openSignIn(); return; }
     if (e.status === 402 && handleLimitError(e)) return;
@@ -238,6 +238,7 @@ function renderPlan() {
           </span>
         </button>`).join("")}
     </div>`).join("");
+  renderDayBar();
   const today = $("#week .day.today");
   if (today && window.matchMedia("(max-width: 640px)").matches) {
     $("#week").scrollLeft = today.offsetLeft - 16;
@@ -429,6 +430,7 @@ async function setLang(lang) {
   await loadRegions(state.region?.code, $("#city").value);
   renderExclude();
   refreshAuthTexts();
+  refreshShellTexts();
   if (state.plan) submitPlan();  // dish names, steps and labels come from the server
 }
 
@@ -446,10 +448,21 @@ async function init() {
     updateBudgetHint();
     await initAuth();
     if (!auth.user) await loadEntitlements();
+    await restoreLastPlan();
+    initShell();
     updateBudgetHint();
   } catch (e) {
     $("#formError").textContent = t("err.load", { msg: e.message });
   }
+}
+
+async function restoreLastPlan() {
+  const last = store.get("lastPlan", null);
+  if (!last || !last.days || state.plan) return;
+  if (last.region?.code && last.region.code !== state.region?.code) await selectRegion(last.region.code);
+  state.plan = last;
+  renderPlan();
+  $("#result").hidden = false;
 }
 
 function guessRegion() {

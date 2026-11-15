@@ -448,7 +448,8 @@ def _render(catalog: Catalog, req: PlanRequest, prob: _Problem, st: _State) -> d
                 "minutes": r.minutes,
                 "cost": _money(meal_cost(r), cur),
             })
-        days.append({"day": d + 1, "name": DAY_NAMES[lang][(req.start_weekday + d) % 7], "meals": meals})
+        weekday = (req.start_weekday + d) % 7
+        days.append({"day": d + 1, "weekday": weekday, "name": DAY_NAMES[lang][weekday], "meals": meals})
 
     used = {r.id: r for r in st.assign if r is not None}
     recipes = {}

@@ -195,6 +195,7 @@ async function onSignedIn(user) {
   if (!auth.settings.form) await saveSettings();  // first sign-in: keep what was entered on this device
   updateGate();
   renderAccountButton();
+  renderProfile();
 }
 
 async function applyServerSettings() {
@@ -224,6 +225,9 @@ function updateGate() {
   const gated = auth.config.require_login && authEnabled() && !auth.user;
   $("#planForm").hidden = gated;
   $("#authGate").hidden = !gated;
+  document.documentElement.classList.toggle("gated", gated);
+  if (gated) $("#appTitle").textContent = "FamilyChef";
+  else if (typeof refreshShellTexts === "function" && shell) $("#appTitle").textContent = t("tab." + shell.tab);
   if (gated) { $("#result").hidden = true; renderSignIn($("#authGate"), { gate: true }); }
 }
 
@@ -234,9 +238,15 @@ function openSignIn() {
 
 // ------------------------------------------------------------ account panel
 async function openAccount() {
+  if (isAppMode()) { goTab("profile"); return; }
   if (!auth.user) { openSignIn(); return; }
+  await renderAccount($("#accountBody"), () => $("#accountDialog").close());
+  $("#accountDialog").showModal();
+}
+
+// The account panel: inside the dialog on desktop, on the Profile tab in the app.
+async function renderAccount(body, close = () => {}) {
   const u = auth.user;
-  const body = $("#accountBody");
   body.innerHTML = `
     <h2>${esc(t("acct.title"))}</h2>
     <p class="hint">${esc(t("acct.signedInAs", { who: u.email || u.name }))}</p>
@@ -255,9 +265,8 @@ async function openAccount() {
       <button class="btn ghost logout" type="button">${esc(t("acct.logout"))}</button>
       <button class="btn danger delete-acct" type="button">${esc(t("acct.deleteAccount"))}</button>
     </div>`;
-  $("#accountDialog").showModal();
 
-  $("#acctPlusBtn")?.addEventListener("click", () => { $("#accountDialog").close(); openPaywall("history"); });
+  $("#acctPlusBtn", body)?.addEventListener("click", () => { close(); openPaywall("history"); });
   $(".name-form", body).addEventListener("submit", async e => {
     e.preventDefault();
     const b = $("button", e.target);
@@ -270,22 +279,23 @@ async function openAccount() {
   $(".logout", body).addEventListener("click", async () => {
     await apiJson("POST", "/api/auth/logout").catch(() => {});
     auth.user = null; auth.settings = {};
-    $("#accountDialog").close();
-    renderAccountButton(); updateGate(); loadEntitlements();
+    forgetLocalPlan();
+    close();
+    renderAccountButton(); updateGate(); loadEntitlements(); renderProfile();
   });
   $(".delete-acct", body).addEventListener("click", async () => {
     if (!confirm(t("acct.deleteConfirm"))) return;
     await apiJson("DELETE", "/api/me");
     auth.user = null; auth.settings = {};
-    $("#accountDialog").close();
-    renderAccountButton(); updateGate();
+    forgetLocalPlan();
+    close();
+    renderAccountButton(); updateGate(); renderProfile();
     alert(t("acct.deleted"));
   });
-  await renderPlansList();
+  await renderPlansList($(".plans", body), close);
 }
 
-async function renderPlansList() {
-  const box = $("#accountBody .plans");
+async function renderPlansList(box, close = () => {}) {
   let plans = [];
   try { plans = await apiJson("GET", "/api/plans"); } catch { /* ignore */ }
   if (!plans.length) { box.innerHTML = `<p class="hint">${esc(t("acct.noPlans"))}</p>`; return; }
@@ -306,9 +316,8 @@ async function renderPlansList() {
       if (saved.result.region.code !== state.region?.code) await selectRegion(saved.result.region.code, saved.request.city);
       state.plan = saved.result;
       renderPlan();
-      $("#accountDialog").close();
-      $("#result").hidden = false;
-      $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
+      close();
+      showResult();
     });
     $(".del", li).addEventListener("click", async () => {
       await apiJson("DELETE", `/api/plans/${id}`);
@@ -316,6 +325,13 @@ async function renderPlansList() {
       if (!box.querySelector("li")) box.innerHTML = `<p class="hint">${esc(t("acct.noPlans"))}</p>`;
     });
   });
+}
+
+// On sign-out the menu kept on this device goes too (shared phones).
+function forgetLocalPlan() {
+  store.set("lastPlan", null);
+  state.plan = null;
+  $("#result").hidden = true;
 }
 
 // ------------------------------------------------------------ init
