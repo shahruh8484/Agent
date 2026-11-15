@@ -1,0 +1,44 @@
+ingredient,pack_size,pack_label,price
+buckwheat,907,2 lb,6.29
+rice,2000,2 kg,5.49
+oats,1000,1 kg,3.49
+pasta,900,900 g,2.49
+flour,2500,2.5 kg,5.49
+bread,675,675 g loaf,3.19
+lentils,900,900 g,3.99
+beans,900,900 g,3.99
+chickpeas,900,900 g,3.99
+potato,4540,10 lb bag,6.49
+onion,1360,3 lb bag,3.29
+carrot,907,2 lb bag,2.29
+cabbage,454,1 lb,0.99
+beet,454,1 lb,1.49
+tomato,454,1 lb,1.99
+cucumber,350,1 English cucumber,1.49
+bell_pepper,200,1 pepper,1.69
+garlic,150,3 bulbs,1.49
+zucchini,454,1 lb,1.99
+greens,60,1 bunch,1.49
+mushrooms,227,227 g,2.49
+apple,1360,3 lb bag,4.99
+banana,454,1 lb,0.79
+chicken_legs,1500,1.5 kg drumsticks,8.49
+chicken_breast,1000,1 kg,15.99
+ground_beef,454,1 lb lean,6.99
+beef,454,1 lb stewing beef,9.99
+pork,1000,1 kg pork shoulder,8.49
+fish_fillet,908,2 lb frozen basa,10.99
+eggs,12,dozen,4.29
+milk,4000,4 L bag,6.29
+kefir,1000,1 L,5.29
+sour_cream,500,500 ml,3.29
+tvorog,500,500 g cottage cheese,4.49
+cheese,400,400 g cheddar,6.99
+butter,454,1 lb,6.79
+oil,1890,1.89 L canola,6.99
+sugar,2000,2 kg,3.79
+tomato_paste,156,156 ml can,1.19
+canned_tomatoes,796,796 ml can,2.29
+lamb,454,1 lb,12.99
+mung_beans,454,1 lb,3.49
+pumpkin,454,1 lb squash,1.29

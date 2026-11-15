@@ -1,0 +1,43 @@
+ingredient,pack_size,pack_label,price
+buckwheat,900,900 г,2.70
+rice,1000,1 кг,2.80
+oats,500,500 г,1.60
+pasta,400,400 г,1.10
+flour,2000,2 кг,2.20
+bread,500,буханка 500 г,0.80
+lentils,1000,1 кг,2.90
+beans,1000,1 кг,3.40
+chickpeas,1000,1 кг,3.20
+potato,1000,1 кг,0.90
+onion,1000,1 кг,0.80
+carrot,1000,1 кг,0.90
+cabbage,1000,1 кг,0.70
+beet,1000,1 кг,0.80
+tomato,1000,1 кг,2.40
+cucumber,1000,1 кг,2.20
+bell_pepper,1000,1 кг,3.50
+garlic,100,100 г,0.60
+zucchini,1000,1 кг,2.00
+greens,50,пучок 50 г,0.40
+mushrooms,400,400 г,3.00
+apple,1000,1 кг,1.60
+banana,1000,1 кг,2.80
+chicken_legs,1000,1 кг,5.90
+chicken_breast,1000,1 кг,8.50
+ground_beef,1000,1 кг,16.00
+beef,1000,1 кг,15.50
+fish_fillet,1000,1 кг,9.00
+eggs,10,десяток,2.50
+milk,1000,1 л,1.90
+kefir,1000,1 л,1.80
+sour_cream,400,400 г,2.60
+tvorog,400,400 г,3.40
+cheese,200,200 г,3.00
+butter,200,200 г,3.40
+oil,1000,1 л,3.40
+sugar,1000,1 кг,1.60
+tomato_paste,380,380 г,2.20
+canned_tomatoes,400,400 г,2.80
+lamb,1000,1 кг,16.00
+mung_beans,1000,1 кг,3.20
+pumpkin,1000,1 кг,0.80

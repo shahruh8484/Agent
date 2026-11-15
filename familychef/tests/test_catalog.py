@@ -5,7 +5,7 @@ from familychef.catalog import DATA_DIR, get_catalog
 
 def test_every_region_has_prices_in_its_own_table():
     cat = get_catalog()
-    assert set(cat.regions) == {"RU", "BY", "KZ", "UZ", "DE", "US"}
+    assert set(cat.regions) == {"RU", "BY", "KZ", "UZ", "DE", "US", "GB", "CA", "AU", "KG", "TJ", "AZ"}
     for code, region in cat.regions.items():
         assert (DATA_DIR / "prices" / f"{code}.csv").exists()
         assert len(region.prices) >= 35, code
@@ -45,3 +45,17 @@ def test_recipes_cover_every_slot():
     cat = get_catalog()
     for slot in ("breakfast", "lunch", "dinner"):
         assert sum(slot in r.slots for r in cat.recipes.values()) >= 10
+
+
+def test_southern_hemisphere_seasons_are_flipped():
+    cat = get_catalog()
+    au, gb = cat.regions["AU"], cat.regions["GB"]
+    # January is summer in Australia (cheaper tomatoes) and winter in the UK
+    assert cat.season_factor(au, "tomato", 1) < 1 < cat.season_factor(au, "tomato", 7)
+    assert cat.season_factor(gb, "tomato", 1) > 1 > cat.season_factor(gb, "tomato", 7)
+
+
+def test_no_pork_where_it_is_not_sold():
+    cat = get_catalog()
+    for code in ("UZ", "TJ", "AZ"):
+        assert "pork" not in cat.regions[code].prices, code

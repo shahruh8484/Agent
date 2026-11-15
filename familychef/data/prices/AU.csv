@@ -1,0 +1,44 @@
+ingredient,pack_size,pack_label,price
+buckwheat,500,500 g,4.50
+rice,2000,2 kg,4.00
+oats,1000,1 kg,2.99
+pasta,500,500 g,1.30
+flour,2000,2 kg,2.90
+bread,650,650 g loaf,2.80
+lentils,500,500 g,2.50
+beans,500,500 g,2.80
+chickpeas,500,500 g,2.40
+potato,2000,2 kg bag,4.50
+onion,1000,1 kg,3.00
+carrot,1000,1 kg,2.00
+cabbage,1500,1 cabbage (~1.5 kg),4.50
+beet,500,500 g,3.00
+tomato,1000,1 kg,5.90
+cucumber,400,1 cucumber,2.00
+bell_pepper,250,1 capsicum,1.90
+garlic,100,100 g,2.00
+zucchini,1000,1 kg,5.50
+greens,50,1 bunch,3.00
+mushrooms,300,300 g,3.90
+apple,1000,1 kg,4.90
+banana,1000,1 kg,3.90
+chicken_legs,1000,1 kg drumsticks,5.50
+chicken_breast,1000,1 kg,13.00
+ground_beef,500,500 g mince,7.00
+beef,1000,1 kg diced beef,16.00
+pork,1000,1 kg diced pork,12.00
+fish_fillet,1000,1 kg frozen fish,12.00
+eggs,12,dozen,5.80
+milk,2000,2 L,3.10
+kefir,1000,1 L,6.00
+sour_cream,300,300 ml,2.40
+tvorog,250,250 g cottage cheese,3.00
+cheese,500,500 g cheddar,8.00
+butter,250,250 g,5.30
+oil,1000,1 L canola,4.50
+sugar,2000,2 kg,3.40
+tomato_paste,140,140 g,1.00
+canned_tomatoes,400,400 g can,1.00
+lamb,1000,1 kg diced lamb,20.00
+mung_beans,500,500 g,3.00
+pumpkin,1000,1 kg,2.50

@@ -6,7 +6,8 @@ from familychef.catalog import get_catalog
 from familychef.models import PlanRequest
 from familychef.planner import DIET_FORBIDS, PlanError, build_plan
 
-BUDGETS = {"RU": 6000, "BY": 200, "KZ": 30000, "UZ": 900000, "DE": 70, "US": 110}
+BUDGETS = {"RU": 6000, "BY": 200, "KZ": 30000, "UZ": 900000, "DE": 70, "US": 110,
+           "GB": 60, "CA": 190, "AU": 160, "KG": 5000, "TJ": 560, "AZ": 110}
 
 
 def plan(**kw):

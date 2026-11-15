@@ -28,10 +28,11 @@ You get:
 • A clear total: what you will spend, what is left of your budget and the cost per person per day.
 
 Real local prices, not converted dollars:
-• Local prices and pack sizes for the United States, Germany, Russia, Kazakhstan, Uzbekistan and Belarus — in dollars, euros, rubles, tenge and som.
-• City-level adjustments for big cities like New York, San Francisco and Munich.
+• Local prices and pack sizes for 12 countries — the United States, Canada, the United Kingdom, Australia, Germany, Uzbekistan, Kazakhstan, Kyrgyzstan, Tajikistan, Azerbaijan, Russia and Belarus — each in its own currency.
+• City-level adjustments for big cities like New York, London, Toronto, Sydney and Munich.
+• Fruit and vegetable prices follow the seasons — including the southern hemisphere.
 • Different price in your store? Edit it in the list and the menu is recalculated around your prices.
-• Familiar dishes for each country, from chili and roast chicken to plov and borscht.
+• Familiar dishes for each country, from cottage pie, jacket potatoes and spaghetti bolognese to chili, plov and borscht.
 
 Handy in the store:
 • Tick off items as you shop.

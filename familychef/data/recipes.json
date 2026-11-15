@@ -92,7 +92,10 @@
     "RU",
     "BY",
     "KZ",
-    "UZ"
+    "UZ",
+    "KG",
+    "TJ",
+    "AZ"
    ],
    "ingredients": {
     "rice": 50,
@@ -167,7 +170,8 @@
    "popular_in": [
     "RU",
     "BY",
-    "KZ"
+    "KZ",
+    "KG"
    ],
    "ingredients": {
     "tvorog": 130,
@@ -274,7 +278,10 @@
    ],
    "popular_in": [
     "US",
-    "DE"
+    "DE",
+    "GB",
+    "AU",
+    "CA"
    ],
    "ingredients": {
     "bread": 80,
@@ -302,7 +309,8 @@
    "popular_in": [
     "RU",
     "BY",
-    "KZ"
+    "KZ",
+    "KG"
    ],
    "ingredients": {
     "beef": 80,
@@ -449,7 +457,10 @@
    "popular_in": [
     "UZ",
     "KZ",
-    "RU"
+    "RU",
+    "KG",
+    "TJ",
+    "AZ"
    ],
    "ingredients": {
     "rice": 90,
@@ -476,7 +487,9 @@
    "tags": [],
    "popular_in": [
     "UZ",
-    "KZ"
+    "KZ",
+    "KG",
+    "TJ"
    ],
    "ingredients": {
     "beef": 90,
@@ -508,7 +521,8 @@
    "popular_in": [
     "RU",
     "BY",
-    "KZ"
+    "KZ",
+    "KG"
    ],
    "ingredients": {
     "buckwheat": 80,
@@ -622,7 +636,9 @@
    "popular_in": [
     "RU",
     "BY",
-    "KZ"
+    "KZ",
+    "AZ",
+    "KG"
    ],
    "ingredients": {
     "ground_beef": 100,
@@ -651,7 +667,8 @@
     "RU",
     "BY",
     "KZ",
-    "UZ"
+    "UZ",
+    "AZ"
    ],
    "ingredients": {
     "bell_pepper": 200,
@@ -678,7 +695,10 @@
    "tags": [],
    "popular_in": [
     "US",
-    "DE"
+    "DE",
+    "GB",
+    "AU",
+    "CA"
    ],
    "ingredients": {
     "ground_beef": 100,
@@ -875,7 +895,9 @@
     "RU",
     "BY",
     "DE",
-    "US"
+    "US",
+    "GB",
+    "CA"
    ],
    "ingredients": {
     "pork": 130,
@@ -957,7 +979,10 @@
     "UZ",
     "KZ",
     "DE",
-    "US"
+    "US",
+    "GB",
+    "AU",
+    "AZ"
    ],
    "ingredients": {
     "chickpeas": 80,
@@ -1099,7 +1124,10 @@
    ],
    "popular_in": [
     "UZ",
-    "KZ"
+    "KZ",
+    "KG",
+    "TJ",
+    "AZ"
    ],
    "ingredients": {
     "lamb": 120,
@@ -1130,7 +1158,8 @@
    ],
    "popular_in": [
     "UZ",
-    "KZ"
+    "KZ",
+    "TJ"
    ],
    "ingredients": {
     "beef": 70,
@@ -1160,7 +1189,8 @@
     "soup"
    ],
    "popular_in": [
-    "UZ"
+    "UZ",
+    "TJ"
    ],
    "ingredients": {
     "mung_beans": 50,
@@ -1189,7 +1219,9 @@
    "tags": [],
    "popular_in": [
     "UZ",
-    "KZ"
+    "KZ",
+    "KG",
+    "TJ"
    ],
    "ingredients": {
     "beef": 120,
@@ -1219,7 +1251,9 @@
    "popular_in": [
     "UZ",
     "KZ",
-    "RU"
+    "RU",
+    "KG",
+    "TJ"
    ],
    "ingredients": {
     "flour": 110,
@@ -1245,7 +1279,9 @@
    "tags": [],
    "popular_in": [
     "UZ",
-    "KZ"
+    "KZ",
+    "KG",
+    "TJ"
    ],
    "ingredients": {
     "flour": 110,
@@ -1274,7 +1310,10 @@
    ],
    "popular_in": [
     "UZ",
-    "KZ"
+    "KZ",
+    "KG",
+    "TJ",
+    "AZ"
    ],
    "ingredients": {
     "flour": 90,
@@ -1299,7 +1338,8 @@
    "minutes": 150,
    "tags": [],
    "popular_in": [
-    "KZ"
+    "KZ",
+    "KG"
    ],
    "ingredients": {
     "beef": 150,
@@ -1311,6 +1351,144 @@
    "steps": "Отварить мясо 2 часа, в конце добавить картофель. Замесить тесто, тонко раскатать и нарезать ромбами, отварить в бульоне 3–4 минуты. Лук нарезать кольцами и залить горячим бульоном. Выложить тесто, сверху мясо и лук. Бульон (сорпа) подать отдельно.",
    "steps_en": "Simmer the meat for 2 hours, adding the potatoes at the end. Knead a dough, roll it thin, cut into diamonds and boil in the broth for 3–4 minutes. Slice the onion into rings and pour hot broth over it. Serve the dough topped with meat and onion, with the broth (sorpa) on the side.",
    "emoji": "🍖"
+  },
+  {
+   "id": "cottage_pie",
+   "ru": "Коттедж-пай (картофельная запеканка с фаршем)",
+   "en": "Cottage pie",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 60,
+   "tags": [
+    "kids"
+   ],
+   "popular_in": [
+    "GB",
+    "AU",
+    "CA"
+   ],
+   "emoji": "🥧",
+   "ingredients": {
+    "ground_beef": 110,
+    "potato": 220,
+    "carrot": 50,
+    "onion": 40,
+    "tomato_paste": 10,
+    "butter": 10,
+    "milk": 40,
+    "cheese": 15
+   },
+   "steps": "Обжарить лук, морковь и фарш, добавить томатную пасту и немного воды, тушить 15 минут. Сварить картофель и размять с молоком и маслом. Выложить фарш в форму, сверху пюре и тёртый сыр, запекать 25 минут при 200 °C.",
+   "steps_en": "Fry the onion, carrot and mince, add tomato paste and a splash of water and simmer for 15 minutes. Boil the potatoes and mash with milk and butter. Put the mince in a dish, top with the mash and grated cheese and bake for 25 minutes at 200 °C (400 °F)."
+  },
+  {
+   "id": "jacket_potato",
+   "ru": "Печёный картофель с фасолью и сыром",
+   "en": "Jacket potato with beans and cheese",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 70,
+   "tags": [],
+   "popular_in": [
+    "GB",
+    "AU"
+   ],
+   "emoji": "🥔",
+   "ingredients": {
+    "potato": 300,
+    "beans": 50,
+    "tomato_paste": 15,
+    "onion": 20,
+    "cheese": 30,
+    "butter": 10
+   },
+   "steps": "Фасоль заранее замочить и отварить. Наколоть картофель вилкой и запекать в кожуре 60 минут при 200 °C. Обжарить лук, добавить томатную пасту, фасоль и немного воды, потушить 5 минут. Надрезать картофель, положить масло, фасоль и тёртый сыр.",
+   "steps_en": "Soak and boil the beans in advance. Prick the potatoes and bake them in their skins for 60 minutes at 200 °C (400 °F). Fry the onion, add tomato paste, the beans and a splash of water and simmer for 5 minutes. Split the potatoes and top with butter, the beans and grated cheese."
+  },
+  {
+   "id": "spaghetti_bolognese",
+   "ru": "Спагетти болоньезе",
+   "en": "Spaghetti bolognese",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 40,
+   "tags": [
+    "kids"
+   ],
+   "popular_in": [
+    "GB",
+    "AU",
+    "CA",
+    "US",
+    "DE"
+   ],
+   "emoji": "🍝",
+   "ingredients": {
+    "pasta": 100,
+    "ground_beef": 100,
+    "canned_tomatoes": 120,
+    "onion": 30,
+    "carrot": 30,
+    "garlic": 5,
+    "oil": 5
+   },
+   "steps": "Обжарить лук, морковь и чеснок, добавить фарш и жарить до готовности. Влить томаты и тушить 20 минут. Подать с отварными спагетти.",
+   "steps_en": "Fry the onion, carrot and garlic, add the mince and brown it. Add the tomatoes and simmer for 20 minutes. Serve with boiled spaghetti."
+  },
+  {
+   "id": "kuurdak",
+   "ru": "Куурдак",
+   "en": "Kuurdak (fried meat with potatoes)",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 50,
+   "tags": [],
+   "popular_in": [
+    "KG",
+    "KZ"
+   ],
+   "emoji": "🍖",
+   "ingredients": {
+    "beef": 150,
+    "potato": 200,
+    "onion": 60,
+    "oil": 15,
+    "greens": 3
+   },
+   "steps": "Нарезать мясо небольшими кусками и обжарить в казане до корочки. Добавить картофель кубиками, жарить 15 минут, затем лук кольцами, накрыть и довести до готовности. Посыпать зеленью.",
+   "steps_en": "Cut the meat into small pieces and brown in a heavy pot. Add diced potatoes and fry for 15 minutes, then the onion rings; cover and cook until tender. Sprinkle with herbs."
+  },
+  {
+   "id": "kuku",
+   "ru": "Куку с зеленью",
+   "en": "Kuku (herb frittata)",
+   "slots": [
+    "breakfast"
+   ],
+   "minutes": 20,
+   "tags": [
+    "quick"
+   ],
+   "popular_in": [
+    "AZ"
+   ],
+   "emoji": "🍳",
+   "ingredients": {
+    "eggs": 2,
+    "greens": 40,
+    "butter": 5,
+    "bread": 50
+   },
+   "steps": "Мелко нарубить много зелени, смешать со взбитыми яйцами и солью. Вылить на сковороду с растопленным маслом и жарить под крышкой на слабом огне 8–10 минут. Подать с хлебом.",
+   "steps_en": "Finely chop plenty of herbs and mix with beaten eggs and salt. Pour into a pan with melted butter and cook covered on low heat for 8–10 minutes. Serve with bread."
   }
  ]
 }

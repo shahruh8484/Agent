@@ -186,6 +186,192 @@
       "price_basis_en": "Walmart / Kroger, store brand",
       "label_lang": "en",
       "seasonality": "mild"
+    },
+    {
+      "code": "GB",
+      "name": "Великобритания",
+      "name_en": "United Kingdom",
+      "currency": "GBP",
+      "locale": "en-GB",
+      "lang": "en",
+      "label_lang": "en",
+      "seasonality": "mild",
+      "price_date": "2025-11",
+      "price_basis": "Tesco, Aldi, Lidl — собственные марки",
+      "price_basis_en": "Tesco, Aldi, Lidl — own brands",
+      "cities": [
+        {
+          "id": "default",
+          "name": "В среднем по стране",
+          "name_en": "National average",
+          "index": 1.0
+        },
+        {
+          "id": "lon",
+          "name": "Лондон",
+          "name_en": "London",
+          "index": 1.1
+        },
+        {
+          "id": "edi",
+          "name": "Эдинбург",
+          "name_en": "Edinburgh",
+          "index": 1.03
+        }
+      ],
+      "budget_hint_per_adult_week": 22
+    },
+    {
+      "code": "CA",
+      "name": "Канада",
+      "name_en": "Canada",
+      "currency": "CAD",
+      "locale": "en-CA",
+      "lang": "en",
+      "label_lang": "en",
+      "seasonality": "mild",
+      "price_date": "2025-11",
+      "price_basis": "Walmart, No Frills, Loblaws — no name",
+      "price_basis_en": "Walmart, No Frills, Loblaws — no name",
+      "cities": [
+        {
+          "id": "default",
+          "name": "В среднем по стране",
+          "name_en": "National average",
+          "index": 1.0
+        },
+        {
+          "id": "tor",
+          "name": "Торонто",
+          "name_en": "Toronto",
+          "index": 1.06
+        },
+        {
+          "id": "van",
+          "name": "Ванкувер",
+          "name_en": "Vancouver",
+          "index": 1.1
+        }
+      ],
+      "budget_hint_per_adult_week": 70
+    },
+    {
+      "code": "AU",
+      "name": "Австралия",
+      "name_en": "Australia",
+      "currency": "AUD",
+      "locale": "en-AU",
+      "lang": "en",
+      "label_lang": "en",
+      "seasonality": "mild_south",
+      "price_date": "2025-11",
+      "price_basis": "Coles, Woolworths, Aldi",
+      "price_basis_en": "Coles, Woolworths, Aldi",
+      "cities": [
+        {
+          "id": "default",
+          "name": "В среднем по стране",
+          "name_en": "National average",
+          "index": 1.0
+        },
+        {
+          "id": "syd",
+          "name": "Сидней",
+          "name_en": "Sydney",
+          "index": 1.06
+        },
+        {
+          "id": "mel",
+          "name": "Мельбурн",
+          "name_en": "Melbourne",
+          "index": 1.04
+        }
+      ],
+      "budget_hint_per_adult_week": 60
+    },
+    {
+      "code": "KG",
+      "name": "Кыргызстан",
+      "name_en": "Kyrgyzstan",
+      "currency": "KGS",
+      "locale": "ru-KG",
+      "lang": "ru",
+      "label_lang": "ru",
+      "seasonality": "continental",
+      "price_date": "2025-11",
+      "price_basis": "Globus, Фрунзе, базары",
+      "price_basis_en": "Globus, Frunze, bazaars",
+      "cities": [
+        {
+          "id": "default",
+          "name": "Другие города",
+          "name_en": "Other cities",
+          "index": 1.0
+        },
+        {
+          "id": "bsk",
+          "name": "Бишкек",
+          "name_en": "Bishkek",
+          "index": 1.08
+        }
+      ],
+      "budget_hint_per_adult_week": 1800
+    },
+    {
+      "code": "TJ",
+      "name": "Таджикистан",
+      "name_en": "Tajikistan",
+      "currency": "TJS",
+      "locale": "ru-TJ",
+      "lang": "ru",
+      "label_lang": "ru",
+      "seasonality": "continental",
+      "price_date": "2025-11",
+      "price_basis": "супермаркеты и базары",
+      "price_basis_en": "supermarkets and bazaars",
+      "cities": [
+        {
+          "id": "default",
+          "name": "Другие города",
+          "name_en": "Other cities",
+          "index": 1.0
+        },
+        {
+          "id": "dyu",
+          "name": "Душанбе",
+          "name_en": "Dushanbe",
+          "index": 1.08
+        }
+      ],
+      "budget_hint_per_adult_week": 210
+    },
+    {
+      "code": "AZ",
+      "name": "Азербайджан",
+      "name_en": "Azerbaijan",
+      "currency": "AZN",
+      "locale": "ru-AZ",
+      "lang": "ru",
+      "label_lang": "ru",
+      "seasonality": "continental",
+      "price_date": "2025-11",
+      "price_basis": "Bravo, Araz, базары",
+      "price_basis_en": "Bravo, Araz, bazaars",
+      "cities": [
+        {
+          "id": "default",
+          "name": "Другие города",
+          "name_en": "Other cities",
+          "index": 1.0
+        },
+        {
+          "id": "bak",
+          "name": "Баку",
+          "name_en": "Baku",
+          "index": 1.08
+        }
+      ],
+      "budget_hint_per_adult_week": 40
     }
   ]
 }

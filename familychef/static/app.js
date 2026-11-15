@@ -469,12 +469,20 @@ function guessRegion() {
   const lang = (navigator.language || "en-US").toUpperCase();
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
   const RU_TZ = ["Europe/Moscow", "Europe/Samara", "Europe/Volgograd", "Europe/Kaliningrad", "Europe/Kirov",
-    "Europe/Ulyanovsk", "Europe/Astrakhan", "Europe/Saratov"];
+    "Europe/Ulyanovsk", "Europe/Astrakhan", "Europe/Saratov", "Asia/Yekaterinburg", "Asia/Omsk",
+    "Asia/Novosibirsk", "Asia/Krasnoyarsk", "Asia/Irkutsk", "Asia/Yakutsk", "Asia/Vladivostok"];
+  const CA_TZ = ["America/Toronto", "America/Vancouver", "America/Edmonton", "America/Winnipeg", "America/Halifax",
+    "America/St_Johns", "America/Regina", "America/Montreal", "America/Moncton"];
   if (tz.startsWith("Asia/Almaty") || tz.startsWith("Asia/Qostanay") || tz.startsWith("Asia/Aqtobe") || lang.endsWith("-KZ")) return "KZ";
   if (tz === "Asia/Tashkent" || tz === "Asia/Samarkand" || lang.endsWith("-UZ")) return "UZ";
+  if (tz === "Asia/Bishkek" || lang.endsWith("-KG")) return "KG";
+  if (tz === "Asia/Dushanbe" || lang.endsWith("-TJ")) return "TJ";
+  if (tz === "Asia/Baku" || lang.endsWith("-AZ")) return "AZ";
   if (tz === "Europe/Minsk" || lang.endsWith("-BY")) return "BY";
-  if (RU_TZ.includes(tz) || lang.endsWith("-RU") || ["Asia/Yekaterinburg", "Asia/Omsk", "Asia/Novosibirsk",
-    "Asia/Krasnoyarsk", "Asia/Irkutsk", "Asia/Yakutsk", "Asia/Vladivostok"].includes(tz)) return "RU";
+  if (RU_TZ.includes(tz) || lang.endsWith("-RU")) return "RU";
+  if (tz === "Europe/London" || lang.endsWith("-GB")) return "GB";
+  if (CA_TZ.includes(tz) || lang.endsWith("-CA")) return "CA";
+  if (tz.startsWith("Australia/") || lang.endsWith("-AU")) return "AU";
   if (tz.startsWith("Europe/")) return "DE";  // nearest available price table: euro area
   return "US";
 }
