@@ -85,6 +85,15 @@ cp -r "$src/familychef" "$src/Dockerfile.familychef" "$DIR/src/"
 
 # ------------------------------------------------------------ 4. порт
 if [ -n "$DOMAIN" ]; then
+  DOMAIN="${DOMAIN#https://}"; DOMAIN="${DOMAIN#http://}"; DOMAIN="${DOMAIN%%/*}"
+  MY_IP="$(curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null || true)"
+  DNS_IPS="$(getent ahostsv4 "$DOMAIN" 2>/dev/null | awk '{print $1}' | sort -u | tr '\n' ' ')"
+  info "DNS: $DOMAIN → ${DNS_IPS:-(не найден)}; IP этого сервера: ${MY_IP:-?}"
+  if [ -n "$MY_IP" ] && [ "${FC_SKIP_DNS_CHECK:-}" != "1" ] && ! echo " $DNS_IPS " | grep -q " $MY_IP "; then
+    die "домен $DOMAIN пока не указывает на этот сервер ($MY_IP).
+    Проверьте A-запись @ → $MY_IP у регистратора и подождите 5–30 минут, затем запустите команду снова.
+    (Пока можно запустить без домена: та же команда без FC_DOMAIN=…)"
+  fi
   for p in 80 443; do
     port_busy "$p" && die "порт $p занят другой программой — для режима с доменом нужны свободные 80 и 443"
   done
