@@ -1,12 +1,17 @@
 # FamilyChef для Android
 
-Приложение для Google Play — Trusted Web Activity (TWA): открывает https://familychef.pro во весь экран,
-без адресной строки браузера, с иконкой и заставкой. Обновления сайта сразу видны в приложении;
-пересобирать и заново публиковать приложение нужно только при изменении иконки, названия или версии Android.
+Приложение для Google Play: открывает https://familychef.pro внутри себя (WebView), со своей иконкой,
+заставкой и экраном «нет интернета». Не зависит от установленного браузера и оболочки телефона.
+Обновления сайта сразу видны в приложении; пересобирать и заново публиковать приложение нужно
+только при изменении нативной части (иконка, название, версия Android).
 
-- Пакет: `pro.familychef.app`
+- Пакет: `pro.familychef.app`, точка входа — `MainActivity`
 - minSdk 24 (Android 7.0), targetSdk 36
-- Библиотека: `com.google.androidbrowserhelper:androidbrowserhelper`
+- Ссылки на другие сайты открываются в браузере; `https://familychef.pro/...` — внутри приложения
+- Для страницы доступен `window.FamilyChefAndroid`: `share(text)` (системное меню «Поделиться») и `retry()`
+
+> Версия 1.0.0 была Trusted Web Activity (запуск через Chrome); на части телефонов она не открывалась,
+> поэтому с 1.0.1 используется встроенный WebView.
 
 ## Сборка
 
@@ -19,6 +24,8 @@ cd familychef/android
 ```bash
 ANDROID_HOME=/путь/к/android-sdk ./gradlew bundleRelease assembleRelease
 ```
+
+Тесты (Robolectric): `./gradlew testReleaseUnitTest`.
 
 Результат: `app/build/outputs/bundle/release/app-release.aab` (для Google Play) и
 `app/build/outputs/apk/release/app-release.apk` (для установки на телефон вручную).
@@ -41,9 +48,9 @@ keyPassword=...
 Храните `.jks` и пароль в надёжном месте (менеджер паролей + резервная копия). При включённой
 подписи приложений Google Play (Play App Signing) потерянный ключ загрузки можно сбросить через поддержку Google.
 
-## Связь сайта и приложения (обязательно)
+## Связь сайта и приложения (для открытия ссылок в приложении)
 
-Чтобы приложение открывалось без адресной строки, сайт должен «подтвердить» приложение:
+Чтобы ссылки https://familychef.pro/... на телефоне открывались сразу в приложении, сайт подтверждает приложение:
 файл `https://familychef.pro/.well-known/assetlinks.json` (берётся из `familychef/data/assetlinks.json`)
 должен содержать SHA-256 отпечатки сертификатов, которыми подписан установленный APK.
 

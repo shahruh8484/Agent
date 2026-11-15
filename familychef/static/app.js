@@ -309,8 +309,10 @@ function wire() {
   $("#resetPricesBtn").addEventListener("click", () => { store.set(overridesKey(), {}); submitPlan(); });
   $("#anotherBtn").addEventListener("click", () => { state.seed += 1; submitPlan(); });
   $("#printBtn").addEventListener("click", () => window.print());
+  if (window.FamilyChefAndroid) $("#printBtn").hidden = true;  // в Android-приложении печати нет
   $("#shareBtn").addEventListener("click", async () => {
     const text = shoppingText();
+    if (window.FamilyChefAndroid) { window.FamilyChefAndroid.share(text); return; }
     try {
       if (navigator.share) await navigator.share({ title: "Список покупок", text });
       else { await navigator.clipboard.writeText(text); $("#shareBtn").textContent = "Скопировано"; }
