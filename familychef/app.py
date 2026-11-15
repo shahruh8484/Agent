@@ -41,6 +41,13 @@ def create_app() -> FastAPI:
         import json
         return JSONResponse(json.loads((DATA_DIR / "assetlinks.json").read_text(encoding="utf-8")))
 
+    @app.get("/download", include_in_schema=False)
+    def download_apk() -> FileResponse:
+        # Android-приложение для установки напрямую, пока его нет в Google Play.
+        return FileResponse(STATIC_DIR / "downloads" / "FamilyChef.apk",
+                            media_type="application/vnd.android.package-archive",
+                            filename="FamilyChef.apk")
+
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict:
         return {"ok": True, "version": __version__}

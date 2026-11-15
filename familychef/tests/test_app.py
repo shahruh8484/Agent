@@ -45,3 +45,10 @@ def test_pwa_and_android_endpoints():
     manifest = client.get("/static/manifest.webmanifest").json()
     sizes = {i["sizes"] for i in manifest["icons"] if i["type"] == "image/png"}
     assert {"192x192", "512x512"} <= sizes
+
+
+def test_apk_download():
+    res = client.get("/download")
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/vnd.android.package-archive"
+    assert res.content[:2] == b"PK"
