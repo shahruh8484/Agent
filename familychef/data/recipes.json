@@ -1,162 +1,1222 @@
 {
-  "_comment": "Количества — на 1 взрослую порцию в базовых единицах ингредиента. Соль, перец и специи считаются домашним запасом и не учитываются. popular_in — регионы, где блюдо привычно (даёт приоритет при подборе).",
-  "recipes": [
-    {"id": "oatmeal_apple", "ru": "Овсяная каша на молоке с яблоком", "en": "Oatmeal with milk and apple",
-     "slots": ["breakfast"], "minutes": 15, "tags": ["quick", "kids"], "popular_in": ["*"],
-     "ingredients": {"oats": 60, "milk": 200, "apple": 80, "sugar": 8, "butter": 5},
-     "steps": "Довести молоко до кипения, всыпать хлопья и варить 5–7 минут. Добавить нарезанное яблоко, сахар и масло."},
-    {"id": "oatmeal_banana_vegan", "ru": "Овсянка на воде с бананом", "en": "Oatmeal with banana (vegan)",
-     "slots": ["breakfast"], "minutes": 10, "tags": ["quick", "kids"], "popular_in": ["*"],
-     "ingredients": {"oats": 60, "banana": 100, "sugar": 5},
-     "steps": "Сварить хлопья на воде 5 минут, добавить сахар и нарезанный банан."},
-    {"id": "buckwheat_milk", "ru": "Гречневая каша с молоком", "en": "Buckwheat porridge with milk",
-     "slots": ["breakfast"], "minutes": 20, "tags": ["kids"], "popular_in": ["RU", "BY", "KZ"],
-     "ingredients": {"buckwheat": 60, "milk": 200, "butter": 5, "sugar": 5},
-     "steps": "Сварить гречку в подсоленной воде (1:2) 15 минут. Подать с горячим молоком, маслом и сахаром."},
-    {"id": "rice_milk_porridge", "ru": "Рисовая молочная каша", "en": "Rice milk porridge",
-     "slots": ["breakfast"], "minutes": 25, "tags": ["kids"], "popular_in": ["RU", "BY", "KZ", "UZ"],
-     "ingredients": {"rice": 50, "milk": 220, "sugar": 8, "butter": 5},
-     "steps": "Отварить рис в небольшом количестве воды 7 минут, влить молоко и варить ещё 15 минут на слабом огне, добавить сахар и масло."},
-    {"id": "omelet_tomato", "ru": "Омлет с помидорами и хлебом", "en": "Omelet with tomatoes",
-     "slots": ["breakfast"], "minutes": 15, "tags": ["quick"], "popular_in": ["*"],
-     "ingredients": {"eggs": 2, "milk": 50, "tomato": 80, "butter": 5, "bread": 50},
-     "steps": "Взбить яйца с молоком, обжарить нарезанные помидоры на масле, залить яйцами и готовить под крышкой 5–7 минут."},
-    {"id": "fried_eggs_cucumber", "ru": "Яичница с хлебом и огурцом", "en": "Fried eggs with bread and cucumber",
-     "slots": ["breakfast"], "minutes": 10, "tags": ["quick"], "popular_in": ["*"],
-     "ingredients": {"eggs": 2, "bread": 60, "cucumber": 80, "oil": 5},
-     "steps": "Пожарить яйца на масле, подать с хлебом и нарезанным огурцом."},
-    {"id": "syrniki", "ru": "Сырники со сметаной", "en": "Syrniki (quark pancakes)",
-     "slots": ["breakfast"], "minutes": 30, "tags": ["kids"], "popular_in": ["RU", "BY", "KZ"],
-     "ingredients": {"tvorog": 130, "eggs": 0.5, "flour": 25, "sugar": 10, "oil": 10, "sour_cream": 30},
-     "steps": "Смешать творог, яйцо, сахар и муку. Сформировать сырники, обвалять в муке и обжарить по 3–4 минуты с каждой стороны."},
-    {"id": "bliny", "ru": "Блины со сметаной", "en": "Crepes with sour cream",
-     "slots": ["breakfast"], "minutes": 35, "tags": ["kids"], "popular_in": ["RU", "BY", "KZ"],
-     "ingredients": {"flour": 50, "milk": 120, "eggs": 0.5, "sugar": 8, "oil": 8, "sour_cream": 30},
-     "steps": "Смешать яйца, сахар, молоко и муку до жидкого теста, добавить масло. Жарить тонкие блины на разогретой сковороде."},
-    {"id": "tvorog_banana", "ru": "Творог со сметаной и бананом", "en": "Quark with sour cream and banana",
-     "slots": ["breakfast"], "minutes": 5, "tags": ["quick", "kids"], "popular_in": ["RU", "BY", "KZ", "DE"],
-     "ingredients": {"tvorog": 150, "banana": 100, "sour_cream": 30},
-     "steps": "Размять творог со сметаной, добавить нарезанный банан."},
-    {"id": "cheese_toast_egg", "ru": "Тосты с сыром и варёным яйцом", "en": "Cheese toast with boiled egg",
-     "slots": ["breakfast"], "minutes": 10, "tags": ["quick"], "popular_in": ["*"],
-     "ingredients": {"bread": 80, "cheese": 30, "butter": 10, "eggs": 1, "tomato": 60},
-     "steps": "Сварить яйца 8 минут. Хлеб с маслом и сыром подрумянить на сковороде или в духовке, подать с яйцом и помидором."},
-    {"id": "bean_toast", "ru": "Тосты с фасолью в томате", "en": "Beans on toast",
-     "slots": ["breakfast"], "minutes": 15, "tags": ["quick"], "popular_in": ["US", "DE"],
-     "ingredients": {"bread": 80, "beans": 40, "tomato_paste": 15, "onion": 30, "oil": 5},
-     "steps": "Фасоль заранее замочить и отварить (можно сварить сразу на несколько дней). Обжарить лук, добавить томатную пасту, фасоль и немного воды, потушить 5 минут, выложить на поджаренный хлеб."},
-
-    {"id": "borscht", "ru": "Борщ со сметаной", "en": "Borscht with sour cream",
-     "slots": ["lunch", "dinner"], "minutes": 90, "tags": ["soup"], "popular_in": ["RU", "BY", "KZ"],
-     "ingredients": {"beef": 80, "beet": 80, "cabbage": 80, "potato": 80, "carrot": 30, "onion": 30, "tomato_paste": 15, "oil": 5, "sour_cream": 20, "greens": 3},
-     "steps": "Сварить бульон из говядины (1 час). Добавить картофель и капусту. Отдельно обжарить лук, морковь и свёклу с томатной пастой, добавить в суп и варить 15 минут. Подавать со сметаной и зеленью."},
-    {"id": "shchi", "ru": "Щи из свежей капусты с курицей", "en": "Cabbage soup with chicken",
-     "slots": ["lunch", "dinner"], "minutes": 60, "tags": ["soup"], "popular_in": ["RU", "BY"],
-     "ingredients": {"chicken_legs": 100, "cabbage": 120, "potato": 80, "carrot": 30, "onion": 30, "tomato_paste": 10, "greens": 3, "sour_cream": 20},
-     "steps": "Сварить куриный бульон 30 минут, добавить картофель и капусту. Обжарить лук и морковь с томатной пастой, добавить в суп и варить 10 минут."},
-    {"id": "chicken_noodle_soup", "ru": "Куриный суп с лапшой", "en": "Chicken noodle soup",
-     "slots": ["lunch", "dinner"], "minutes": 50, "tags": ["soup", "kids"], "popular_in": ["*"],
-     "ingredients": {"chicken_legs": 120, "pasta": 30, "potato": 60, "carrot": 30, "onion": 30, "greens": 3},
-     "steps": "Сварить бульон из курицы 30 минут, добавить картофель, морковь и лук, через 10 минут — макароны. Варить до готовности, посыпать зеленью."},
-    {"id": "lentil_soup", "ru": "Суп из красной чечевицы", "en": "Red lentil soup",
-     "slots": ["lunch", "dinner"], "minutes": 35, "tags": ["soup"], "popular_in": ["*"],
-     "ingredients": {"lentils": 70, "potato": 60, "carrot": 40, "onion": 40, "tomato_paste": 15, "oil": 10, "garlic": 3},
-     "steps": "Обжарить лук, морковь и чеснок, добавить томатную пасту. Всыпать промытую чечевицу и картофель, залить водой и варить 20 минут. По желанию пробить блендером."},
-    {"id": "potato_soup", "ru": "Картофельный суп со сметаной", "en": "Potato soup",
-     "slots": ["lunch", "dinner"], "minutes": 40, "tags": ["soup", "kids"], "popular_in": ["DE", "BY", "RU"],
-     "ingredients": {"potato": 200, "carrot": 50, "onion": 40, "sour_cream": 30, "butter": 10, "greens": 3},
-     "steps": "Обжарить лук и морковь на масле, добавить картофель и воду, варить 20 минут. Часть картофеля размять, заправить сметаной и зеленью."},
-    {"id": "plov", "ru": "Плов с говядиной", "en": "Plov with beef",
-     "slots": ["lunch", "dinner"], "minutes": 90, "tags": [], "popular_in": ["UZ", "KZ", "RU"],
-     "ingredients": {"rice": 90, "beef": 110, "carrot": 100, "onion": 50, "oil": 25, "garlic": 10, "chickpeas": 15},
-     "steps": "Обжарить мясо в разогретом масле, добавить лук и морковь соломкой, затем замоченный нут, залить водой и тушить 40 минут (зирвак). Выложить промытый рис, долить воду на 1 см выше, вложить головку чеснока и готовить под крышкой 25 минут."},
-    {"id": "lagman", "ru": "Лагман", "en": "Lagman (noodles with beef and vegetables)",
-     "slots": ["lunch", "dinner"], "minutes": 60, "tags": [], "popular_in": ["UZ", "KZ"],
-     "ingredients": {"beef": 90, "pasta": 100, "bell_pepper": 50, "tomato": 70, "onion": 30, "carrot": 30, "potato": 50, "garlic": 5, "oil": 15},
-     "steps": "Обжарить мясо, добавить лук, морковь, перец, помидоры и картофель, залить водой и тушить 30 минут. Отдельно отварить лапшу, полить соусом."},
-    {"id": "buckwheat_chicken", "ru": "Гречка с тушёной курицей", "en": "Buckwheat with braised chicken",
-     "slots": ["lunch", "dinner"], "minutes": 50, "tags": ["kids"], "popular_in": ["RU", "BY", "KZ"],
-     "ingredients": {"buckwheat": 80, "chicken_legs": 200, "onion": 40, "carrot": 40, "oil": 10},
-     "steps": "Обжарить курицу, добавить лук и морковь, тушить 25 минут. Всыпать гречку, залить водой (1:2) и готовить под крышкой ещё 20 минут."},
-    {"id": "mushroom_buckwheat", "ru": "Гречка с грибами и луком", "en": "Buckwheat with mushrooms",
-     "slots": ["lunch", "dinner"], "minutes": 30, "tags": [], "popular_in": ["RU", "BY"],
-     "ingredients": {"buckwheat": 80, "mushrooms": 120, "onion": 50, "carrot": 30, "oil": 15},
-     "steps": "Сварить гречку. Обжарить лук, морковь и грибы до золотистого цвета, смешать с гречкой."},
-    {"id": "makarony_po_flotski", "ru": "Макароны по-флотски", "en": "Pasta with ground beef",
-     "slots": ["lunch", "dinner"], "minutes": 30, "tags": ["quick", "kids"], "popular_in": ["RU", "BY", "KZ"],
-     "ingredients": {"pasta": 100, "ground_beef": 100, "onion": 40, "oil": 5},
-     "steps": "Обжарить лук и фарш до готовности. Отварить макароны и смешать с фаршем."},
-    {"id": "cutlets_mash", "ru": "Котлеты с картофельным пюре и огурцом", "en": "Meat patties with mashed potatoes",
-     "slots": ["lunch", "dinner"], "minutes": 50, "tags": ["kids"], "popular_in": ["RU", "BY", "KZ", "DE"],
-     "ingredients": {"ground_beef": 120, "bread": 20, "eggs": 0.25, "onion": 30, "potato": 250, "milk": 40, "butter": 10, "oil": 10, "cucumber": 70},
-     "steps": "Смешать фарш с размоченным хлебом, яйцом и тёртым луком, сформировать котлеты и обжарить по 5 минут с каждой стороны, затем довести под крышкой. Сварить картофель и размять с горячим молоком и маслом."},
-    {"id": "lazy_cabbage_rolls", "ru": "Ленивые голубцы", "en": "Lazy cabbage rolls",
-     "slots": ["lunch", "dinner"], "minutes": 60, "tags": ["kids"], "popular_in": ["RU", "BY", "KZ"],
-     "ingredients": {"ground_beef": 100, "rice": 40, "cabbage": 150, "carrot": 30, "onion": 30, "tomato_paste": 15, "sour_cream": 30},
-     "steps": "Смешать фарш, отваренный до полуготовности рис и нашинкованную капусту, сформировать тефтели. Залить соусом из обжаренных лука и моркови, томатной пасты, сметаны и воды, тушить 40 минут."},
-    {"id": "stuffed_peppers", "ru": "Фаршированные перцы", "en": "Stuffed bell peppers",
-     "slots": ["lunch", "dinner"], "minutes": 70, "tags": [], "popular_in": ["RU", "BY", "KZ", "UZ"],
-     "ingredients": {"bell_pepper": 200, "ground_beef": 80, "rice": 30, "carrot": 30, "onion": 30, "tomato_paste": 15, "sour_cream": 20},
-     "steps": "Смешать фарш с полуготовым рисом, начинить перцы. Уложить в кастрюлю, залить соусом из обжаренных лука и моркови, томатной пасты и воды, тушить 45 минут. Подать со сметаной."},
-    {"id": "chili_beans", "ru": "Чили с фасолью и рисом", "en": "Chili con carne with rice",
-     "slots": ["lunch", "dinner"], "minutes": 60, "tags": [], "popular_in": ["US", "DE"],
-     "ingredients": {"ground_beef": 100, "beans": 60, "canned_tomatoes": 120, "onion": 40, "bell_pepper": 60, "garlic": 5, "oil": 5, "rice": 60},
-     "steps": "Фасоль замочить на ночь и отварить. Обжарить лук, чеснок и фарш, добавить перец, томаты и фасоль, тушить 30 минут. Подать с рисом."},
-    {"id": "goulash_pasta", "ru": "Гуляш из говядины с макаронами", "en": "Beef goulash with pasta",
-     "slots": ["lunch", "dinner"], "minutes": 100, "tags": [], "popular_in": ["DE", "RU", "BY"],
-     "ingredients": {"beef": 120, "onion": 50, "tomato_paste": 15, "flour": 5, "oil": 10, "bell_pepper": 40, "pasta": 90},
-     "steps": "Обжарить говядину кубиками, добавить лук и перец, томатную пасту и муку, залить водой и тушить 1,5 часа. Подать с отварными макаронами."},
-    {"id": "baked_chicken_veg", "ru": "Запечённые окорочка с картофелем и морковью", "en": "Roast chicken legs with vegetables",
-     "slots": ["lunch", "dinner"], "minutes": 60, "tags": ["kids"], "popular_in": ["*"],
-     "ingredients": {"chicken_legs": 250, "potato": 200, "carrot": 60, "onion": 40, "garlic": 5, "oil": 10},
-     "steps": "Натереть курицу чесноком и солью. Выложить на противень с нарезанными овощами, сбрызнуть маслом и запекать 45–50 минут при 200 °C."},
-    {"id": "chicken_rice_veg", "ru": "Рис с куриным филе и овощами", "en": "Chicken and vegetable rice",
-     "slots": ["lunch", "dinner"], "minutes": 35, "tags": ["quick", "kids"], "popular_in": ["*"],
-     "ingredients": {"chicken_breast": 130, "rice": 80, "bell_pepper": 60, "carrot": 40, "onion": 30, "oil": 10},
-     "steps": "Обжарить филе кусочками, добавить овощи, затем рис, залить водой (1:2) и тушить под крышкой 20 минут."},
-    {"id": "braised_cabbage_chicken", "ru": "Тушёная капуста с курицей", "en": "Braised cabbage with chicken",
-     "slots": ["lunch", "dinner"], "minutes": 50, "tags": [], "popular_in": ["RU", "BY", "DE"],
-     "ingredients": {"cabbage": 250, "chicken_legs": 150, "carrot": 40, "onion": 30, "tomato_paste": 15, "oil": 10},
-     "steps": "Обжарить курицу, добавить лук, морковь и нашинкованную капусту, томатную пасту и немного воды. Тушить 35–40 минут."},
-    {"id": "baked_fish_potato", "ru": "Рыба, запечённая с картофелем", "en": "Baked fish with potatoes",
-     "slots": ["lunch", "dinner"], "minutes": 45, "tags": ["fish"], "popular_in": ["*"],
-     "ingredients": {"fish_fillet": 150, "potato": 250, "onion": 30, "sour_cream": 30, "oil": 10, "greens": 3},
-     "steps": "Картофель нарезать тонко, выложить в форму, сверху лук и рыбу. Смазать сметаной, запекать 35 минут при 190 °C."},
-    {"id": "fish_rice", "ru": "Тушёная рыба с морковью и рисом", "en": "Braised fish with carrots and rice",
-     "slots": ["lunch", "dinner"], "minutes": 35, "tags": ["fish", "quick"], "popular_in": ["RU", "KZ", "BY"],
-     "ingredients": {"fish_fillet": 150, "rice": 80, "carrot": 60, "onion": 40, "tomato_paste": 10, "oil": 10},
-     "steps": "Обжарить лук и морковь, добавить томатную пасту и немного воды, выложить рыбу и тушить 15 минут. Подать с отварным рисом."},
-    {"id": "pork_potato_stew", "ru": "Жаркое из свинины с картофелем", "en": "Pork and potato stew",
-     "slots": ["lunch", "dinner"], "minutes": 70, "tags": [], "popular_in": ["RU", "BY", "DE", "US"],
-     "ingredients": {"pork": 130, "potato": 250, "onion": 40, "carrot": 40, "oil": 5},
-     "steps": "Обжарить свинину, добавить лук и морковь, затем картофель. Залить водой наполовину и тушить 45 минут."},
-    {"id": "veg_stew", "ru": "Овощное рагу", "en": "Vegetable stew",
-     "slots": ["lunch", "dinner"], "minutes": 45, "tags": [], "popular_in": ["*"],
-     "ingredients": {"potato": 150, "zucchini": 150, "carrot": 50, "onion": 50, "bell_pepper": 70, "tomato": 80, "oil": 15, "garlic": 5},
-     "steps": "Обжарить лук и морковь, добавить картофель, через 10 минут — кабачки, перец и помидоры. Тушить под крышкой 25 минут, в конце добавить чеснок."},
-    {"id": "pasta_tomato", "ru": "Паста в томатном соусе с сыром", "en": "Pasta in tomato sauce with cheese",
-     "slots": ["lunch", "dinner"], "minutes": 25, "tags": ["quick", "kids"], "popular_in": ["*"],
-     "ingredients": {"pasta": 100, "canned_tomatoes": 150, "onion": 30, "garlic": 5, "oil": 10, "cheese": 20},
-     "steps": "Обжарить лук и чеснок, добавить томаты и тушить 10 минут. Смешать с отварной пастой и посыпать тёртым сыром."},
-    {"id": "chickpea_stew", "ru": "Рагу из нута с томатами и рисом", "en": "Chickpea stew with rice",
-     "slots": ["lunch", "dinner"], "minutes": 50, "tags": [], "popular_in": ["UZ", "KZ", "DE", "US"],
-     "ingredients": {"chickpeas": 80, "canned_tomatoes": 120, "onion": 40, "carrot": 40, "garlic": 5, "oil": 10, "rice": 60},
-     "steps": "Нут замочить на ночь и отварить до мягкости. Обжарить лук, морковь и чеснок, добавить томаты и нут, тушить 20 минут. Подать с рисом."},
-    {"id": "fried_potato_mushrooms", "ru": "Жареная картошка с грибами", "en": "Fried potatoes with mushrooms",
-     "slots": ["lunch", "dinner"], "minutes": 35, "tags": [], "popular_in": ["RU", "BY"],
-     "ingredients": {"potato": 300, "mushrooms": 100, "onion": 40, "oil": 20, "greens": 3},
-     "steps": "Обжарить картофель соломкой до корочки. Отдельно обжарить грибы с луком, смешать и посыпать зеленью."},
-    {"id": "draniki", "ru": "Драники со сметаной", "en": "Potato pancakes",
-     "slots": ["lunch", "dinner"], "minutes": 40, "tags": ["kids"], "popular_in": ["BY", "RU", "DE"],
-     "ingredients": {"potato": 250, "onion": 30, "eggs": 0.5, "flour": 15, "oil": 20, "sour_cream": 40},
-     "steps": "Натереть картофель и лук, отжать, смешать с яйцом и мукой. Жарить небольшие оладьи по 3–4 минуты с каждой стороны."},
-    {"id": "zucchini_fritters", "ru": "Кабачковые оладьи со сметаной и хлебом", "en": "Zucchini fritters",
-     "slots": ["lunch", "dinner"], "minutes": 30, "tags": ["quick"], "popular_in": ["RU", "BY", "KZ"],
-     "ingredients": {"zucchini": 200, "eggs": 0.5, "flour": 30, "oil": 15, "sour_cream": 40, "garlic": 3, "bread": 40},
-     "steps": "Натереть кабачки, отжать, смешать с яйцом, мукой и чесноком. Жарить оладьи на масле по 3 минуты с каждой стороны."},
-    {"id": "tvorog_casserole", "ru": "Творожная запеканка", "en": "Quark casserole",
-     "slots": ["breakfast", "dinner"], "minutes": 50, "tags": ["kids"], "popular_in": ["RU", "BY", "KZ"],
-     "ingredients": {"tvorog": 150, "eggs": 0.5, "sugar": 15, "flour": 15, "sour_cream": 30, "butter": 5},
-     "steps": "Смешать творог, яйца, сахар и муку, выложить в смазанную маслом форму. Запекать 35 минут при 180 °C, подать со сметаной."}
-  ]
+ "_comment": "Количества — на 1 взрослую порцию в базовых единицах ингредиента. Соль, перец и специи считаются домашним запасом и не учитываются. popular_in — регионы, где блюдо привычно (даёт приоритет при подборе).",
+ "recipes": [
+  {
+   "id": "oatmeal_apple",
+   "ru": "Овсяная каша на молоке с яблоком",
+   "en": "Oatmeal with milk and apple",
+   "slots": [
+    "breakfast"
+   ],
+   "minutes": 15,
+   "tags": [
+    "quick",
+    "kids"
+   ],
+   "popular_in": [
+    "*"
+   ],
+   "ingredients": {
+    "oats": 60,
+    "milk": 200,
+    "apple": 80,
+    "sugar": 8,
+    "butter": 5
+   },
+   "steps": "Довести молоко до кипения, всыпать хлопья и варить 5–7 минут. Добавить нарезанное яблоко, сахар и масло."
+  },
+  {
+   "id": "oatmeal_banana_vegan",
+   "ru": "Овсянка на воде с бананом",
+   "en": "Oatmeal with banana (vegan)",
+   "slots": [
+    "breakfast"
+   ],
+   "minutes": 10,
+   "tags": [
+    "quick",
+    "kids"
+   ],
+   "popular_in": [
+    "*"
+   ],
+   "ingredients": {
+    "oats": 60,
+    "banana": 100,
+    "sugar": 5
+   },
+   "steps": "Сварить хлопья на воде 5 минут, добавить сахар и нарезанный банан."
+  },
+  {
+   "id": "buckwheat_milk",
+   "ru": "Гречневая каша с молоком",
+   "en": "Buckwheat porridge with milk",
+   "slots": [
+    "breakfast"
+   ],
+   "minutes": 20,
+   "tags": [
+    "kids"
+   ],
+   "popular_in": [
+    "RU",
+    "BY",
+    "KZ"
+   ],
+   "ingredients": {
+    "buckwheat": 60,
+    "milk": 200,
+    "butter": 5,
+    "sugar": 5
+   },
+   "steps": "Сварить гречку в подсоленной воде (1:2) 15 минут. Подать с горячим молоком, маслом и сахаром."
+  },
+  {
+   "id": "rice_milk_porridge",
+   "ru": "Рисовая молочная каша",
+   "en": "Rice milk porridge",
+   "slots": [
+    "breakfast"
+   ],
+   "minutes": 25,
+   "tags": [
+    "kids"
+   ],
+   "popular_in": [
+    "RU",
+    "BY",
+    "KZ",
+    "UZ"
+   ],
+   "ingredients": {
+    "rice": 50,
+    "milk": 220,
+    "sugar": 8,
+    "butter": 5
+   },
+   "steps": "Отварить рис в небольшом количестве воды 7 минут, влить молоко и варить ещё 15 минут на слабом огне, добавить сахар и масло."
+  },
+  {
+   "id": "omelet_tomato",
+   "ru": "Омлет с помидорами и хлебом",
+   "en": "Omelet with tomatoes",
+   "slots": [
+    "breakfast"
+   ],
+   "minutes": 15,
+   "tags": [
+    "quick"
+   ],
+   "popular_in": [
+    "*"
+   ],
+   "ingredients": {
+    "eggs": 2,
+    "milk": 50,
+    "tomato": 80,
+    "butter": 5,
+    "bread": 50
+   },
+   "steps": "Взбить яйца с молоком, обжарить нарезанные помидоры на масле, залить яйцами и готовить под крышкой 5–7 минут."
+  },
+  {
+   "id": "fried_eggs_cucumber",
+   "ru": "Яичница с хлебом и огурцом",
+   "en": "Fried eggs with bread and cucumber",
+   "slots": [
+    "breakfast"
+   ],
+   "minutes": 10,
+   "tags": [
+    "quick"
+   ],
+   "popular_in": [
+    "*"
+   ],
+   "ingredients": {
+    "eggs": 2,
+    "bread": 60,
+    "cucumber": 80,
+    "oil": 5
+   },
+   "steps": "Пожарить яйца на масле, подать с хлебом и нарезанным огурцом."
+  },
+  {
+   "id": "syrniki",
+   "ru": "Сырники со сметаной",
+   "en": "Syrniki (quark pancakes)",
+   "slots": [
+    "breakfast"
+   ],
+   "minutes": 30,
+   "tags": [
+    "kids"
+   ],
+   "popular_in": [
+    "RU",
+    "BY",
+    "KZ"
+   ],
+   "ingredients": {
+    "tvorog": 130,
+    "eggs": 0.5,
+    "flour": 25,
+    "sugar": 10,
+    "oil": 10,
+    "sour_cream": 30
+   },
+   "steps": "Смешать творог, яйцо, сахар и муку. Сформировать сырники, обвалять в муке и обжарить по 3–4 минуты с каждой стороны."
+  },
+  {
+   "id": "bliny",
+   "ru": "Блины со сметаной",
+   "en": "Crepes with sour cream",
+   "slots": [
+    "breakfast"
+   ],
+   "minutes": 35,
+   "tags": [
+    "kids"
+   ],
+   "popular_in": [
+    "RU",
+    "BY",
+    "KZ"
+   ],
+   "ingredients": {
+    "flour": 50,
+    "milk": 120,
+    "eggs": 0.5,
+    "sugar": 8,
+    "oil": 8,
+    "sour_cream": 30
+   },
+   "steps": "Смешать яйца, сахар, молоко и муку до жидкого теста, добавить масло. Жарить тонкие блины на разогретой сковороде."
+  },
+  {
+   "id": "tvorog_banana",
+   "ru": "Творог со сметаной и бананом",
+   "en": "Quark with sour cream and banana",
+   "slots": [
+    "breakfast"
+   ],
+   "minutes": 5,
+   "tags": [
+    "quick",
+    "kids"
+   ],
+   "popular_in": [
+    "RU",
+    "BY",
+    "KZ",
+    "DE"
+   ],
+   "ingredients": {
+    "tvorog": 150,
+    "banana": 100,
+    "sour_cream": 30
+   },
+   "steps": "Размять творог со сметаной, добавить нарезанный банан."
+  },
+  {
+   "id": "cheese_toast_egg",
+   "ru": "Тосты с сыром и варёным яйцом",
+   "en": "Cheese toast with boiled egg",
+   "slots": [
+    "breakfast"
+   ],
+   "minutes": 10,
+   "tags": [
+    "quick"
+   ],
+   "popular_in": [
+    "*"
+   ],
+   "ingredients": {
+    "bread": 80,
+    "cheese": 30,
+    "butter": 10,
+    "eggs": 1,
+    "tomato": 60
+   },
+   "steps": "Сварить яйца 8 минут. Хлеб с маслом и сыром подрумянить на сковороде или в духовке, подать с яйцом и помидором."
+  },
+  {
+   "id": "bean_toast",
+   "ru": "Тосты с фасолью в томате",
+   "en": "Beans on toast",
+   "slots": [
+    "breakfast"
+   ],
+   "minutes": 15,
+   "tags": [
+    "quick"
+   ],
+   "popular_in": [
+    "US",
+    "DE"
+   ],
+   "ingredients": {
+    "bread": 80,
+    "beans": 40,
+    "tomato_paste": 15,
+    "onion": 30,
+    "oil": 5
+   },
+   "steps": "Фасоль заранее замочить и отварить (можно сварить сразу на несколько дней). Обжарить лук, добавить томатную пасту, фасоль и немного воды, потушить 5 минут, выложить на поджаренный хлеб."
+  },
+  {
+   "id": "borscht",
+   "ru": "Борщ со сметаной",
+   "en": "Borscht with sour cream",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 90,
+   "tags": [
+    "soup"
+   ],
+   "popular_in": [
+    "RU",
+    "BY",
+    "KZ"
+   ],
+   "ingredients": {
+    "beef": 80,
+    "beet": 80,
+    "cabbage": 80,
+    "potato": 80,
+    "carrot": 30,
+    "onion": 30,
+    "tomato_paste": 15,
+    "oil": 5,
+    "sour_cream": 20,
+    "greens": 3
+   },
+   "steps": "Сварить бульон из говядины (1 час). Добавить картофель и капусту. Отдельно обжарить лук, морковь и свёклу с томатной пастой, добавить в суп и варить 15 минут. Подавать со сметаной и зеленью."
+  },
+  {
+   "id": "shchi",
+   "ru": "Щи из свежей капусты с курицей",
+   "en": "Cabbage soup with chicken",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 60,
+   "tags": [
+    "soup"
+   ],
+   "popular_in": [
+    "RU",
+    "BY"
+   ],
+   "ingredients": {
+    "chicken_legs": 100,
+    "cabbage": 120,
+    "potato": 80,
+    "carrot": 30,
+    "onion": 30,
+    "tomato_paste": 10,
+    "greens": 3,
+    "sour_cream": 20
+   },
+   "steps": "Сварить куриный бульон 30 минут, добавить картофель и капусту. Обжарить лук и морковь с томатной пастой, добавить в суп и варить 10 минут."
+  },
+  {
+   "id": "chicken_noodle_soup",
+   "ru": "Куриный суп с лапшой",
+   "en": "Chicken noodle soup",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 50,
+   "tags": [
+    "soup",
+    "kids"
+   ],
+   "popular_in": [
+    "*"
+   ],
+   "ingredients": {
+    "chicken_legs": 120,
+    "pasta": 30,
+    "potato": 60,
+    "carrot": 30,
+    "onion": 30,
+    "greens": 3
+   },
+   "steps": "Сварить бульон из курицы 30 минут, добавить картофель, морковь и лук, через 10 минут — макароны. Варить до готовности, посыпать зеленью."
+  },
+  {
+   "id": "lentil_soup",
+   "ru": "Суп из красной чечевицы",
+   "en": "Red lentil soup",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 35,
+   "tags": [
+    "soup"
+   ],
+   "popular_in": [
+    "*"
+   ],
+   "ingredients": {
+    "lentils": 70,
+    "potato": 60,
+    "carrot": 40,
+    "onion": 40,
+    "tomato_paste": 15,
+    "oil": 10,
+    "garlic": 3
+   },
+   "steps": "Обжарить лук, морковь и чеснок, добавить томатную пасту. Всыпать промытую чечевицу и картофель, залить водой и варить 20 минут. По желанию пробить блендером."
+  },
+  {
+   "id": "potato_soup",
+   "ru": "Картофельный суп со сметаной",
+   "en": "Potato soup",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 40,
+   "tags": [
+    "soup",
+    "kids"
+   ],
+   "popular_in": [
+    "DE",
+    "BY",
+    "RU"
+   ],
+   "ingredients": {
+    "potato": 200,
+    "carrot": 50,
+    "onion": 40,
+    "sour_cream": 30,
+    "butter": 10,
+    "greens": 3
+   },
+   "steps": "Обжарить лук и морковь на масле, добавить картофель и воду, варить 20 минут. Часть картофеля размять, заправить сметаной и зеленью."
+  },
+  {
+   "id": "plov",
+   "ru": "Плов с говядиной",
+   "en": "Plov with beef",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 90,
+   "tags": [],
+   "popular_in": [
+    "UZ",
+    "KZ",
+    "RU"
+   ],
+   "ingredients": {
+    "rice": 90,
+    "beef": 110,
+    "carrot": 100,
+    "onion": 50,
+    "oil": 25,
+    "garlic": 10,
+    "chickpeas": 15
+   },
+   "steps": "Обжарить мясо в разогретом масле, добавить лук и морковь соломкой, затем замоченный нут, залить водой и тушить 40 минут (зирвак). Выложить промытый рис, долить воду на 1 см выше, вложить головку чеснока и готовить под крышкой 25 минут."
+  },
+  {
+   "id": "lagman",
+   "ru": "Лагман",
+   "en": "Lagman (noodles with beef and vegetables)",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 60,
+   "tags": [],
+   "popular_in": [
+    "UZ",
+    "KZ"
+   ],
+   "ingredients": {
+    "beef": 90,
+    "pasta": 100,
+    "bell_pepper": 50,
+    "tomato": 70,
+    "onion": 30,
+    "carrot": 30,
+    "potato": 50,
+    "garlic": 5,
+    "oil": 15
+   },
+   "steps": "Обжарить мясо, добавить лук, морковь, перец, помидоры и картофель, залить водой и тушить 30 минут. Отдельно отварить лапшу, полить соусом."
+  },
+  {
+   "id": "buckwheat_chicken",
+   "ru": "Гречка с тушёной курицей",
+   "en": "Buckwheat with braised chicken",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 50,
+   "tags": [
+    "kids"
+   ],
+   "popular_in": [
+    "RU",
+    "BY",
+    "KZ"
+   ],
+   "ingredients": {
+    "buckwheat": 80,
+    "chicken_legs": 200,
+    "onion": 40,
+    "carrot": 40,
+    "oil": 10
+   },
+   "steps": "Обжарить курицу, добавить лук и морковь, тушить 25 минут. Всыпать гречку, залить водой (1:2) и готовить под крышкой ещё 20 минут."
+  },
+  {
+   "id": "mushroom_buckwheat",
+   "ru": "Гречка с грибами и луком",
+   "en": "Buckwheat with mushrooms",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 30,
+   "tags": [],
+   "popular_in": [
+    "RU",
+    "BY"
+   ],
+   "ingredients": {
+    "buckwheat": 80,
+    "mushrooms": 120,
+    "onion": 50,
+    "carrot": 30,
+    "oil": 15
+   },
+   "steps": "Сварить гречку. Обжарить лук, морковь и грибы до золотистого цвета, смешать с гречкой."
+  },
+  {
+   "id": "makarony_po_flotski",
+   "ru": "Макароны по-флотски",
+   "en": "Pasta with ground beef",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 30,
+   "tags": [
+    "quick",
+    "kids"
+   ],
+   "popular_in": [
+    "RU",
+    "BY",
+    "KZ"
+   ],
+   "ingredients": {
+    "pasta": 100,
+    "ground_beef": 100,
+    "onion": 40,
+    "oil": 5
+   },
+   "steps": "Обжарить лук и фарш до готовности. Отварить макароны и смешать с фаршем."
+  },
+  {
+   "id": "cutlets_mash",
+   "ru": "Котлеты с картофельным пюре и огурцом",
+   "en": "Meat patties with mashed potatoes",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 50,
+   "tags": [
+    "kids"
+   ],
+   "popular_in": [
+    "RU",
+    "BY",
+    "KZ",
+    "DE"
+   ],
+   "ingredients": {
+    "ground_beef": 120,
+    "bread": 20,
+    "eggs": 0.25,
+    "onion": 30,
+    "potato": 250,
+    "milk": 40,
+    "butter": 10,
+    "oil": 10,
+    "cucumber": 70
+   },
+   "steps": "Смешать фарш с размоченным хлебом, яйцом и тёртым луком, сформировать котлеты и обжарить по 5 минут с каждой стороны, затем довести под крышкой. Сварить картофель и размять с горячим молоком и маслом."
+  },
+  {
+   "id": "lazy_cabbage_rolls",
+   "ru": "Ленивые голубцы",
+   "en": "Lazy cabbage rolls",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 60,
+   "tags": [
+    "kids"
+   ],
+   "popular_in": [
+    "RU",
+    "BY",
+    "KZ"
+   ],
+   "ingredients": {
+    "ground_beef": 100,
+    "rice": 40,
+    "cabbage": 150,
+    "carrot": 30,
+    "onion": 30,
+    "tomato_paste": 15,
+    "sour_cream": 30
+   },
+   "steps": "Смешать фарш, отваренный до полуготовности рис и нашинкованную капусту, сформировать тефтели. Залить соусом из обжаренных лука и моркови, томатной пасты, сметаны и воды, тушить 40 минут."
+  },
+  {
+   "id": "stuffed_peppers",
+   "ru": "Фаршированные перцы",
+   "en": "Stuffed bell peppers",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 70,
+   "tags": [],
+   "popular_in": [
+    "RU",
+    "BY",
+    "KZ",
+    "UZ"
+   ],
+   "ingredients": {
+    "bell_pepper": 200,
+    "ground_beef": 80,
+    "rice": 30,
+    "carrot": 30,
+    "onion": 30,
+    "tomato_paste": 15,
+    "sour_cream": 20
+   },
+   "steps": "Смешать фарш с полуготовым рисом, начинить перцы. Уложить в кастрюлю, залить соусом из обжаренных лука и моркови, томатной пасты и воды, тушить 45 минут. Подать со сметаной."
+  },
+  {
+   "id": "chili_beans",
+   "ru": "Чили с фасолью и рисом",
+   "en": "Chili con carne with rice",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 60,
+   "tags": [],
+   "popular_in": [
+    "US",
+    "DE"
+   ],
+   "ingredients": {
+    "ground_beef": 100,
+    "beans": 60,
+    "canned_tomatoes": 120,
+    "onion": 40,
+    "bell_pepper": 60,
+    "garlic": 5,
+    "oil": 5,
+    "rice": 60
+   },
+   "steps": "Фасоль замочить на ночь и отварить. Обжарить лук, чеснок и фарш, добавить перец, томаты и фасоль, тушить 30 минут. Подать с рисом."
+  },
+  {
+   "id": "goulash_pasta",
+   "ru": "Гуляш из говядины с макаронами",
+   "en": "Beef goulash with pasta",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 100,
+   "tags": [],
+   "popular_in": [
+    "DE",
+    "RU",
+    "BY"
+   ],
+   "ingredients": {
+    "beef": 120,
+    "onion": 50,
+    "tomato_paste": 15,
+    "flour": 5,
+    "oil": 10,
+    "bell_pepper": 40,
+    "pasta": 90
+   },
+   "steps": "Обжарить говядину кубиками, добавить лук и перец, томатную пасту и муку, залить водой и тушить 1,5 часа. Подать с отварными макаронами."
+  },
+  {
+   "id": "baked_chicken_veg",
+   "ru": "Запечённые окорочка с картофелем и морковью",
+   "en": "Roast chicken legs with vegetables",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 60,
+   "tags": [
+    "kids"
+   ],
+   "popular_in": [
+    "*"
+   ],
+   "ingredients": {
+    "chicken_legs": 250,
+    "potato": 200,
+    "carrot": 60,
+    "onion": 40,
+    "garlic": 5,
+    "oil": 10
+   },
+   "steps": "Натереть курицу чесноком и солью. Выложить на противень с нарезанными овощами, сбрызнуть маслом и запекать 45–50 минут при 200 °C."
+  },
+  {
+   "id": "chicken_rice_veg",
+   "ru": "Рис с куриным филе и овощами",
+   "en": "Chicken and vegetable rice",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 35,
+   "tags": [
+    "quick",
+    "kids"
+   ],
+   "popular_in": [
+    "*"
+   ],
+   "ingredients": {
+    "chicken_breast": 130,
+    "rice": 80,
+    "bell_pepper": 60,
+    "carrot": 40,
+    "onion": 30,
+    "oil": 10
+   },
+   "steps": "Обжарить филе кусочками, добавить овощи, затем рис, залить водой (1:2) и тушить под крышкой 20 минут."
+  },
+  {
+   "id": "braised_cabbage_chicken",
+   "ru": "Тушёная капуста с курицей",
+   "en": "Braised cabbage with chicken",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 50,
+   "tags": [],
+   "popular_in": [
+    "RU",
+    "BY",
+    "DE"
+   ],
+   "ingredients": {
+    "cabbage": 250,
+    "chicken_legs": 150,
+    "carrot": 40,
+    "onion": 30,
+    "tomato_paste": 15,
+    "oil": 10
+   },
+   "steps": "Обжарить курицу, добавить лук, морковь и нашинкованную капусту, томатную пасту и немного воды. Тушить 35–40 минут."
+  },
+  {
+   "id": "baked_fish_potato",
+   "ru": "Рыба, запечённая с картофелем",
+   "en": "Baked fish with potatoes",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 45,
+   "tags": [
+    "fish"
+   ],
+   "popular_in": [
+    "*"
+   ],
+   "ingredients": {
+    "fish_fillet": 150,
+    "potato": 250,
+    "onion": 30,
+    "sour_cream": 30,
+    "oil": 10,
+    "greens": 3
+   },
+   "steps": "Картофель нарезать тонко, выложить в форму, сверху лук и рыбу. Смазать сметаной, запекать 35 минут при 190 °C."
+  },
+  {
+   "id": "fish_rice",
+   "ru": "Тушёная рыба с морковью и рисом",
+   "en": "Braised fish with carrots and rice",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 35,
+   "tags": [
+    "fish",
+    "quick"
+   ],
+   "popular_in": [
+    "RU",
+    "KZ",
+    "BY"
+   ],
+   "ingredients": {
+    "fish_fillet": 150,
+    "rice": 80,
+    "carrot": 60,
+    "onion": 40,
+    "tomato_paste": 10,
+    "oil": 10
+   },
+   "steps": "Обжарить лук и морковь, добавить томатную пасту и немного воды, выложить рыбу и тушить 15 минут. Подать с отварным рисом."
+  },
+  {
+   "id": "pork_potato_stew",
+   "ru": "Жаркое из свинины с картофелем",
+   "en": "Pork and potato stew",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 70,
+   "tags": [],
+   "popular_in": [
+    "RU",
+    "BY",
+    "DE",
+    "US"
+   ],
+   "ingredients": {
+    "pork": 130,
+    "potato": 250,
+    "onion": 40,
+    "carrot": 40,
+    "oil": 5
+   },
+   "steps": "Обжарить свинину, добавить лук и морковь, затем картофель. Залить водой наполовину и тушить 45 минут."
+  },
+  {
+   "id": "veg_stew",
+   "ru": "Овощное рагу",
+   "en": "Vegetable stew",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 45,
+   "tags": [],
+   "popular_in": [
+    "*"
+   ],
+   "ingredients": {
+    "potato": 150,
+    "zucchini": 150,
+    "carrot": 50,
+    "onion": 50,
+    "bell_pepper": 70,
+    "tomato": 80,
+    "oil": 15,
+    "garlic": 5
+   },
+   "steps": "Обжарить лук и морковь, добавить картофель, через 10 минут — кабачки, перец и помидоры. Тушить под крышкой 25 минут, в конце добавить чеснок."
+  },
+  {
+   "id": "pasta_tomato",
+   "ru": "Паста в томатном соусе с сыром",
+   "en": "Pasta in tomato sauce with cheese",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 25,
+   "tags": [
+    "quick",
+    "kids"
+   ],
+   "popular_in": [
+    "*"
+   ],
+   "ingredients": {
+    "pasta": 100,
+    "canned_tomatoes": 150,
+    "onion": 30,
+    "garlic": 5,
+    "oil": 10,
+    "cheese": 20
+   },
+   "steps": "Обжарить лук и чеснок, добавить томаты и тушить 10 минут. Смешать с отварной пастой и посыпать тёртым сыром."
+  },
+  {
+   "id": "chickpea_stew",
+   "ru": "Рагу из нута с томатами и рисом",
+   "en": "Chickpea stew with rice",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 50,
+   "tags": [],
+   "popular_in": [
+    "UZ",
+    "KZ",
+    "DE",
+    "US"
+   ],
+   "ingredients": {
+    "chickpeas": 80,
+    "canned_tomatoes": 120,
+    "onion": 40,
+    "carrot": 40,
+    "garlic": 5,
+    "oil": 10,
+    "rice": 60
+   },
+   "steps": "Нут замочить на ночь и отварить до мягкости. Обжарить лук, морковь и чеснок, добавить томаты и нут, тушить 20 минут. Подать с рисом."
+  },
+  {
+   "id": "fried_potato_mushrooms",
+   "ru": "Жареная картошка с грибами",
+   "en": "Fried potatoes with mushrooms",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 35,
+   "tags": [],
+   "popular_in": [
+    "RU",
+    "BY"
+   ],
+   "ingredients": {
+    "potato": 300,
+    "mushrooms": 100,
+    "onion": 40,
+    "oil": 20,
+    "greens": 3
+   },
+   "steps": "Обжарить картофель соломкой до корочки. Отдельно обжарить грибы с луком, смешать и посыпать зеленью."
+  },
+  {
+   "id": "draniki",
+   "ru": "Драники со сметаной",
+   "en": "Potato pancakes",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 40,
+   "tags": [
+    "kids"
+   ],
+   "popular_in": [
+    "BY",
+    "RU",
+    "DE"
+   ],
+   "ingredients": {
+    "potato": 250,
+    "onion": 30,
+    "eggs": 0.5,
+    "flour": 15,
+    "oil": 20,
+    "sour_cream": 40
+   },
+   "steps": "Натереть картофель и лук, отжать, смешать с яйцом и мукой. Жарить небольшие оладьи по 3–4 минуты с каждой стороны."
+  },
+  {
+   "id": "zucchini_fritters",
+   "ru": "Кабачковые оладьи со сметаной и хлебом",
+   "en": "Zucchini fritters",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 30,
+   "tags": [
+    "quick"
+   ],
+   "popular_in": [
+    "RU",
+    "BY",
+    "KZ"
+   ],
+   "ingredients": {
+    "zucchini": 200,
+    "eggs": 0.5,
+    "flour": 30,
+    "oil": 15,
+    "sour_cream": 40,
+    "garlic": 3,
+    "bread": 40
+   },
+   "steps": "Натереть кабачки, отжать, смешать с яйцом, мукой и чесноком. Жарить оладьи на масле по 3 минуты с каждой стороны."
+  },
+  {
+   "id": "tvorog_casserole",
+   "ru": "Творожная запеканка",
+   "en": "Quark casserole",
+   "slots": [
+    "breakfast",
+    "dinner"
+   ],
+   "minutes": 50,
+   "tags": [
+    "kids"
+   ],
+   "popular_in": [
+    "RU",
+    "BY",
+    "KZ"
+   ],
+   "ingredients": {
+    "tvorog": 150,
+    "eggs": 0.5,
+    "sugar": 15,
+    "flour": 15,
+    "sour_cream": 30,
+    "butter": 5
+   },
+   "steps": "Смешать творог, яйца, сахар и муку, выложить в смазанную маслом форму. Запекать 35 минут при 180 °C, подать со сметаной."
+  },
+  {
+   "id": "shurpa",
+   "ru": "Шурпа из баранины",
+   "en": "Shurpa (lamb soup)",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 100,
+   "tags": [
+    "soup"
+   ],
+   "popular_in": [
+    "UZ",
+    "KZ"
+   ],
+   "ingredients": {
+    "lamb": 120,
+    "potato": 120,
+    "carrot": 60,
+    "onion": 40,
+    "tomato": 50,
+    "bell_pepper": 30,
+    "chickpeas": 15,
+    "greens": 3
+   },
+   "steps": "Нут замочить на ночь. Баранину залить холодной водой, довести до кипения, снять пену, добавить нут и варить 1 час. Добавить крупно нарезанные морковь, лук, картофель, перец и помидоры, варить ещё 30 минут. Подавать с зеленью."
+  },
+  {
+   "id": "mastava",
+   "ru": "Мастава",
+   "en": "Mastava (rice soup)",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 60,
+   "tags": [
+    "soup",
+    "kids"
+   ],
+   "popular_in": [
+    "UZ",
+    "KZ"
+   ],
+   "ingredients": {
+    "beef": 70,
+    "rice": 40,
+    "potato": 80,
+    "carrot": 40,
+    "onion": 30,
+    "tomato_paste": 10,
+    "oil": 10,
+    "kefir": 50,
+    "greens": 3
+   },
+   "steps": "Обжарить мелко нарезанное мясо, лук и морковь, добавить томатную пасту. Залить водой, варить 20 минут, добавить картофель и промытый рис, варить ещё 20 минут. Подавать с кефиром (катыком) и зеленью."
+  },
+  {
+   "id": "mashkhurda",
+   "ru": "Машхурда",
+   "en": "Mashkhurda (mung bean soup)",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 75,
+   "tags": [
+    "soup"
+   ],
+   "popular_in": [
+    "UZ"
+   ],
+   "ingredients": {
+    "mung_beans": 50,
+    "rice": 30,
+    "potato": 80,
+    "carrot": 40,
+    "onion": 40,
+    "beef": 50,
+    "oil": 10,
+    "tomato_paste": 10,
+    "greens": 3
+   },
+   "steps": "Маш промыть и варить 30 минут. Отдельно обжарить мясо, лук и морковь с томатной пастой, переложить к машу. Добавить картофель и рис, варить до готовности 20–25 минут."
+  },
+  {
+   "id": "dimlama",
+   "ru": "Димлама",
+   "en": "Dimlama (braised meat and vegetables)",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 90,
+   "tags": [],
+   "popular_in": [
+    "UZ",
+    "KZ"
+   ],
+   "ingredients": {
+    "beef": 120,
+    "potato": 150,
+    "cabbage": 120,
+    "carrot": 60,
+    "onion": 50,
+    "bell_pepper": 50,
+    "tomato": 70,
+    "garlic": 5,
+    "oil": 10
+   },
+   "steps": "В казан на масло выложить слоями мясо, лук, морковь, картофель, перец, помидоры и чеснок, сверху — крупные листья капусты. Плотно закрыть крышкой и томить на слабом огне 1–1,5 часа без воды."
+  },
+  {
+   "id": "manti_meat",
+   "ru": "Манты с мясом",
+   "en": "Manti with meat",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 90,
+   "tags": [],
+   "popular_in": [
+    "UZ",
+    "KZ",
+    "RU"
+   ],
+   "ingredients": {
+    "flour": 110,
+    "eggs": 0.25,
+    "beef": 110,
+    "onion": 90,
+    "oil": 10,
+    "sour_cream": 30
+   },
+   "steps": "Замесить тугое тесто из муки, яйца, воды и соли, дать отдохнуть 30 минут. Мясо и лук мелко нарубить, посолить, поперчить. Раскатать тесто, нарезать квадраты, выложить начинку и защипнуть. Готовить в мантоварке 40–45 минут. Подавать со сметаной."
+  },
+  {
+   "id": "manti_pumpkin",
+   "ru": "Манты с тыквой",
+   "en": "Manti with pumpkin",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 80,
+   "tags": [],
+   "popular_in": [
+    "UZ",
+    "KZ"
+   ],
+   "ingredients": {
+    "flour": 110,
+    "eggs": 0.25,
+    "pumpkin": 200,
+    "onion": 60,
+    "oil": 15,
+    "sugar": 3,
+    "sour_cream": 30
+   },
+   "steps": "Замесить тесто и дать отдохнуть. Тыкву нарезать мелким кубиком, смешать с рубленым луком, маслом, солью и щепоткой сахара. Сформировать манты и готовить на пару 40 минут. Подавать со сметаной."
+  },
+  {
+   "id": "chuchvara",
+   "ru": "Чучвара",
+   "en": "Chuchvara (small dumplings)",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 70,
+   "tags": [
+    "kids"
+   ],
+   "popular_in": [
+    "UZ",
+    "KZ"
+   ],
+   "ingredients": {
+    "flour": 90,
+    "eggs": 0.25,
+    "ground_beef": 90,
+    "onion": 40,
+    "sour_cream": 30,
+    "greens": 3
+   },
+   "steps": "Замесить тесто из муки, яйца и воды. Фарш смешать с мелко нарезанным луком, солью и перцем. Раскатать тесто тонко, нарезать квадратики 3×3 см, выложить фарш и слепить. Варить в подсоленной воде или бульоне 7–8 минут после всплытия. Подавать со сметаной и зеленью."
+  },
+  {
+   "id": "beshbarmak",
+   "ru": "Бешбармак",
+   "en": "Beshbarmak",
+   "slots": [
+    "lunch",
+    "dinner"
+   ],
+   "minutes": 150,
+   "tags": [],
+   "popular_in": [
+    "KZ"
+   ],
+   "ingredients": {
+    "beef": 150,
+    "flour": 80,
+    "eggs": 0.25,
+    "onion": 50,
+    "potato": 80
+   },
+   "steps": "Отварить мясо 2 часа, в конце добавить картофель. Замесить тесто, тонко раскатать и нарезать ромбами, отварить в бульоне 3–4 минуты. Лук нарезать кольцами и залить горячим бульоном. Выложить тесто, сверху мясо и лук. Бульон (сорпа) подать отдельно."
+  }
+ ]
 }

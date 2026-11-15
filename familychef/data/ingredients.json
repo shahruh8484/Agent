@@ -1,45 +1,386 @@
 {
-  "_comment": "unit — базовая единица учёта (g, ml, pcs). flags — свойства для диет-фильтров: meat, pork, poultry, fish, dairy, egg, gluten.",
-  "ingredients": [
-    {"id": "buckwheat",       "ru": "Гречка",                  "en": "Buckwheat",              "unit": "g",   "category": "grains",  "flags": []},
-    {"id": "rice",            "ru": "Рис",                     "en": "Rice",                   "unit": "g",   "category": "grains",  "flags": []},
-    {"id": "oats",            "ru": "Овсяные хлопья",          "en": "Rolled oats",            "unit": "g",   "category": "grains",  "flags": ["gluten"]},
-    {"id": "pasta",           "ru": "Макароны",                "en": "Pasta",                  "unit": "g",   "category": "grains",  "flags": ["gluten"]},
-    {"id": "flour",           "ru": "Мука пшеничная",          "en": "Wheat flour",            "unit": "g",   "category": "grains",  "flags": ["gluten"]},
-    {"id": "bread",           "ru": "Хлеб",                    "en": "Bread",                  "unit": "g",   "category": "bakery",  "flags": ["gluten"]},
-    {"id": "lentils",         "ru": "Чечевица красная",        "en": "Red lentils",            "unit": "g",   "category": "grains",  "flags": []},
-    {"id": "beans",           "ru": "Фасоль сухая",            "en": "Dry beans",              "unit": "g",   "category": "grains",  "flags": []},
-    {"id": "chickpeas",       "ru": "Нут",                     "en": "Chickpeas",              "unit": "g",   "category": "grains",  "flags": []},
-    {"id": "potato",          "ru": "Картофель",               "en": "Potatoes",               "unit": "g",   "category": "produce", "flags": []},
-    {"id": "onion",           "ru": "Лук репчатый",            "en": "Onions",                 "unit": "g",   "category": "produce", "flags": []},
-    {"id": "carrot",          "ru": "Морковь",                 "en": "Carrots",                "unit": "g",   "category": "produce", "flags": []},
-    {"id": "cabbage",         "ru": "Капуста белокочанная",    "en": "White cabbage",          "unit": "g",   "category": "produce", "flags": []},
-    {"id": "beet",            "ru": "Свёкла",                  "en": "Beets",                  "unit": "g",   "category": "produce", "flags": []},
-    {"id": "tomato",          "ru": "Помидоры",                "en": "Tomatoes",               "unit": "g",   "category": "produce", "flags": []},
-    {"id": "cucumber",        "ru": "Огурцы",                  "en": "Cucumbers",              "unit": "g",   "category": "produce", "flags": []},
-    {"id": "bell_pepper",     "ru": "Перец болгарский",        "en": "Bell peppers",           "unit": "g",   "category": "produce", "flags": []},
-    {"id": "garlic",          "ru": "Чеснок",                  "en": "Garlic",                 "unit": "g",   "category": "produce", "flags": []},
-    {"id": "zucchini",        "ru": "Кабачки",                 "en": "Zucchini",               "unit": "g",   "category": "produce", "flags": []},
-    {"id": "greens",          "ru": "Зелень (укроп, петрушка)", "en": "Fresh herbs",           "unit": "g",   "category": "produce", "flags": []},
-    {"id": "mushrooms",       "ru": "Шампиньоны",              "en": "Mushrooms",              "unit": "g",   "category": "produce", "flags": []},
-    {"id": "apple",           "ru": "Яблоки",                  "en": "Apples",                 "unit": "g",   "category": "produce", "flags": []},
-    {"id": "banana",          "ru": "Бананы",                  "en": "Bananas",                "unit": "g",   "category": "produce", "flags": []},
-    {"id": "chicken_legs",    "ru": "Куриные окорочка",        "en": "Chicken leg quarters",   "unit": "g",   "category": "meat",    "flags": ["poultry"]},
-    {"id": "chicken_breast",  "ru": "Куриное филе",            "en": "Chicken breast",         "unit": "g",   "category": "meat",    "flags": ["poultry"]},
-    {"id": "ground_beef",     "ru": "Фарш говяжий",            "en": "Ground beef",            "unit": "g",   "category": "meat",    "flags": ["meat"]},
-    {"id": "beef",            "ru": "Говядина (лопатка)",      "en": "Beef (chuck)",           "unit": "g",   "category": "meat",    "flags": ["meat"]},
-    {"id": "pork",            "ru": "Свинина",                 "en": "Pork",                   "unit": "g",   "category": "meat",    "flags": ["meat", "pork"]},
-    {"id": "fish_fillet",     "ru": "Филе белой рыбы (замор.)", "en": "White fish fillet (frozen)", "unit": "g", "category": "fish", "flags": ["fish"]},
-    {"id": "eggs",            "ru": "Яйца",                    "en": "Eggs",                   "unit": "pcs", "category": "dairy",   "flags": ["egg"]},
-    {"id": "milk",            "ru": "Молоко",                  "en": "Milk",                   "unit": "ml",  "category": "dairy",   "flags": ["dairy"]},
-    {"id": "kefir",           "ru": "Кефир",                   "en": "Kefir",                  "unit": "ml",  "category": "dairy",   "flags": ["dairy"]},
-    {"id": "sour_cream",      "ru": "Сметана",                 "en": "Sour cream",             "unit": "g",   "category": "dairy",   "flags": ["dairy"]},
-    {"id": "tvorog",          "ru": "Творог",                  "en": "Cottage cheese / quark", "unit": "g",   "category": "dairy",   "flags": ["dairy"]},
-    {"id": "cheese",          "ru": "Сыр твёрдый",             "en": "Hard cheese",            "unit": "g",   "category": "dairy",   "flags": ["dairy"]},
-    {"id": "butter",          "ru": "Масло сливочное",         "en": "Butter",                 "unit": "g",   "category": "dairy",   "flags": ["dairy"]},
-    {"id": "oil",             "ru": "Масло растительное",      "en": "Vegetable oil",          "unit": "ml",  "category": "pantry",  "flags": []},
-    {"id": "sugar",           "ru": "Сахар",                   "en": "Sugar",                  "unit": "g",   "category": "pantry",  "flags": []},
-    {"id": "tomato_paste",    "ru": "Томатная паста",          "en": "Tomato paste",           "unit": "g",   "category": "pantry",  "flags": []},
-    {"id": "canned_tomatoes", "ru": "Томаты в собственном соку", "en": "Canned tomatoes",      "unit": "g",   "category": "pantry",  "flags": []}
-  ]
+ "_comment": "unit — базовая единица учёта (g, ml, pcs). flags — свойства для диет-фильтров: meat, pork, poultry, fish, dairy, egg, gluten.",
+ "ingredients": [
+  {
+   "id": "buckwheat",
+   "ru": "Гречка",
+   "en": "Buckwheat",
+   "unit": "g",
+   "category": "grains",
+   "flags": []
+  },
+  {
+   "id": "rice",
+   "ru": "Рис",
+   "en": "Rice",
+   "unit": "g",
+   "category": "grains",
+   "flags": []
+  },
+  {
+   "id": "oats",
+   "ru": "Овсяные хлопья",
+   "en": "Rolled oats",
+   "unit": "g",
+   "category": "grains",
+   "flags": [
+    "gluten"
+   ]
+  },
+  {
+   "id": "pasta",
+   "ru": "Макароны",
+   "en": "Pasta",
+   "unit": "g",
+   "category": "grains",
+   "flags": [
+    "gluten"
+   ]
+  },
+  {
+   "id": "flour",
+   "ru": "Мука пшеничная",
+   "en": "Wheat flour",
+   "unit": "g",
+   "category": "grains",
+   "flags": [
+    "gluten"
+   ]
+  },
+  {
+   "id": "bread",
+   "ru": "Хлеб",
+   "en": "Bread",
+   "unit": "g",
+   "category": "bakery",
+   "flags": [
+    "gluten"
+   ]
+  },
+  {
+   "id": "lentils",
+   "ru": "Чечевица красная",
+   "en": "Red lentils",
+   "unit": "g",
+   "category": "grains",
+   "flags": []
+  },
+  {
+   "id": "beans",
+   "ru": "Фасоль сухая",
+   "en": "Dry beans",
+   "unit": "g",
+   "category": "grains",
+   "flags": []
+  },
+  {
+   "id": "chickpeas",
+   "ru": "Нут",
+   "en": "Chickpeas",
+   "unit": "g",
+   "category": "grains",
+   "flags": []
+  },
+  {
+   "id": "potato",
+   "ru": "Картофель",
+   "en": "Potatoes",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  },
+  {
+   "id": "onion",
+   "ru": "Лук репчатый",
+   "en": "Onions",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  },
+  {
+   "id": "carrot",
+   "ru": "Морковь",
+   "en": "Carrots",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  },
+  {
+   "id": "cabbage",
+   "ru": "Капуста белокочанная",
+   "en": "White cabbage",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  },
+  {
+   "id": "beet",
+   "ru": "Свёкла",
+   "en": "Beets",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  },
+  {
+   "id": "tomato",
+   "ru": "Помидоры",
+   "en": "Tomatoes",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  },
+  {
+   "id": "cucumber",
+   "ru": "Огурцы",
+   "en": "Cucumbers",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  },
+  {
+   "id": "bell_pepper",
+   "ru": "Перец болгарский",
+   "en": "Bell peppers",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  },
+  {
+   "id": "garlic",
+   "ru": "Чеснок",
+   "en": "Garlic",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  },
+  {
+   "id": "zucchini",
+   "ru": "Кабачки",
+   "en": "Zucchini",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  },
+  {
+   "id": "greens",
+   "ru": "Зелень (укроп, петрушка)",
+   "en": "Fresh herbs",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  },
+  {
+   "id": "mushrooms",
+   "ru": "Шампиньоны",
+   "en": "Mushrooms",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  },
+  {
+   "id": "apple",
+   "ru": "Яблоки",
+   "en": "Apples",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  },
+  {
+   "id": "banana",
+   "ru": "Бананы",
+   "en": "Bananas",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  },
+  {
+   "id": "chicken_legs",
+   "ru": "Куриные окорочка",
+   "en": "Chicken leg quarters",
+   "unit": "g",
+   "category": "meat",
+   "flags": [
+    "poultry"
+   ]
+  },
+  {
+   "id": "chicken_breast",
+   "ru": "Куриное филе",
+   "en": "Chicken breast",
+   "unit": "g",
+   "category": "meat",
+   "flags": [
+    "poultry"
+   ]
+  },
+  {
+   "id": "ground_beef",
+   "ru": "Фарш говяжий",
+   "en": "Ground beef",
+   "unit": "g",
+   "category": "meat",
+   "flags": [
+    "meat"
+   ]
+  },
+  {
+   "id": "beef",
+   "ru": "Говядина (лопатка)",
+   "en": "Beef (chuck)",
+   "unit": "g",
+   "category": "meat",
+   "flags": [
+    "meat"
+   ]
+  },
+  {
+   "id": "pork",
+   "ru": "Свинина",
+   "en": "Pork",
+   "unit": "g",
+   "category": "meat",
+   "flags": [
+    "meat",
+    "pork"
+   ]
+  },
+  {
+   "id": "fish_fillet",
+   "ru": "Филе белой рыбы (замор.)",
+   "en": "White fish fillet (frozen)",
+   "unit": "g",
+   "category": "fish",
+   "flags": [
+    "fish"
+   ]
+  },
+  {
+   "id": "eggs",
+   "ru": "Яйца",
+   "en": "Eggs",
+   "unit": "pcs",
+   "category": "dairy",
+   "flags": [
+    "egg"
+   ]
+  },
+  {
+   "id": "milk",
+   "ru": "Молоко",
+   "en": "Milk",
+   "unit": "ml",
+   "category": "dairy",
+   "flags": [
+    "dairy"
+   ]
+  },
+  {
+   "id": "kefir",
+   "ru": "Кефир",
+   "en": "Kefir",
+   "unit": "ml",
+   "category": "dairy",
+   "flags": [
+    "dairy"
+   ]
+  },
+  {
+   "id": "sour_cream",
+   "ru": "Сметана",
+   "en": "Sour cream",
+   "unit": "g",
+   "category": "dairy",
+   "flags": [
+    "dairy"
+   ]
+  },
+  {
+   "id": "tvorog",
+   "ru": "Творог",
+   "en": "Cottage cheese / quark",
+   "unit": "g",
+   "category": "dairy",
+   "flags": [
+    "dairy"
+   ]
+  },
+  {
+   "id": "cheese",
+   "ru": "Сыр твёрдый",
+   "en": "Hard cheese",
+   "unit": "g",
+   "category": "dairy",
+   "flags": [
+    "dairy"
+   ]
+  },
+  {
+   "id": "butter",
+   "ru": "Масло сливочное",
+   "en": "Butter",
+   "unit": "g",
+   "category": "dairy",
+   "flags": [
+    "dairy"
+   ]
+  },
+  {
+   "id": "oil",
+   "ru": "Масло растительное",
+   "en": "Vegetable oil",
+   "unit": "ml",
+   "category": "pantry",
+   "flags": []
+  },
+  {
+   "id": "sugar",
+   "ru": "Сахар",
+   "en": "Sugar",
+   "unit": "g",
+   "category": "pantry",
+   "flags": []
+  },
+  {
+   "id": "tomato_paste",
+   "ru": "Томатная паста",
+   "en": "Tomato paste",
+   "unit": "g",
+   "category": "pantry",
+   "flags": []
+  },
+  {
+   "id": "canned_tomatoes",
+   "ru": "Томаты в собственном соку",
+   "en": "Canned tomatoes",
+   "unit": "g",
+   "category": "pantry",
+   "flags": []
+  },
+  {
+   "id": "lamb",
+   "ru": "Баранина",
+   "en": "Lamb",
+   "unit": "g",
+   "category": "meat",
+   "flags": [
+    "meat"
+   ]
+  },
+  {
+   "id": "mung_beans",
+   "ru": "Маш",
+   "en": "Mung beans",
+   "unit": "g",
+   "category": "grains",
+   "flags": []
+  },
+  {
+   "id": "pumpkin",
+   "ru": "Тыква",
+   "en": "Pumpkin",
+   "unit": "g",
+   "category": "produce",
+   "flags": []
+  }
+ ]
 }
