@@ -129,7 +129,13 @@ curl -fsS "http://127.0.0.1:$CHECK_PORT/healthz" >/dev/null 2>&1 \
 
 if [ -n "$DOMAIN" ]; then
   say "Включаю HTTPS для $DOMAIN"
+  DOMAIN="${DOMAIN#https://}"; DOMAIN="${DOMAIN#http://}"; DOMAIN="${DOMAIN%%/*}"
   printf '%s {\n\tencode gzip\n\treverse_proxy %s:8080\n}\n' "$DOMAIN" "$NAME" > "$DIR/Caddyfile"
+  case "$DOMAIN" in
+    www.*) ;;
+    *) # www.домен → домен (сертификат для www выдаётся, если для www есть DNS-запись)
+       printf '\nwww.%s {\n\tredir https://%s{uri} permanent\n}\n' "$DOMAIN" "$DOMAIN" >> "$DIR/Caddyfile" ;;
+  esac
   docker run -d --name "$CADDY" --restart unless-stopped --network "$NET" \
     -p 80:80 -p 443:443 -p 443:443/udp \
     -v "$DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
