@@ -1,0 +1,152 @@
+{
+  "_comment": "Метаданные регионов. Цены — в data/prices/<CODE>.csv в местной валюте и в местной фасовке. city.index — поправочный коэффициент к базовым ценам региона (1.0 = базовый уровень).",
+  "regions": [
+    {
+      "code": "RU",
+      "name": "Россия",
+      "currency": "RUB",
+      "locale": "ru-RU",
+      "lang": "ru",
+      "price_date": "2025-11",
+      "price_basis": "сетевые супермаркеты эконом/средний сегмент (Пятёрочка, Магнит, Лента)",
+      "cities": [
+        {
+          "id": "default",
+          "name": "Другие города",
+          "index": 1.0
+        },
+        {
+          "id": "msk",
+          "name": "Москва",
+          "index": 1.15
+        },
+        {
+          "id": "spb",
+          "name": "Санкт-Петербург",
+          "index": 1.08
+        }
+      ],
+      "budget_hint_per_adult_week": 2200
+    },
+    {
+      "code": "BY",
+      "name": "Беларусь",
+      "currency": "BYN",
+      "locale": "ru-BY",
+      "lang": "ru",
+      "price_date": "2025-11",
+      "price_basis": "Евроопт, Санта, Гиппо",
+      "cities": [
+        {
+          "id": "default",
+          "name": "Другие города",
+          "index": 1.0
+        },
+        {
+          "id": "minsk",
+          "name": "Минск",
+          "index": 1.05
+        }
+      ],
+      "budget_hint_per_adult_week": 60
+    },
+    {
+      "code": "KZ",
+      "name": "Казахстан",
+      "currency": "KZT",
+      "locale": "ru-KZ",
+      "lang": "ru",
+      "price_date": "2025-11",
+      "price_basis": "Magnum, Small, рынки",
+      "cities": [
+        {
+          "id": "default",
+          "name": "Другие города",
+          "index": 1.0
+        },
+        {
+          "id": "ala",
+          "name": "Алматы",
+          "index": 1.07
+        },
+        {
+          "id": "ast",
+          "name": "Астана",
+          "index": 1.1
+        }
+      ],
+      "budget_hint_per_adult_week": 10000
+    },
+    {
+      "code": "UZ",
+      "name": "Узбекистан",
+      "currency": "UZS",
+      "locale": "ru-UZ",
+      "lang": "ru",
+      "price_date": "2025-11",
+      "price_basis": "Korzinka, Makro, базары",
+      "cities": [
+        {
+          "id": "default",
+          "name": "Другие города",
+          "index": 1.0
+        },
+        {
+          "id": "tas",
+          "name": "Ташкент",
+          "index": 1.1
+        }
+      ],
+      "budget_hint_per_adult_week": 250000
+    },
+    {
+      "code": "DE",
+      "name": "Германия",
+      "currency": "EUR",
+      "locale": "de-DE",
+      "lang": "en",
+      "price_date": "2025-11",
+      "price_basis": "дискаунтеры (Aldi, Lidl), собственные марки",
+      "cities": [
+        {
+          "id": "default",
+          "name": "Средний уровень",
+          "index": 1.0
+        },
+        {
+          "id": "muc",
+          "name": "Мюнхен",
+          "index": 1.06
+        }
+      ],
+      "budget_hint_per_adult_week": 25
+    },
+    {
+      "code": "US",
+      "name": "США",
+      "currency": "USD",
+      "locale": "en-US",
+      "lang": "en",
+      "price_date": "2025-11",
+      "price_basis": "Walmart / Kroger, store brand",
+      "cities": [
+        {
+          "id": "default",
+          "name": "Средний уровень",
+          "index": 1.0
+        },
+        {
+          "id": "nyc",
+          "name": "Нью-Йорк",
+          "index": 1.2
+        },
+        {
+          "id": "sf",
+          "name": "Сан-Франциско",
+          "index": 1.22
+        }
+      ],
+      "budget_hint_per_adult_week": 40
+    }
+  ]
+}

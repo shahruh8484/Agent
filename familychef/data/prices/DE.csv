@@ -1,0 +1,41 @@
+ingredient,pack_size,pack_label,price
+buckwheat,500,500 g,2.29
+rice,1000,1 kg,1.89
+oats,500,500 g,0.79
+pasta,500,500 g,0.99
+flour,1000,1 kg,0.69
+bread,500,500 g,1.49
+lentils,500,500 g,1.79
+beans,500,500 g,1.69
+chickpeas,500,500 g,1.79
+potato,2500,2.5 kg,2.49
+onion,1000,1 kg,1.19
+carrot,1000,1 kg,0.99
+cabbage,1000,1 kg,1.29
+beet,500,500 g,1.29
+tomato,1000,1 kg,2.99
+cucumber,400,1 Stück (~400 g),0.69
+bell_pepper,500,500 g,1.99
+garlic,150,3 Knollen (150 g),0.89
+zucchini,1000,1 kg,2.49
+greens,50,Bund 50 g,0.99
+mushrooms,400,400 g,1.99
+apple,1000,1 kg,1.99
+banana,1000,1 kg,1.39
+chicken_legs,1000,1 kg,4.99
+chicken_breast,1000,1 kg,8.99
+ground_beef,500,500 g,5.49
+beef,500,Rindergulasch 500 g,6.99
+pork,500,Schweinegulasch 500 g,3.99
+fish_fillet,400,Alaska-Seelachs 400 g,3.29
+eggs,10,10 Stück,2.49
+milk,1000,1 l,1.05
+kefir,500,500 ml,0.99
+sour_cream,200,Schmand 200 g,0.69
+tvorog,500,Speisequark 500 g,1.39
+cheese,400,Gouda 400 g,3.49
+butter,250,250 g,2.19
+oil,1000,1 l,1.89
+sugar,1000,1 kg,0.89
+tomato_paste,200,200 g,0.79
+canned_tomatoes,400,400 g,0.69

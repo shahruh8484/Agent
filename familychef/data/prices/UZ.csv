@@ -1,0 +1,40 @@
+ingredient,pack_size,pack_label,price
+buckwheat,1000,1 кг,20000
+rice,1000,1 кг (девзира/лазер),18000
+oats,500,500 г,10000
+pasta,400,400 г,8000
+flour,2000,2 кг,14000
+bread,500,буханка 500 г,5000
+lentils,1000,1 кг,20000
+beans,1000,1 кг,22000
+chickpeas,1000,1 кг,18000
+potato,1000,1 кг,5000
+onion,1000,1 кг,4000
+carrot,1000,1 кг,4000
+cabbage,1000,1 кг,3000
+beet,1000,1 кг,4000
+tomato,1000,1 кг,15000
+cucumber,1000,1 кг,14000
+bell_pepper,1000,1 кг,20000
+garlic,100,100 г,3000
+zucchini,1000,1 кг,10000
+greens,50,пучок 50 г,2000
+mushrooms,400,400 г,20000
+apple,1000,1 кг,12000
+banana,1000,1 кг,18000
+chicken_legs,1000,1 кг,35000
+chicken_breast,1000,1 кг,50000
+ground_beef,1000,1 кг,100000
+beef,1000,1 кг,105000
+fish_fillet,1000,1 кг,55000
+eggs,10,десяток,15000
+milk,1000,1 л,13000
+kefir,1000,1 л,12000
+sour_cream,400,400 г,18000
+tvorog,400,400 г,20000
+cheese,200,200 г,22000
+butter,200,200 г,25000
+oil,1000,1 л,22000
+sugar,1000,1 кг,12000
+tomato_paste,400,400 г,15000
+canned_tomatoes,400,400 г,20000

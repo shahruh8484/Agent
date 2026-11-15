@@ -1,0 +1,11 @@
+{
+  "name": "FamilyChef",
+  "short_name": "FamilyChef",
+  "description": "Меню на неделю и список покупок по местным ценам",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f5f1",
+  "theme_color": "#2f7d4f",
+  "lang": "ru",
+  "icons": [{"src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]
+}

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FamilyChef</title>
+  <meta name="description" content="Меню на неделю для семьи по местным ценам, расчёт ингредиентов и список покупок.">
+  <meta name="theme-color" content="#2f7d4f">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <h1><img src="/static/icon.svg" alt="" width="28" height="28"> FamilyChef</h1>
+    <p class="sub">Меню на неделю, расчёт продуктов и список покупок по ценам вашего региона</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <form id="planForm" class="card" autocomplete="off">
+    <div class="grid2">
+      <label>Страна
+        <select id="region" name="region"></select>
+      </label>
+      <label>Город
+        <select id="city" name="city"></select>
+      </label>
+    </div>
+
+    <div class="grid3">
+      <label>Взрослые
+        <input id="adults" type="number" min="0" max="20" value="2" inputmode="numeric">
+      </label>
+      <label>Дети (3–12 лет)
+        <input id="children" type="number" min="0" max="20" value="1" inputmode="numeric">
+      </label>
+      <label>Бюджет на неделю, <span id="currencyLabel">RUB</span>
+        <input id="budget" type="number" min="1" step="any" required inputmode="decimal">
+      </label>
+    </div>
+    <p class="hint" id="budgetHint"></p>
+
+    <fieldset>
+      <legend>Какие приёмы пищи планировать</legend>
+      <div class="chips" id="meals">
+        <label class="chip"><input type="checkbox" value="breakfast" checked> Завтрак</label>
+        <label class="chip"><input type="checkbox" value="lunch" checked> Обед</label>
+        <label class="chip"><input type="checkbox" value="dinner" checked> Ужин</label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Питание</legend>
+      <div class="chips" id="diets">
+        <label class="chip"><input type="checkbox" value="vegetarian"> Вегетарианское</label>
+        <label class="chip"><input type="checkbox" value="vegan"> Веганское</label>
+        <label class="chip"><input type="checkbox" value="pescatarian"> Без мяса, рыба можно</label>
+        <label class="chip"><input type="checkbox" value="no_pork"> Без свинины</label>
+        <label class="chip"><input type="checkbox" value="no_fish"> Без рыбы</label>
+        <label class="chip"><input type="checkbox" value="gluten_free"> Без глютена</label>
+        <label class="chip"><input type="checkbox" value="lactose_free"> Без молочного</label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Хотим чаще</legend>
+      <div class="chips" id="favorites">
+        <label class="chip"><input type="checkbox" value="quick"> Быстрые блюда</label>
+        <label class="chip"><input type="checkbox" value="soup"> Супы</label>
+        <label class="chip"><input type="checkbox" value="fish"> Рыбу</label>
+        <label class="chip"><input type="checkbox" value="kids"> Детские блюда</label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Не используем (аллергия или не любим)</legend>
+      <div class="row">
+        <select id="excludeSelect"><option value="">— выберите продукт —</option></select>
+        <button type="button" class="btn ghost" id="excludeAdd">Добавить</button>
+      </div>
+      <div class="chips removable" id="excludeList"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Уже есть дома</legend>
+      <div id="pantryRows"></div>
+      <button type="button" class="btn ghost" id="pantryAdd">+ Добавить продукт</button>
+    </fieldset>
+
+    <button type="submit" class="btn primary big" id="submitBtn">Составить меню</button>
+    <p class="error" id="formError" role="alert"></p>
+  </form>
+
+  <section id="result" hidden>
+    <div class="card summary" id="summary"></div>
+    <div id="warnings"></div>
+
+    <h2>Меню на неделю</h2>
+    <div class="week" id="week"></div>
+
+    <div class="list-head">
+      <h2>Список покупок</h2>
+      <div class="actions">
+        <button class="btn ghost" id="shareBtn" type="button">Поделиться</button>
+        <button class="btn ghost" id="printBtn" type="button">Печать</button>
+      </div>
+    </div>
+    <p class="hint">Цена отличается от вашего магазина? Исправьте цену за упаковку и нажмите «Пересчитать» — меню подстроится под ваши цены.</p>
+    <div id="shopping"></div>
+    <div class="row sticky-actions">
+      <button class="btn primary" id="recalcBtn" type="button" disabled>Пересчитать с моими ценами</button>
+      <button class="btn ghost" id="resetPricesBtn" type="button">Сбросить мои цены</button>
+      <button class="btn ghost" id="anotherBtn" type="button">Другой вариант меню</button>
+    </div>
+
+    <div class="grid2">
+      <div class="card" id="pantryUsedCard"></div>
+      <div class="card" id="leftoversCard"></div>
+    </div>
+    <ul class="notes" id="notes"></ul>
+  </section>
+</main>
+
+<dialog id="recipeDialog">
+  <article id="recipeBody"></article>
+  <form method="dialog"><button class="btn primary">Закрыть</button></form>
+</dialog>
+
+<footer class="wrap foot">FamilyChef · цены ориентировочные, обновляются по регионам</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>
